@@ -1,0 +1,1302 @@
+_PyOOSQL_wrap.c
+
+[ Python Module : _PyOOSQL ]
+
+
+1.  Pointer Handling Library
+============================
+
+%include pointer.i
+
+The pointer.i library provides run-time support for managing and 
+manipulating a variety of C/C++ pointer values.  In particular,
+you can create various kinds of objects and dereference common
+pointer types.  This is done through a common set of functions:
+
+    ptrcast      - Casts a pointer to a new type
+    ptrvalue     - Dereferences a pointer 
+    ptrset       - Set the value of an object referenced by 
+                   a pointer.
+    ptrcreate    - Create a new object and return a pointer.
+    ptrfree      - Free the memory allocated by ptrcreate.
+    ptradd       - Increment/decrement a pointer value.
+    ptrmap       - Make two datatypes equivalent to each other.
+                   (Is a runtime equivalent of typedef).
+
+When creating, dereferencing, or setting the value of pointer
+variable, only the common C datatypes of int, short, long, float,
+double, char, and char * are currently supported.   Other
+datatypes may generate an error.
+
+One of the more interesting aspects of this library is that
+it operates with a wide range of datatypes.  For example,
+the "ptrvalue" function can dereference "double *", "int *",
+"long *", "char *", and other datatypes. Since SWIG encodes
+pointers with type information, this can be done transparently
+and in most cases, you can dereference a pointer without
+ever knowing what type it actually is.
+
+This library is primarily designed for utility, not high 
+performance (the dynamic determination of pointer types takes
+more work than most normal wrapper functions).  As a result,
+you may achieve better performance by writing customized
+"helper" functions if you're making lots of calls to these
+functions in inner loops or other intensive operations.
+
+ptrcast(ptr,type)
+        Casts a pointer ptr to a new datatype given by the string type.
+        type may be either the SWIG generated representation of a datatype
+        or the C representation.  For example :
+        
+           ptrcast(ptr,"double_p");   # Python representation
+           ptrcast(ptr,"double *");    # C representation
+        
+        A new pointer value is returned.   ptr may also be an integer
+        value in which case the value will be used to set the pointer
+        value.  For example :
+        
+           a = ptrcast(0,"Vector_p");
+        
+        Will create a NULL pointer of type "Vector_p"
+        
+        The casting operation is sensitive to formatting.  As a result,
+        "double *" is different than "double*".  As a result of thumb,
+        there should always be exactly one space between the C datatype
+        and any pointer specifiers (*).
+        
+ptrvalue(ptr,index,type)
+        Returns the value that a pointer is pointing to (ie. dereferencing).
+        The type is automatically inferred by the pointer type--thus, an
+        integer pointer will return an integer, a double will return a double,
+        and so on.   The index and type fields are optional parameters.  When
+        an index is specified, this function returns the value of ptr[index].
+        This allows array access.   When a type is specified, it overrides
+        the given pointer type.   Examples :
+        
+           ptrvalue(a)             #  Returns the value *a
+           ptrvalue(a,10)          #  Returns the value a[10]
+           ptrvalue(a,10,"double") #  Returns a[10] assuming a is a double *
+        
+ptrset(ptr,value,index,type)
+        Sets the value pointed to by a pointer.  The type is automatically
+        inferred from the pointer type so this function will work for
+        integers, floats, doubles, etc...  The index and type fields are
+        optional.  When an index is given, it provides array access.  When
+        type is specified, it overrides the given pointer type.  Examples :
+        
+          ptrset(a,3)            # Sets the value *a = 3
+          ptrset(a,3,10)         # Sets a[10] = 3
+          ptrset(a,3,10,"int")   # Sets a[10] = 3 assuming a is a int *
+        
+ptrcreate(type,value,nitems)
+        Creates a new object and returns a pointer to it.  This function 
+        can be used to create various kinds of objects for use in C functions.
+        type specifies the basic C datatype to create and value is an
+        optional parameter that can be used to set the initial value of the
+        object.  nitems is an optional parameter that can be used to create
+        an array.  This function results in a memory allocation using
+        malloc().  Examples :
+        
+          a = ptrcreate("double")     # Create a new double, return pointer
+          a = ptrcreate("int",7)      # Create an integer, set value to 7
+          a = ptrcreate("int",0,1000) # Create an integer array with initial
+                                      # values all set to zero
+        
+        This function only recognizes a few common C datatypes as listed below :
+        
+               int, short, long, float, double, char, char *, void
+        
+        All other datatypes will result in an error.  However, other
+        datatypes can be created by using the ptrcast function.  For
+        example:
+        
+         a = ptrcast(ptrcreate("int",0,100),"unsigned int *")
+        
+ptrfree(ptr)
+        Destroys the memory pointed to by ptr.  This function calls free()
+        and should only be used with objects created by ptrcreate().  Since
+        this function calls free, it may work with other objects, but this
+        is generally discouraged unless you absolutely know what you're
+        doing.
+        
+ptradd(ptr,offset)
+        Adds a value to the current pointer value.  For the C datatypes of
+        int, short, long, float, double, and char, the offset value is the
+        number of objects and works in exactly the same manner as in C.  For
+        example, the following code steps through the elements of an array
+        
+         a = ptrcreate("double",0,100);    # Create an array double a[100]
+         b = a;
+         for i in range(0,100):
+             ptrset(b,0.0025*i);           # set *b = 0.0025*i
+             b = ptradd(b,1);              # b++ (go to next double)
+        
+        In this case, adding one to b goes to the next double.
+        
+        For all other datatypes (including all complex datatypes), the
+        offset corresponds to bytes.  This function does not perform any
+        bounds checking and negative offsets are perfectly legal.  
+        
+ptrmap(type1,type2)
+        This is a rarely used function that performs essentially the same
+        operation as a C typedef.  To manage datatypes at run-time, SWIG
+        modules manage an internal symbol table of type mappings.  This
+        table keeps track of which types are equivalent to each other.  The
+        ptrmap() function provides a mechanism for scripts to add symbols
+        to this table.  For example :
+        
+           ptrmap("double_p","Real_p");
+        
+        would make the types "doublePtr" and "RealPtr" equivalent to each
+        other.  Pointers of either type could now be used interchangably.
+        
+        Normally this function is not needed, but it can be used to
+        circumvent SWIG's normal type-checking behavior or to work around
+        weird type-handling problems.
+        
+2.  Memory Manipulation Module
+==============================
+
+%include memory.i
+
+This module provides support for a few memory operations from the C
+<string.h> library.  These functions can be used to manipulate binary
+data. s and t are of type void *, cs and ct are both of type const void *.
+
+memcpy(s,ct,n)
+        [ returns void * ]
+        Copy n characters from ct to s, and return s   
+        
+memmove(s,ct,n)
+        [ returns void * ]
+        Same as memcpy except that it works even if the objects overlap.   
+        
+memcmp(cs,ct,n)
+        [ returns int  ]
+        Compare the first n characters of cs with ct.  Returns 0 if
+        they are equal, <0 if cs < ct, and >0 if cs > ct.   
+        
+memchr(cs,c,n)
+        [ returns void * ]
+        Returns pointer to the first occurrence of character c in cs.   
+        
+memset(s,c,n)
+        [ returns void * ]
+        Place character c into first n characters of s, return s   
+        
+OOSQL_COMPLEXTYPE_BASIC = 0
+        [ Constant: int  ]
+
+OOSQL_COMPLEXTYPE_SET = 3
+        [ Constant: int  ]
+
+OOSQL_COMPLEXTYPE_BAG = 4
+        [ Constant: int  ]
+
+OOSQL_COMPLEXTYPE_LIST = 5
+        [ Constant: int  ]
+
+OOSQL_TYPE_SMALLINT = 0
+        [ Constant: int  ]
+
+OOSQL_TYPE_SHORT = 0
+        [ Constant: int  ]
+
+OOSQL_TYPE_INTEGER = 1
+        [ Constant: int  ]
+
+OOSQL_TYPE_INT = 1
+        [ Constant: int  ]
+
+OOSQL_TYPE_LONG = 2
+        [ Constant: int  ]
+
+OOSQL_TYPE_REAL = 3
+        [ Constant: int  ]
+
+OOSQL_TYPE_FLOAT = 3
+        [ Constant: int  ]
+
+OOSQL_TYPE_DOUBLE = 4
+        [ Constant: int  ]
+
+OOSQL_TYPE_CHAR = 5
+        [ Constant: int  ]
+
+OOSQL_TYPE_STRING = 5
+        [ Constant: int  ]
+
+OOSQL_TYPE_VARCHAR = 6
+        [ Constant: int  ]
+
+OOSQL_TYPE_VARSTRING = 6
+        [ Constant: int  ]
+
+OOSQL_TYPE_OID = 10
+        [ Constant: int  ]
+
+OOSQL_TYPE_TEXT = 39
+        [ Constant: int  ]
+
+OOSQL_TYPE_DATE = 50
+        [ Constant: int  ]
+
+OOSQL_TYPE_TIME = 51
+        [ Constant: int  ]
+
+OOSQL_TYPE_TIMESTAMP = 52
+        [ Constant: int  ]
+        
+OOSQL_TYPE_LONG_LONG = 14
+        [ Constant: int  ]
+
+OOSQL_TYPE_SMALLINT_SIZE = sizeof(Two_Invariable)
+        [ Constant: int  ]
+
+OOSQL_TYPE_SHORT_SIZE = sizeof(Two_Invariable)
+        [ Constant: int  ]
+
+OOSQL_TYPE_INTEGER_SIZE = sizeof(Four_Invariable)
+        [ Constant: int  ]
+
+OOSQL_TYPE_INT_SIZE = sizeof(Four_Invariable)
+        [ Constant: int  ]
+
+OOSQL_TYPE_LONG_SIZE = sizeof(Four_Invariable)
+        [ Constant: int  ]
+
+OOSQL_TYPE_LONG_LONG_SIZE = sizeof(Eight_Invariable)
+        [ Constant: int  ]
+        
+OOSQL_TYPE_REAL_SIZE = sizeof(float)
+        [ Constant: int  ]
+
+OOSQL_TYPE_FLOAT_SIZE = sizeof(float)
+        [ Constant: int  ]
+
+OOSQL_TYPE_DOUBLE_SIZE = sizeof(double)
+        [ Constant: int  ]
+
+OOSQL_TYPE_OID_SIZE = sizeof(OID)
+        [ Constant: int  ]
+
+OOSQL_TYPE_DATE_SIZE = sizeof(long)
+        [ Constant: int  ]
+
+OOSQL_TYPE_TIME_SIZE = sizeof(long)
+        [ Constant: int  ]
+
+OOSQL_TYPE_TIMESTAMP_SIZE = sizeof(long)
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_SMALLINT = (((3)<<16)|(0))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_SHORT = (((3)<<16)|(0))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_INTEGER = (((3)<<16)|(1))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_INT = (((3)<<16)|(1))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_LONG = (((3)<<16)|(2))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_REAL = (((3)<<16)|(3))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_FLOAT = (((3)<<16)|(3))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_DOUBLE = (((3)<<16)|(4))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_CHAR = (((3)<<16)|(5))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_STRING = (((3)<<16)|(5))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_VARCHAR = (((3)<<16)|(6))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_VARSTRING = (((3)<<16)|(6))
+        [ Constant: int  ]
+
+OOSQL_TYPE_SET_OID = (((3)<<16)|(10))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_SMALLINT = (((4)<<16)|(0))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_SHORT = (((4)<<16)|(0))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_INTEGER = (((4)<<16)|(1))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_INT = (((4)<<16)|(1))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_LONG = (((4)<<16)|(2))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_REAL = (((4)<<16)|(3))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_FLOAT = (((4)<<16)|(3))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_DOUBLE = (((4)<<16)|(4))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_CHAR = (((4)<<16)|(5))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_STRING = (((4)<<16)|(5))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_VARCHAR = (((4)<<16)|(6))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_VARSTRING = (((4)<<16)|(6))
+        [ Constant: int  ]
+
+OOSQL_TYPE_BAG_OID = (((4)<<16)|(10))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_SMALLINT = (((5)<<16)|(0))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_SHORT = (((5)<<16)|(0))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_INTEGER = (((5)<<16)|(1))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_INT = (((5)<<16)|(1))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_LONG = (((5)<<16)|(2))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_REAL = (((5)<<16)|(3))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_FLOAT = (((5)<<16)|(3))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_DOUBLE = (((5)<<16)|(4))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_CHAR = (((5)<<16)|(5))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_STRING = (((5)<<16)|(5))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_VARCHAR = (((5)<<16)|(6))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_VARSTRING = (((5)<<16)|(6))
+        [ Constant: int  ]
+
+OOSQL_TYPE_LIST_OID = (((5)<<16)|(10))
+        [ Constant: int  ]
+
+OOSQL_TEXT_IN_DB = 0
+        [ Constant: int  ]
+
+OOSQL_TEXT_IN_FILE = 1
+        [ Constant: int  ]
+
+OOSQL_TEXT_IN_MEMORY = 2
+        [ Constant: int  ]
+
+OOSQL_TEXT_DONE = 1
+        [ Constant: int  ]
+        
+TRUE = 1
+        [ Constant: int  ]
+
+FALSE = 0
+        [ Constant: int  ]
+
+OOSQL_MASK_COMPLEXTYPE(x)
+        [ returns unsigned int  ]
+
+OOSQL_MASK_TYPE(x)
+        [ returns unsigned int  ]
+
+OOSQL_MULTIPLERESULT_HEADER_SIZE(nColumns)
+        [ returns Four  ]
+
+OOSQL_MULTIPLERESULT_NTH_OBJECT_OFFSET(headerBuffer,nColumns,i)
+        [ returns Four  ]
+
+OOSQL_MULTIPLERESULT_NTH_OBJECT_SIZE(headerBuffer,nColumns,i)
+        [ returns Four  ]
+
+OOSQL_MULTIPLERESULT_NTH_OBJECT_ITH_COLUMN_ISNULL(headerBuffer,nColumns,i,j)
+        [ returns Four  ]
+
+OOSQL_MULTIPLERESULT_NTH_OBJECT_ITH_COLUMN_SIZE(headerBuffer,nColumns,i,j)
+        [ returns Four  ]
+
+OOSQL_MULTIPLERESULT_NTH_OBJECT_ITH_COLUMN_REALSIZE(headerBuffer,nColumns,i,j)
+        [ returns int  ]
+
+OOSQL_MULTIPLERESULT_NTH_OBJECT_ITH_COLUMN_OID(headerBuffer,nColumns,i,j)
+        [ returns OID * ]
+
+OOSQL_MULTIPLERESULT_NTH_OBJECT_ITH_COLUMN_COLNO(headerBuffer,nColumns,i,j)
+        [ returns Four  ]
+
+2.1.  class XactID
+------------------
+[ created from struct XactID ]
+
+
+XactID()
+        [ Constructor: returns XactID * ]
+
+self.high
+        [ Member data: returns Four  ]
+
+self.low
+        [ Member data: returns Four  ]
+
+2.2.  class OID
+---------------
+[ created from struct OID ]
+
+OID is used accross the volumes   
+
+
+OID()
+        [ Constructor: returns OID * ]
+
+self.pageNo
+        [ Member data: returns Four  ]
+        specify the page holding the object   
+        
+self.volNo
+        [ Member data: returns Two  ]
+        specify the volume in which object is in   
+        
+self.slotNo
+        [ Member data: returns Two  ]
+        specify the slot within the page   
+        
+self.unique
+        [ Member data: returns Four  ]
+        Unique No for checking dangling object   
+        
+self.classID
+        [ Member data: returns Four  ]
+        specify the class including the object    
+        
+----------
+
+X_BROWSE_BROWSE = X_BROWSE_BROWSE
+        [ Constant: int  ]
+
+X_CS_BROWSE = X_CS_BROWSE
+        [ Constant: int  ]
+
+X_CS_CS = X_CS_CS
+        [ Constant: int  ]
+
+X_RR_BROWSE = X_RR_BROWSE
+        [ Constant: int  ]
+
+X_RR_CS = X_RR_CS
+        [ Constant: int  ]
+
+X_RR_RR = X_RR_RR
+        [ Constant: int  ]
+        isolation degree   
+        
+NIL = -1
+        [ Constant: int  ]
+
+ENDOFEVAL = 1
+        [ Constant: int  ]
+
+eNOERROR = 0
+        [ Constant: int  ]
+
+OOSQL_SB_USE_DISK = OOSQL_SB_USE_DISK
+        [ Constant: int  ]
+
+OOSQL_SB_USE_MEMORY = OOSQL_SB_USE_MEMORY
+        [ Constant: int  ]
+
+OOSQL_SB_USE_MEMORY_WITH_DISK = OOSQL_SB_USE_MEMORY_WITH_DISK
+        [ Constant: int  ]
+
+2.3.  class OOSQL_DiskSortBufferInfo
+------------------------------------
+[ created from struct OOSQL_DiskSortBufferInfo ]
+
+
+OOSQL_DiskSortBufferInfo()
+        [ Constructor: returns OOSQL_DiskSortBufferInfo * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.sortVolID
+        [ Member data: returns Four  ]
+
+2.4.  class OOSQL_MemorySortBufferInfo
+--------------------------------------
+[ created from struct OOSQL_MemorySortBufferInfo ]
+
+
+OOSQL_MemorySortBufferInfo()
+        [ Constructor: returns OOSQL_MemorySortBufferInfo * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.sortBufferPtr
+        [ Member data: returns void * ]
+
+self.sortBufferLength
+        [ Member data: returns Four  ]
+
+self.sortBufferUsedLength
+        [ Member data: returns Four  ]
+
+2.5.  class OOSQL_SortBufferInfo
+--------------------------------
+[ created from struct OOSQL_SortBufferInfo ]
+
+
+OOSQL_SortBufferInfo()
+        [ Constructor: returns OOSQL_SortBufferInfo * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.mode
+        [ Member data: returns OOSQL_SortBufferMode  ]
+
+self.diskInfo
+        [ Member data: returns OOSQL_DiskSortBufferInfo * ]
+
+self.memoryInfo
+        [ Member data: returns OOSQL_MemorySortBufferInfo * ]
+
+2.6.  class OOSQL_GetDataStruct
+-------------------------------
+[ created from struct OOSQL_GetDataStruct ]
+
+
+OOSQL_GetDataStruct()
+        [ Constructor: returns OOSQL_GetDataStruct * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.columnNumber
+        [ Member data: returns Two  ]
+
+self.startPos
+        [ Member data: returns Four  ]
+
+self.bufferPtr
+        [ Member data: returns void * ]
+
+self.bufferLength
+        [ Member data: returns Four  ]
+
+self.returnLength
+        [ Member data: returns Four  ]
+
+2.7.  class LOM_Handle
+----------------------
+[ created from struct LOM_Handle ]
+
+
+LOM_Handle()
+        [ Constructor: returns LOM_Handle * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.serverInstanceId
+        [ Member data: returns Four  ]
+
+self.instanceId
+        [ Member data: returns Four  ]
+
+----------
+
+DBM_MAXVOLUMENAME = 60
+        [ Constant: int  ]
+
+DBM_MAXDATABASENAME = 60
+        [ Constant: int  ]
+        MAXNUMOFVOLS is defined in param.h   
+        
+MAXNUMOFVOLS = 10
+        [ Constant: int  ]
+
+MAXNUMOFDEVICES = 100
+        [ Constant: int  ]
+
+MAX_NUM_EMBEDDEDATTRIBUTES = 24
+        [ Constant: int  ]
+
+2.8.  class OOSQL_SystemHandle
+------------------------------
+[ created from struct OOSQL_SystemHandle ]
+
+
+OOSQL_SystemHandle()
+        [ Constructor: returns OOSQL_SystemHandle * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.lomSystemHandle
+        [ Member data: returns LOM_Handle * ]
+
+self.instanceId
+        [ Member data: returns Four  ]
+
+----------
+
+OOSQL_GMT = OOSQL_GMT
+        [ Constant: int  ]
+
+OOSQL_GMT12 = OOSQL_GMT12
+        [ Constant: int  ]
+
+OOSQL_GMT_12 = OOSQL_GMT_12
+        [ Constant: int  ]
+
+OOSQL_GMT1 = OOSQL_GMT1
+        [ Constant: int  ]
+
+OOSQL_GMT_1 = OOSQL_GMT_1
+        [ Constant: int  ]
+
+OOSQL_GMT2 = OOSQL_GMT2
+        [ Constant: int  ]
+
+OOSQL_GMT_2 = OOSQL_GMT_2
+        [ Constant: int  ]
+
+OOSQL_GMT3 = OOSQL_GMT3
+        [ Constant: int  ]
+
+OOSQL_GMT_3 = OOSQL_GMT_3
+        [ Constant: int  ]
+
+OOSQL_GMT4 = OOSQL_GMT4
+        [ Constant: int  ]
+
+OOSQL_GMT_4 = OOSQL_GMT_4
+        [ Constant: int  ]
+
+OOSQL_GMT5 = OOSQL_GMT5
+        [ Constant: int  ]
+
+OOSQL_GMT_5 = OOSQL_GMT_5
+        [ Constant: int  ]
+
+OOSQL_GMT6 = OOSQL_GMT6
+        [ Constant: int  ]
+
+OOSQL_GMT_6 = OOSQL_GMT_6
+        [ Constant: int  ]
+
+OOSQL_GMT7 = OOSQL_GMT7
+        [ Constant: int  ]
+
+OOSQL_GMT_7 = OOSQL_GMT_7
+        [ Constant: int  ]
+
+OOSQL_GMT8 = OOSQL_GMT8
+        [ Constant: int  ]
+
+OOSQL_GMT_8 = OOSQL_GMT_8
+        [ Constant: int  ]
+
+OOSQL_GMT9 = OOSQL_GMT9
+        [ Constant: int  ]
+
+OOSQL_GMT_9 = OOSQL_GMT_9
+        [ Constant: int  ]
+
+OOSQL_GMT10 = OOSQL_GMT10
+        [ Constant: int  ]
+
+OOSQL_GMT_10 = OOSQL_GMT_10
+        [ Constant: int  ]
+
+OOSQL_GMT11 = OOSQL_GMT11
+        [ Constant: int  ]
+
+OOSQL_GMT_11 = OOSQL_GMT_11
+        [ Constant: int  ]
+
+OOSQL_USeastern = OOSQL_USeastern
+        [ Constant: int  ]
+
+OOSQL_UScentral = OOSQL_UScentral
+        [ Constant: int  ]
+
+OOSQL_USmoutain = OOSQL_USmoutain
+        [ Constant: int  ]
+
+OOSQL_USpacific = OOSQL_USpacific
+        [ Constant: int  ]
+
+2.9.  class OOSQL_Time
+----------------------
+[ created from struct OOSQL_Time ]
+
+
+OOSQL_Time()
+        [ Constructor: returns OOSQL_Time * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self._tzHour
+        [ Member data: returns short  ]
+
+self._tzMinute
+        [ Member data: returns short  ]
+
+self._Hour
+        [ Member data: returns short  ]
+
+self._Minute
+        [ Member data: returns short  ]
+
+self._Second
+        [ Member data: returns short  ]
+
+self._100thSec
+        [ Member data: returns short  ]
+
+2.10.  class OOSQL_Timestamp
+----------------------------
+[ created from struct OOSQL_Timestamp ]
+
+
+OOSQL_Timestamp()
+        [ Constructor: returns OOSQL_Timestamp * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.d
+        [ Member data: returns UFour_Invariable  ]
+        
+self.t
+        [ Member data: returns OOSQL_Time * ]
+
+2.11.  class OOSQL_PostingStructureInfo
+---------------------------------------
+[ created from struct OOSQL_PostingStructureInfo ]
+
+
+OOSQL_PostingStructureInfo()
+        [ Constructor: returns OOSQL_PostingStructureInfo * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.isContainingTupleID
+        [ Member data: returns Boolean  ]
+
+self.isContainingSentenceAndWordNum
+        [ Member data: returns Boolean  ]
+
+self.isContainingByteOffset
+        [ Member data: returns Boolean  ]
+
+self.nEmbeddedAttributes
+        [ Member data: returns Two  ]
+
+self.embeddedAttrNo
+        [ Member data: returns Two * ]
+
+2.12.  class OOSQL_ComplexTypeInfo
+----------------------------------
+[ created from struct OOSQL_ComplexTypeInfo ]
+
+
+OOSQL_ComplexTypeInfo()
+        [ Constructor: returns OOSQL_ComplexTypeInfo * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.systemHandle
+        [ Member data: returns OOSQL_SystemHandle * ]
+
+self.oid
+        [ Member data: returns OID * ]
+
+self.colNo
+        [ Member data: returns Four  ]
+
+self.orn
+        [ Member data: returns Four  ]
+
+self.complexType
+        [ Member data: returns Four  ]
+
+self.elementType
+        [ Member data: returns Four  ]
+
+----------
+
+OOSQL_GET_LOM_SYSTEMHANDLE(oosqlHandle)
+        [ returns LOM_Handle * ]
+
+OOSQL_GET_LOM_HANDLE(oosqlHandle)
+        [ returns LOM_Handle * ]
+
+OOSQL_CreateSystemHandle(systemHandle)
+        [ returns Four  ]
+        procIndex   
+        
+OOSQL_DestroySystemHandle(systemHandle,procIndex)
+        [ returns Four  ]
+
+OOSQL_Connect(hostAddress,protocolString,systemHandle)
+        [ returns Four  ]
+        
+OOSQL_Connect2(hostAddress,protocolString,serverPath,systemHandle)
+        [ returns Four  ]
+        
+OOSQL_Disconnect(systemHandle)
+        [ returns Four  ]
+
+OOSQL_SetUserDefaultVolumeID(systemHandle,databaseID,volumeID)
+        [ returns Four  ]
+
+OOSQL_GetUserDefaultVolumeID(systemHandle,databaseID)
+        [ returns Four  ]
+        volumeID   
+        
+OOSQL_GetVolumeID(systemHandle,databaseID,volumeName)
+        [ returns Four  ]
+        volumeID   
+        
+OOSQL_MountDB(systemHandle,databaseName)
+        [ returns Four  ]
+        databaseID   
+        
+OOSQL_DismountDB(systemHandle,databaseID)
+        [ returns Four  ]
+
+OOSQL_MountVolumeByVolumeName(systemHandle,databaseName,volumeName)
+        [ returns Four  ]
+        volID   
+        
+OOSQL_AllocHandle(systemHandle,volID)
+        [ returns Four  ]
+        handle   
+        
+OOSQL_FreeHandle(systemHandle,handle)
+        [ returns Four  ]
+
+OOSQL_Mount(systemHandle,numDevices,devNames)
+        [ returns Four  ]
+        volID   
+        
+OOSQL_Dismount(systemHandle,volID)
+        [ returns Four  ]
+
+OOSQL_TransBegin(systemHandle,xactId,ccLevel)
+        [ returns Four  ]
+
+OOSQL_TransCommit(systemHandle,xactId)
+        [ returns Four  ]
+
+OOSQL_TransAbort(systemHandle,xactId)
+        [ returns Four  ]
+
+OOSQL_Prepare(systemHandle,handle,stmtText,sortBufferInfo)
+        [ returns Four  ]
+
+OOSQL_Execute(systemHandle,handle)
+        [ returns Four  ]
+
+OOSQL_ExecDirect(systemHandle,handle,stmtText,sortBufferInfo)
+        [ returns Four  ]
+
+OOSQL_Next(systemHandle,handle)
+        [ returns Four  ]
+
+OOSQL_GetData(systemHandle,handle,columnNumber,startPos,bufferPtr,bufferLength)
+        [ returns Four  ]
+        returnLength   
+        
+OOSQL_GetMultiColumnData(systemHandle,handle,nColumns,getDataStruct)
+        [ returns Four  ]
+
+OOSQL_GetMultipleResults(systemHandle,handle,nResultsToRead,headerBuffer,headerBufferSize,dataBuffer,dataBufferSize)
+        [ returns Four  ]
+        nResultsRead   
+        
+OOSQL_GetComplexTypeInfo(systemHandle,handle,columnNumber,complexTypeInfo)
+        [ returns Four  ]
+
+OOSQL_PutData(systemHandle,handle,columnNumber,startPos,columnValuePtr,bufferLength)
+        [ returns Four  ]
+
+OOSQL_GetOID(systemHandle,handle,targetNumber,oid)
+        [ returns Four  ]
+
+OOSQL_GetNumResultCols(systemHandle,handle,OUTPUT)
+        [ returns Four  ]
+        nCols   
+        
+OOSQL_GetResultColName(systemHandle,handle,columnNumber,columnNameBuffer,bufferLength)
+        [ returns Four  ]
+
+OOSQL_GetResultColType(systemHandle,handle,columnNumber)
+        [ returns Four  ]
+        columnType   
+        
+OOSQL_GetResultColLength(systemHandle,handle,columnNumber)
+        [ returns Four  ]
+        resultColLength   
+        
+OOSQL_GetPutDataParamType(systemHandle,handle,paramNumber)
+        [ returns Four  ]
+        paramType   
+        
+OOSQL_GetErrorMessage(systemHandle,errorCode,messageBuffer,bufferLength)
+        [ returns Four  ]
+
+OOSQL_GetErrorName(systemHandle,errorCode,messageBuffer,bufferLength)
+        [ returns Four  ]
+
+OOSQL_GetQueryErrorMessage(systemHandle,handle,messageBuffer,bufferLength)
+        [ returns Four  ]
+
+OOSQL_OIDToOIDString(systemHandle,oid,oidString)
+        [ returns Four  ]
+
+OOSQL_Text_AddKeywordExtractor(systemHandle,volID,keywordExtractor,version,keywordExtractorFilePath,keywordExtractorFunctionName,getNextPostingFunctionName,finalizeKeywordExtractorFunctionName,keywordExtractorNo)
+        [ returns Four  ]
+
+OOSQL_Text_AddDefaultKeywordExtractor(systemHandle,volID,keywordExtractor,version,keywordExtractorFilePath,keywordExtractorFunctionName,getNextPostingFunctionName,finalizeKeywordExtractorFunctionName)
+        [ returns Four  ]
+
+OOSQL_Text_DropKeywordExtractor(systemHandle,volID,keywordExtractorName,version)
+        [ returns Four  ]
+
+OOSQL_Text_GetKeywordExtractorNo(systemHandle,volID,keywordExtractorName,version)
+        [ returns Four  ]
+        keywordExtractorNo   
+        
+OOSQL_Text_SetKeywordExtractor(systemHandle,volID,className,columeName,keywordExtractorNo)
+        [ returns Four  ]
+
+OOSQL_Text_AddFilter(systemHandle,volID,filterName,version,filterFilePath,filterFunctionName,filterNo)
+        [ returns Four  ]
+
+OOSQL_Text_DropFilter(systemHandle,volID,filterName,version)
+        [ returns Four  ]
+
+OOSQL_Text_GetFilterNo(systemHandle,volID,filterName,version)
+        [ returns Four  ]
+        filterNo   
+        
+OOSQL_Text_SetFilter(systemHandle,volID,className,columnName,filterNo)
+        [ returns Four  ]
+
+OOSQL_Text_MakeIndex(systemHandle,volID,temporaryVolId,className)
+        [ returns Four  ]
+
+OOSQL_Text_KeywordInfoScan_Open(systemHandle,volID,className,columnName,keyword)
+        [ returns Four  ]
+
+OOSQL_Text_KeywordInfoScan_Close(systemHandle,scanId)
+        [ returns Four  ]
+        nDocuments   
+        
+OOSQL_Text_KeywordInfoScan_Next(systemHandle,scanId,keyword)
+        [ returns Four  ]
+        nPositions   
+        
+OOSQL_Text_KeywordInfoScanForDocument_Open(systemHandle,volID,className,oid,columnName,keyword)
+        [ returns Four  ]
+
+OOSQL_Text_KeywordInfoScanForDocument_Close(systemHandle,scanId)
+        [ returns Four  ]
+        nDocuments   
+        
+OOSQL_Text_KeywordInfoScanForDocument_Next(systemHandle,scanId,keyword)
+        [ returns Four  ]
+        nPositions   
+        
+OOSQL_Text_FetchContent(systemHandle,volId,className,colNo,oid,bufferLength,buffer)
+        [ returns Four  ]
+        returnLength   
+        
+OOSQL_Text_DefinePostingStructure(systemHandle,volID,className,attrName,postingInfo)
+        [ returns Four  ]
+
+OOSQL_Text_GetNumKeywordsInDocument(systemHandle,volId,oid,columnName)
+        [ returns Four  ]
+        numKeywords   
+        
+OOSQL_Text_GetIthKeywordInDocument(systemHandle,volId,oid,columnName,ith,keyword)
+        [ returns Four  ]
+
+OOSQL_ComplexType_GetElementType(complexTypeInfo)
+        [ returns Four  ]
+        elementType   
+        
+OOSQL_ComplexType_GetComplexType(complexTypeInfo)
+        [ returns Four  ]
+        complexType   
+        
+OOSQL_ComplexType_GetNumElements(complexTypeInfo)
+        [ returns Four  ]
+        numElements   
+        
+OOSQL_ComplexType_GetElements(complexTypeInfo,start,nElements,elementSizes,sizeOfElements,elements)
+        [ returns Four  ]
+
+OOSQL_ComplexType_GetElementsString(complexTypeInfo,start,nElements,string,stringLength)
+        [ returns Four  ]
+
+OOSQL_ComplexType_IsNULL(complexTypeInfo)
+        [ returns Four  ]
+
+OOSQL_ComplexType_InsertElements(complexTypeInfo,start,nElements,elementSizesArrayToString,elementsArrayToString)
+        [ returns Four  ]
+
+OOSQL_GetLocalTimeZone(systemHandle)
+        [ returns OOSQL_TimeZone  ]
+
+OOSQL_SetCurTime(systemHandle,time,tz)
+        [ returns void  ]
+
+OOSQL_GetHour(systemHandle,time)
+        [ returns unsigned short  ]
+
+OOSQL_GetMinute(systemHandle,time)
+        [ returns unsigned short  ]
+
+OOSQL_GetSecond(systemHandle,time)
+        [ returns unsigned short  ]
+        
+OOSQL_GetYear(systemHandle,date)
+        [ returns unsigned short  ]
+
+OOSQL_GetMonth(systemHandle,date)
+        [ returns unsigned short  ]
+
+OOSQL_GetDay(systemHandle,date)
+        [ returns unsigned short  ]
+        
+OOSQL_GetVersionString()
+        [ returns char * ]
+
+OOSQL_GetCompilationParamString()
+        [ returns char * ]
+
+OOSQL_GetTimeElapsed(systemHandle)
+        [ returns Four  ]
+        timeInMilliSeconds   
+        
+OOSQL_ResetTimeElapsed(systemHandle)
+        [ returns Four  ]
+
+2.13.  class lom_Text_ConfigForInvertedIndexBuild
+-------------------------------------------------
+[ created from struct lom_Text_ConfigForInvertedIndexBuild ]
+
+
+lom_Text_ConfigForInvertedIndexBuild()
+        [ Constructor: returns lom_Text_ConfigForInvertedIndexBuild * ]
+
+del this
+        [ Destructor: returns void  ]
+
+self.isUsingBulkLoading
+        [ Member data: returns Boolean  ]
+        
+self.isUsingKeywordIndexBulkLoading
+        [ Member data: returns Boolean  ]
+        
+self.isUsingReverseKeywordIndexBulkLoading
+        [ Member data: returns Boolean  ]
+        
+self.isBuildingExternalReverseKeywordFile
+        [ Member data: returns Boolean  ]
+        
+self.isBuildingDocIdIndex
+        [ Member data: returns Boolean  ]
+        
+self.isSortingPostingFile
+        [ Member data: returns Boolean  ]
+        
+self.isUsingStoredPosting
+        [ Member data: returns Boolean  ]
+        
+----------
+
+oosql_Tool_BuildTextIndex(systemHandle,volId,temporaryVolId,className,attrName,config)
+        [ returns Four  ]
+
+oosql_Tool_DeleteTextIndex(systemHandle,volId,className,attrName)
+        [ returns Four  ]
+
+oosql_Tool_GetDatabaseStatistics(systemHandle,databaseName,databaseId)
+        [ returns Four  ]
+
+oosql_Tool_ExtractKeyword(systemHandle,volId,className,attrName,dataFileName,outputFileName,startObjectNo,endObjectNo,alwaysUsePreviousPostingFile)
+        [ returns Four  ]
+
+oosql_Tool_MapPosting(systemHandle,volId,className,attrName,nPostingFiles,STRING_LIST,newPostingFileName,oidFileName,sortMergeMode)
+        [ returns Four  ]
+        postingFileNames   
+        
+oosql_Tool_MergePosting(systemHandle,nPostingFiles,STRING_LIST,newPostingFileName)
+        [ returns Four  ]
+        postingFileNames   
+        
+oosql_Tool_SortPosting(postingFileName,sortedPostingFileName)
+        [ returns Four  ]
+
+oosql_Tool_SortStoredPosting(systemHandle,volId,temporaryVolId,className,attrName)
+        [ returns Four  ]
+
+oosql_Tool_StorePosting(systemHandle,volId,className,attrName,clearFlag)
+        [ returns Four  ]
+
+oosql_Tool_UpdateTextDescriptor(systemHandle,volId,className)
+        [ returns Four  ]
+
+oosql_Tool_LoadDB(systemHandle,volId,temporaryVolId,isDeferredTextIndexMode,smallUpdateFlag,useBulkloading,useDescriptorUpdating,datafileName)
+        [ returns Four  ]
+
+oosql_Tool_BatchDeleteFromFile(systemHandle,volId,temporaryVolId,className,oidFileName)
+        [ returns Four  ]
+
+oosql_Tool_BatchDeleteByDeferredDeletionList(systemHandle,volId,temporaryVolId,className)
+        [ returns Four  ]
+
+oosql_Tool_ShowBatchDeleteStatus(systemHandle,volId,className)
+        [ returns Four  ]
+
+OOSQL_GetNumTextObjectsInVolume(systemHandle,volId)
+        [ returns Four  ]
+        numObjects   
+        
+OOSQL_GetNumObjectsInVolume(systemHandle,volId)
+        [ returns Four  ]
+        numObjects   
+        
+OOSQL_GetNumObjectsInClass(systemHandle,volId,className)
+        [ returns Four  ]
+        numObjects   
+        
+OOSQL_SetCfgParam(systemHandle,name,value)
+        [ returns Four  ]
+
+OOSQL_GetCfgParam(systemHandle,name)
+        [ returns char * ]
+
+OOSQL_DumpPlan(systemHandle,handle,outBuffer,outBufferSize)
+        [ returns Four  ]
+
+util_malloc(size)
+        [ returns void * ]
+
+util_free(buffer)
+        [ returns void  ]
+
+util_get_unsigned_long_ptr(buffer,value)
+        [ returns unsigned long * ]
+
+util_convert_to_short(data)
+        [ returns short  ]
+
+util_convert_to_int(data)
+        [ returns int  ]
+
+util_convert_to_float(data)
+        [ returns float  ]
+
+util_convert_to_double(data)
+        [ returns double  ]
+
+util_convert_to_oid(data)
+        [ returns OID  ]
+
+util_convert_to_date(data)
+        [ returns unsigned long  ]
+
+util_convert_to_time(data)
+        [ returns OOSQL_Time  ]
+
+util_convert_to_timestamp(data)
+        [ returns OOSQL_Timestamp  ]
+
+util_convert_to_string_with_size(data,size)
+        [ returns PyObject * ]
+
+util_convert_to_string(data)
+        [ returns PyObject * ]
+
+util_convert_from_short(value,data)
+        [ returns int  ]
+
+util_convert_from_int(value,data)
+        [ returns int  ]
+
+util_convert_from_float(value,data)
+        [ returns int  ]
+
+util_convert_from_double(value,data)
+        [ returns int  ]
+
+util_convert_from_oid(value,data)
+        [ returns int  ]
+
+util_convert_from_date(value,data)
+        [ returns int  ]
+
+util_convert_from_time(value,data)
+        [ returns int  ]
+
+util_convert_from_timestamp(value,data)
+        [ returns int  ]
+
+util_convert_from_string(string)
+        [ returns void * ]
+
+util_segfault_handler_for_restart(a)
+        [ returns void  ]
+
+util_set_restart_command_after_segfault(command)
+        [ returns void  ]
+
+util_make_segfault()
+        [ returns void  ]
+
+util_count_lines_in_loaddb_file(filename)
+        [ returns unsigned long  ]
+
+util_merge_loaddb_files(file_num,STRING_LIST,mergedfilename)
+        [ returns int  ]
+

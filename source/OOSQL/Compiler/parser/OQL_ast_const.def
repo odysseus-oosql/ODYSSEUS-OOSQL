@@ -1,0 +1,98 @@
+
+#define termnode(s, i) yylval = Newnode(s, NULL); yylval->node->tokenVal = i;
+
+
+#define init(s) yyval = Newnode( s, NULL )
+
+/*********************************************************************
+ **  새로운 노드를 하나 만들고, 이름을 s로 준다.		    **
+ **	make a newnode with name s, son and brother is NULL	    **
+ **	node s for left hand side symbol      			    **
+ *********************************************************************/
+
+
+#define newnode(s, i) yypvt[-i] = Newnode( s, NULL )
+
+/*********************************************************************
+ **  이름 s의 새 노드를 만들고, 스택의 top에서 i번째 자리에 넣는다. **
+ **	make a newnode with name s, son and brother is NULL	    **
+ **	node s for i-th symbol					    **
+ *********************************************************************/
+
+
+#define newid(i) yypvt[-i] = Newnode( ID, NULL ); yypvt[-1]->tokenVal = lexyylval
+
+/*********************************************************************
+ **  id에 대한 새 노드를 만들고, 스택의 top에서 i번째 자리에 넣는다.**
+ **	make a newnode with name ID, son and brother is NULL	    **
+ **	node ID for i-th symbol					    **
+ **	ID name is stored in StrIndex[yylval] 			    **
+ *********************************************************************/
+
+
+#define younger(i) first = yypvt[-i] ? yypvt[-i] : NULL
+
+/*********************************************************************
+ ** 스택의 i번째 자리에 있는 노드를 brother의 첫 pointer로 가리킨다.**
+ **	assign a youngest node (node of i-th symbol) to first.	    **
+ **	if i-th node is NULL, first = NULL			    **
+ *********************************************************************/
+
+
+#define expand(i) first = append(first, yypvt[-i])
+
+/*********************************************************************
+ **  현재 brother의 pinter에 스택의 i번째 원소를 왼쪽에 붙인다.	    **
+ **	assign a node of i-th symbol to first with appending	    **
+ **	nodes in first as younger brothers			    **
+ *********************************************************************/
+
+
+#define pull(i)   yyval = yypvt[-i]
+
+/*********************************************************************
+ **  스택의 i번째 노드를 right hand side에 대응하는 노드로 돌려준다.** 
+ **	return a node of i-th symbol as a root			    **
+ *********************************************************************/
+
+
+#define entry(i)  yyval = append (first, yypvt[-i])
+
+/*************************************************************************
+ ** 현재 brother의 list에 스택의 i번째 원소를 붙여서 그 list를 돌려준다.**
+ **	return a node of i-th symbol as a eldest brother with appending	**
+ **	first as younger brothers without make a root of subtree	**
+ **	because this rule has no semantics				**
+ *************************************************************************/
+
+
+#define makenode(s, i) yyval = Newnode(s, append(first, yypvt[-i]))
+
+/*********************************************************************
+ **  이름 s의 새로운 node를 만들고,				    **
+ **  현재의 brother를 그 node의 son으로 만든다.			    **
+ **	return a root of name s with a node of i-th symbol	    **
+ **	as the eldest son appending younger brothers in first	    **
+ *********************************************************************/
+
+
+#define makenode0(s, i) yyval = Newnode(s, yypvt[-i])
+
+/*********************************************************************
+ **  이름 s의 새로운 node를 만들고,				    **
+ **  스택의 i번째 원소를 새 node의 son으로 만든다.		    **
+ **	return a root of name s with a node of i-th symbol as a son **
+ *********************************************************************/
+
+#define make_brother( i, b) MakeBrother( yypvt[-i], yypvt[-b])
+
+#define make_subst(s, head, subst, tail)	\
+		tmp = yypvt[-tail] ? yypvt[-tail] : NULL;\
+		younger(subst);\
+		first = Newnode(s, append(first,yypvt[-head]));\
+		yyval = append(tmp, first)
+
+/*********************************************************************
+ **  
+ *********************************************************************/
+

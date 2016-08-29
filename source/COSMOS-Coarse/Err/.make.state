@@ -1,0 +1,3 @@
+.MAKE_VERSION:	VERSION-1.0
+clean:
+	rm -f -f *.o *.ln *.i TAGS tags

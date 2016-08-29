@@ -1,0 +1,265 @@
+#/******************************************************************************/
+#/*                                                                            */
+#/*    Copyright (c) 1990-2016, KAIST                                          */
+#/*    All rights reserved.                                                    */
+#/*                                                                            */
+#/*    Redistribution and use in source and binary forms, with or without      */
+#/*    modification, are permitted provided that the following conditions      */
+#/*    are met:                                                                */
+#/*                                                                            */
+#/*    1. Redistributions of source code must retain the above copyright       */
+#/*       notice, this list of conditions and the following disclaimer.        */
+#/*                                                                            */
+#/*    2. Redistributions in binary form must reproduce the above copyright    */
+#/*       notice, this list of conditions and the following disclaimer in      */
+#/*       the documentation and/or other materials provided with the           */
+#/*       distribution.                                                        */
+#/*                                                                            */
+#/*    3. Neither the name of the copyright holder nor the names of its        */
+#/*       contributors may be used to endorse or promote products derived      */
+#/*       from this software without specific prior written permission.        */
+#/*                                                                            */
+#/*    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS     */
+#/*    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT       */
+#/*    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS       */
+#/*    FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE          */
+#/*    COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,    */
+#/*    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,    */
+#/*    BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;        */
+#/*    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER        */
+#/*    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT      */
+#/*    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN       */
+#/*    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         */
+#/*    POSSIBILITY OF SUCH DAMAGE.                                             */
+#/*                                                                            */
+#/******************************************************************************/
+#/******************************************************************************/
+#/*                                                                            */
+#/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
+#/*    Version 5.0                                                             */
+#/*                                                                            */
+#/*    Developed by Professor Kyu-Young Whang et al.                           */
+#/*                                                                            */
+#/*    Advanced Information Technology Research Center (AITrc)                 */
+#/*    Korea Advanced Institute of Science and Technology (KAIST)              */
+#/*                                                                            */
+#/*    e-mail: odysseus.oosql@gmail.com                                        */
+#/*                                                                            */
+#/*    Bibliography:                                                           */
+#/*    [1] Whang, K., Lee, J., Lee, M., Han, W., Kim, M., and Kim, J., "DB-IR  */
+#/*        Integration Using Tight-Coupling in the Odysseus DBMS," World Wide  */
+#/*        Web, Vol. 18, No. 3, pp. 491-520, May 2015.                         */
+#/*    [2] Whang, K., Lee, M., Lee, J., Kim, M., and Han, W., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with IR Features," In Proc. */
+#/*        IEEE 21st Int'l Conf. on Data Engineering (ICDE), pp. 1104-1105     */
+#/*        (demo), Tokyo, Japan, April 5-8, 2005. This paper received the Best */
+#/*        Demonstration Award.                                                */
+#/*    [3] Whang, K., Park, B., Han, W., and Lee, Y., "An Inverted Index       */
+#/*        Storage Structure Using Subindexes and Large Objects for Tight      */
+#/*        Coupling of Information Retrieval with Database Management          */
+#/*        Systems," U.S. Patent No.6,349,308 (2002) (Appl. No. 09/250,487     */
+#/*        (1999)).                                                            */
+#/*    [4] Whang, K., Lee, J., Kim, M., Lee, M., Lee, K., Han, W., and Kim,    */
+#/*        J., "Tightly-Coupled Spatial Database Features in the               */
+#/*        Odysseus/OpenGIS DBMS for High-Performance," GeoInformatica,        */
+#/*        Vol. 14, No. 4, pp. 425-446, Oct. 2010.                             */
+#/*    [5] Whang, K., Lee, J., Kim, M., Lee, M., and Lee, K., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with Spatial Database       */
+#/*        Features," In Proc. 23rd IEEE Int'l Conf. on Data Engineering       */
+#/*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
+#/*                                                                            */
+#/******************************************************************************/
+
+OOSQL Thesis Example
+
+
+createSchema: scheam creation program
+	Usage: createSchema <volume name>
+
+append: interactive append program
+	Usage: append <volume name>
+
+insert: batch loader program
+	Usage: insert <volume name> <data file name> [-deferred]
+
+search: interactive search program
+	Usage: search <volume name> [-memsort]
+
+makeIndex: index builder program for deferred mode insertion
+	Usage: makeIndex <volume name>
+
+update: interactive update program
+	Usage: update <volume name>
+
+
+1. insert
+
+% init_deferred_exam 			// deferred mode
+% init_immediate_exam			// immediate mode
+
+% $OOSQL_ROOT/bin/InstallKeywordExtractor test $OOSQL_ROOT/bin/KeywordExtractor.so
+OOSQL_Init
+about to open test
+Volume test is mounted
+OOSQL_TransBegin
+OOSQL_TransCommit
+OOSQL_Dismount
+OOSQL_Final
+
+% createSchema test
+OOSQL_Init
+about to open test
+Volume test is mounted
+OOSQL_TransBegin
+Query String:
+create table Paper
+(id integer, title text, author text, affiliation text, language char(32), journal char(128), year integer, volume integer, number integer, pages char(32), abstract text, keyword text)
+Class Paper is created.
+OOSQL_TransCommit
+OOSQL_Dismount
+OOSQL_Final
+
+% insert test paper.dat -deferred
+OOSQL_Init
+about to open test
+Volume test is mounted
+OOSQL_TransBegin
+
+Count : 1
+Count : 2
+......
+Count : 988
+Count : 989
+
+Total 989 objects are inserted
+OOSQL_TransCommit
+OOSQL_Dismount
+OOSQL_Final
+
+% makeIndex test
+OOSQL_Init
+about to open test
+Volume test is mounted
+OOSQL_TransBegin
+
+count: 1
+count: 2
+......
+count: 988
+count: 989
+
+OOSQL_TransCommit
+OOSQL_Dismount
+OOSQL_Final
+
+
+2. search
+
+% search test
+OOSQL_Init
+about to open test
+Volume test is mounted
+OOSQL_TransBegin
+
+Select attribute:
+title, author
+
+Input keyword to search
+title      : 
+author     : "윤현수"
+affiliation: "한국과학기술원"
+abstract   : "분산*" & "시스템"
+keyword    : 
+journal    : "정보과학회논문지"
+language   : "한국어"
+year       : 
+
+Now Executing requested query:
+select title, author
+from Paper
+where MATCH(author, "윤현수") > 0 and MATCH(affiliation, "한국과학기술원") > 0 and MATCH(abstract, "분산*" & "시스템") > 0 and journal = "정보과학회논문지" and language = "한국어"
+
+     title: 다단계 신경망 모델에 대한 다중 처리기 상으로의 사상 전략과 분산 역전파 알고리즘
+    author: 낭종호, 최선민, 이상훈, 윤현수, 맹승렬 
+
+
+There are 1 matches for your query.
+OOSQL_TransCommit
+OOSQL_Dismount
+OOSQL_Final
+
+
+3. append
+
+% append test
+OOSQL_Init
+about to open test
+Volume test is mounted
+OOSQL_TransBegin
+
+Input keyword to append
+id         : 1000
+title      : 내용 추가 테스트
+author     : 이재길
+affiliation: 한국과학기술원
+keyword    : 테스트
+abstract   : 동적 추가
+language   : 한국어
+journal    : 정보과학회논문지
+year       : 1998
+volume     : 1
+number     : 1
+pages      : 10-100
+
+Now Executing requested query:
+insert into Paper (id, title, author, affiliation, language, journal, year, volume, number, pages, abstract, keyword) 
+values
+(1000, text ?, text ?, text ?, "한국어", "정보과학회논문지", 1998, 1, 1, "10-100", text ?, text ?)
+
+1 Tuple is appended.
+OOSQL_TransCommit
+OOSQL_Dismount
+OOSQL_Final
+
+
+4. Update
+ 
+% update empty.vol
+OOSQL_Init
+about to open empty.vol
+Volume empty.vol is mounted
+OOSQL_TransBegin
+
+Input keyword to search
+title      : "한글"
+author     : 
+affiliation: 
+abstract   : 
+keyword    : 
+journal    : 
+language   : 
+year       : 
+
+Input keyword to update
+Press Enter if nothing to update
+id         : 
+title      : 한글과 영어
+author     : 이재길
+affiliation: MIT
+keyword    : 
+abstract   : 
+language   : 
+journal    : 
+year       : 
+volume     : 
+number     : 
+pages      : 
+
+Now Executing requested query:
+update Paper set title = text ?, author = text ?, affiliation = text ?
+where MATCH(title, "한글") > 0
+
+3 objects are updated.
+OOSQL_TransCommit
+OOSQL_Dismount
+OOSQL_Final

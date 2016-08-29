@@ -1,0 +1,492 @@
+#/******************************************************************************/
+#/*                                                                            */
+#/*    Copyright (c) 1990-2016, KAIST                                          */
+#/*    All rights reserved.                                                    */
+#/*                                                                            */
+#/*    Redistribution and use in source and binary forms, with or without      */
+#/*    modification, are permitted provided that the following conditions      */
+#/*    are met:                                                                */
+#/*                                                                            */
+#/*    1. Redistributions of source code must retain the above copyright       */
+#/*       notice, this list of conditions and the following disclaimer.        */
+#/*                                                                            */
+#/*    2. Redistributions in binary form must reproduce the above copyright    */
+#/*       notice, this list of conditions and the following disclaimer in      */
+#/*       the documentation and/or other materials provided with the           */
+#/*       distribution.                                                        */
+#/*                                                                            */
+#/*    3. Neither the name of the copyright holder nor the names of its        */
+#/*       contributors may be used to endorse or promote products derived      */
+#/*       from this software without specific prior written permission.        */
+#/*                                                                            */
+#/*    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS     */
+#/*    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT       */
+#/*    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS       */
+#/*    FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE          */
+#/*    COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,    */
+#/*    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,    */
+#/*    BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;        */
+#/*    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER        */
+#/*    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT      */
+#/*    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN       */
+#/*    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         */
+#/*    POSSIBILITY OF SUCH DAMAGE.                                             */
+#/*                                                                            */
+#/******************************************************************************/
+#/******************************************************************************/
+#/*                                                                            */
+#/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
+#/*    Version 5.0                                                             */
+#/*                                                                            */
+#/*    Developed by Professor Kyu-Young Whang et al.                           */
+#/*                                                                            */
+#/*    Advanced Information Technology Research Center (AITrc)                 */
+#/*    Korea Advanced Institute of Science and Technology (KAIST)              */
+#/*                                                                            */
+#/*    e-mail: odysseus.oosql@gmail.com                                        */
+#/*                                                                            */
+#/*    Bibliography:                                                           */
+#/*    [1] Whang, K., Lee, J., Lee, M., Han, W., Kim, M., and Kim, J., "DB-IR  */
+#/*        Integration Using Tight-Coupling in the Odysseus DBMS," World Wide  */
+#/*        Web, Vol. 18, No. 3, pp. 491-520, May 2015.                         */
+#/*    [2] Whang, K., Lee, M., Lee, J., Kim, M., and Han, W., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with IR Features," In Proc. */
+#/*        IEEE 21st Int'l Conf. on Data Engineering (ICDE), pp. 1104-1105     */
+#/*        (demo), Tokyo, Japan, April 5-8, 2005. This paper received the Best */
+#/*        Demonstration Award.                                                */
+#/*    [3] Whang, K., Park, B., Han, W., and Lee, Y., "An Inverted Index       */
+#/*        Storage Structure Using Subindexes and Large Objects for Tight      */
+#/*        Coupling of Information Retrieval with Database Management          */
+#/*        Systems," U.S. Patent No.6,349,308 (2002) (Appl. No. 09/250,487     */
+#/*        (1999)).                                                            */
+#/*    [4] Whang, K., Lee, J., Kim, M., Lee, M., Lee, K., Han, W., and Kim,    */
+#/*        J., "Tightly-Coupled Spatial Database Features in the               */
+#/*        Odysseus/OpenGIS DBMS for High-Performance," GeoInformatica,        */
+#/*        Vol. 14, No. 4, pp. 425-446, Oct. 2010.                             */
+#/*    [5] Whang, K., Lee, J., Kim, M., Lee, M., and Lee, K., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with Spatial Database       */
+#/*        Features," In Proc. 23rd IEEE Int'l Conf. on Data Engineering       */
+#/*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
+#/*                                                                            */
+#/******************************************************************************/
+
+#
+# data file for error codes
+#
+
+#
+# error bases are numbered as 1, 2, 3, 4, ...
+# as according to the order by which the errors are described
+#
+
+# Internal Error error code definition for lower layer system (COSMOS)
+OOSQL_GENERAL_ERR_BASE	"general error" { 
+	eINTERNAL_GENERAL_DUMMY								"Internal Error" 
+}
+OOSQL_UTIL_ERR_BASE		"utility function error" { 
+	eINTERNAL_UTIL_DUMMY								"Internal Error" 
+}
+OOSQL_RDSM_ERR_BASE		"raw disk manager error" { 
+	eINTERNAL_RDSM_DUMMY								"Internal Error" 
+}
+OOSQL_BFM_ERR_BASE		"buffer manager error" { 
+	eINTERNAL_BFM_DUMMY									"Internal Error"	
+}
+OOSQL_LOT_ERR_BASE		"large object manager error" { 
+	eINTERNAL_LOT_DUMMY									"Internal Error" 
+}
+OOSQL_OM_ERR_BASE		"object manager error" { 
+	eINTERNAL_OM_DUMMY									"Internal Error" 
+}
+OOSQL_BTM_ERR_BASE		"btree manager error" { 
+	eINTERNAL_BTM_DUMMY									"Internal Error" 
+}
+OOSQL_SM_ERR_BASE 		"scan manager error" { 
+	eINTERNAL_SM_DUMMY									"Internal Error" 
+}
+OOSQL_SHM_ERR_BASE		"shared memory manager error" { 
+	eINTERNAL_SHM_DUMMY									"Internal Error" 
+}
+OOSQL_TM_ERR_BASE		"transaction manager error" { 
+	eINTERNAL_TM_DUMMY									"Internal Error" 
+}
+OOSQL_LM_ERR_BASE		"lock manager error" { 
+	eINTERNAL_LM_DUMMY									"Internal Error" 
+}
+OOSQL_RM_ERR_BASE		"individual transaction rollback manager error" { 
+	eINTERNAL_RM_DUMMY									"Internal Error" 
+}
+OOSQL_LRDS_ERR_BASE		"Low RDS error" { 
+	eINTERNAL_LRDS_DUMMY								"Internal Error" 
+}
+
+OOSQL_INTERNAL1_ERR_BASE	"INTERNAL1" { 
+	eINTERNAL1_DUMMY									"Internal Error" 
+}
+
+OOSQL_INTERNAL2_ERR_BASE	"INTERNAL2" { 
+	eINTERNAL2_DUMMY									"Internal Error" 
+}
+
+OOSQL_INTERNAL3_ERR_BASE	"INTERNAL3" { 
+	eINTERNAL3_DUMMY									"Internal Error" 
+}
+
+OOSQL_INTERNAL4_ERR_BASE	"INTERNAL4" { 
+	eINTERNAL4_DUMMY									"Internal Error" 
+}
+
+OOSQL_INTERNAL5_ERR_BASE	"INTERNAL5" { 
+	eINTERNAL5_DUMMY									"Internal Error" 
+}
+
+# error code definition for OOSQL
+OOSQL_COMMON_ERR_BASE   "OOSQL Common Error" {
+	eBADPARAMETER_OOSQL							"Bad Parameter"
+	eNOTIMPLEMENTED_OOSQL						"Not Implemented"
+	eUNHANDLED_CASE_OOSQL						"Unhandled case"
+	eINVALID_PATHEXPR_OOSQL						"Invalid Path Expression"
+	eINTERNALERROR_OOSQL						"Internal error"
+	eVOLUMELOCKBLOCK_OOSQL						"Volume lock is already acquired by another process"
+	eDEADLOCK_OOSQL								"Deadlock is detected"
+	eINVALIDLICENSE_OOSQL						"Invalid license"
+}
+
+OOSQL_COMPILER_ERR_BASE	"OOSQL Compiler Error" {
+	eSYNTAX_ERROR_OOSQL							"Syntax Error in Query String"
+	eINVALIDSELECT_OOSQL						"Invalid syntax in SELECT statement."
+	ePARSE_ERROR_OOSQL							"Invalid SQL statement. The statement is not recognized as a valid SQL statement."
+	eINVALIDAST_OOSQL							"Invaid AST"
+	eMEMORYALLOCERR_OOSQL						"Memory Allocation Error"
+	eBADASTNODE_OOSQL							"Bad AST Node"
+	eTYPE_ERROR_OOSQL							"Type Compatibility Error"
+	eNOTFOUND_DICTIONARY						"There is no info matching with key in dictionary"
+	eCANTSHRINKMORE_NAMESTACK					"Can't shrink name stack more in NameStack"
+	eMUSTSPECIFYFROM_OOSQL						"Must specify from clause"
+	eHAVINGWITHOUTGROUPBY_OOSQL					"Having clause without groupby clause"
+	eEXPRERR_HAVING_OOSQL						"Expression error in having caluse"
+	eTARGETNOTPERSISTENT_OOSQL					"Target class is not persistent class"
+	eSEQUENCENOTDEFINED_OOSQL				    "Given Sequence is not defined in the database"
+	eSEQUENCEALREADYDEFINED_OOSQL				"Given Sequence is already defined in the database"
+	eNOTMATCHMETHODPARAMETER_OOSQL				"Does not match methods formal parameters and actual parameters'"
+	eCOLLECTIONELEMENT_ERROR_OOSQL				"There is an error in elements in the collection"
+	eFUNCTIONPARAMETER_ERROR_OOSQL				"There is an error in parameter of the function"
+	eCLASSNOTDEFINED_OOSQL						"No such a class is defined"
+	eATTRNOTDEFINED_OOSQL						"No such a attribute is defined"
+	eATTRALREADYDEFINED_OOSQL					"Given attribute is already defined"
+	eCANTADDCOLUMN_OOSQL                        "Can't add column"
+	eCANTALTERTABLE_OOSQL                       "Can't alter given table/class" 
+	eCANTDROPCOLUMN_OOSQL                       "Can't drop column"
+	eCLASSNOTINTARGETLIST_OOSQL					"refers class which is not in from clause"
+	eSTRINGSIZE_OVERFLOW_SIMPLESTRING			"attempts to write a string which is larger than SimpleString"
+	eBOUNDARY_OVERFLOW_OOSQL					"Array booundary overflow"
+	eNULLPOINTACCESS_OOSQL						"Attempts to access null pointer"
+	eNOT_PATHEXPR_ID_OOSQL						"NOT a pathexpression, a ID"
+	eBINDING_AMBIGUITY_OOSQL					"binding ambiguities"
+	eNOT_FOUND_OOSQL							"not found"
+	eDUPLICATED_KEY_DICTIONARY					"key inserted is duplicated in dictionary"
+	eSAME_ALIASNAME_OOSQL						"same aliasnames are used in from clause"
+	eEXPRERR_WHERE_OOSQL						"Expression error in where caluse"
+	eAGGR_AND_PATH_IN_SELECT_WITH_NO_GROUPBY	"There is both aggregation function and path expression in SELECT without GROUP BY"
+	eAGGRFUNC_ARGUMENT_ERR_OOSQL				"Aggrfunc has invalid argument"
+	eWEIGHT_FUNCTION_ERR_OOSQL					"Weight function is not connected to match function"
+	eEXT_BOOL_EXPR_ERR_OOSQL					"Extended boolean expression error"
+	eSTRINGBUFFER_OVERFLOW_OOSQL				"String Buffer Overflow"
+	eNOMATCHING_COLUMN_OOSQL					"Given Column is not exist in the class"
+	eNOMATCHING_COLUMNLIST_VALUELIST_OOSQL		"Doesn't matching the column list and the value list"
+	eMOREVALUELIST_THAN_COLUMNS_OOSQL			"the number of values given is more than the number of columns in the class"
+	eDUPLCATED_CLASS_DEFINITION_OOSQL			"Class definition is duplicated"
+	eNOSUCH_SUPERCLASS_EXIST_OOSQL				"No such a super class exists"
+	eNOTSUPPORTED_ATTR_TYPE_OOSQL				"Given type is not supported"
+	eUNDEFINED_FUNCTIONID_USED_OOSQL			"Undefined function id is used"
+	eBAD_DATE_STRING_OOSQL						"Bad date string"
+	eBAD_TIME_STRING_OOSQL						"Bad time string"
+	eBAD_TEXT_DOMAIN_OPTION_OOSQL				"Bad text domain option"
+	eUNSUPPORTED_LANGUAGE_OOSQL					"Given language is unsupported for external function, procedure, method"
+	eUNSUPPORTED_PARAMETER_STYLE_OOSQL			"Given parameter style is unsupported for external function, procedure, method"
+	eUNSUPPORTED_PROCEDURE_PARAMETER_OOSQL		"Given parameter is unsupported for procedure"
+	eUNDEFINED_FUNCTION_USED_OOSQL				"Undefined function is used"
+	eGETSTEMIZER_ERROR_OOSQL					"Fails in getting stemizer"
+	eNO_MATCHING_PATH_IN_SELECT_WITH_GROUPBY	"There is a path expression in SELECT which does not exist in GROUP BY"
+	eUNSUPPORTED_SCANDIRECTION_OOSQL			"Backward scan is not supported in this version. Please contact ODYSSEUS support team."
+	eNOTENABLED_TEMPORARYTABLE_OOSQL			"Text and OpenGIS type is not allowed in a temporary table/class."
+	eTOOMANYATTR_OOSQL			"Too many attributes in a class."
+	eTOOLONGID_OOSQL			"Too long ID."
+	eTOOMANYATTRINDEX_OOSQL			"Too many key attributes in an index."
+}
+
+OOSQL_EXECUTOR_ERR_BASE	"OOSQL Executor Error" {
+	eOUTOFMEMORY_OOSQL							"Out of Memory"
+	eINVALID_OOSQLHANDLE_OOSQL					"Invalid OOSQL Binding Handle"
+	eNEGATIVE_ELEMSIZE_OOSQL					"The Element Size is Negative Value"
+	eINSUFFICIENT_BUFSIZE_OOSQL					"Insufficient Buffer Size"
+	eINSUFFICIENT_RESINFOSIZE_OOSQL				"Insufficient Memory for Query Result Info."
+	eUNINITIALIZED_STRUCT_OOSQL					"Uninitialized Struct is Used"
+	eNOTREADY_OOSQL								"Input Query String is Not Given"
+	ePREPARATION_FAILED_OOSQL					"Failed to Prepare Query Evaluation"
+	eNOTCOMPILED_OOSQL							"The Input Query is Not Executed"
+	eFETCHEDALL_OOSQL							"All Query Result has been Fetched"
+	eNOTIMPLEMENTED_BACKWARDTRAVERSAL_OOSQL		"Backward Traversal is Not Implemented"
+	eNOTIMPLEMENTED_SORTMERGE_OOSQL				"Sort-Merge Join is Not Implemented"
+	eNOTIMPLEMENTED_HASHJOIN_OOSQL				"Hash Join is Not Implemented"
+	eNOTIMPLEMENTED_ABNORMALPATHEXPR_OOSQL		"Method in the Middle of a Path Expr. is Not Implemented"
+	eNOTIMPLEMENTED_SETOP_OOSQL					"Set Operation is Not Implemented"
+	eNOTIMPLEMENTED_ARITHOP_OOSQL				"Arithmetic Operation is Not Implemented"
+	eNOTIMPLEMENTED_METHOD_OOSQL				"Method in Expression is Not Implemented"
+	eNOTIMPLEMENTED_CONSEXPR_OOSQL				"Construction Expression is Not Implemented"
+	eNOTIMPLEMENTED_FETCHPREV_OOSQL				"FetchPrev() is Not Implemented"
+	eNOTIMPLEMENTED_FETCHLAST_OOSQL				"FetchLast() is Not Implemented"
+	eNOTIMPLEMENTED_OBJECTPROJ_OOSQL			"Object Projection is Not Implemented"
+	eNOTIMPLEMENTED_FUNCPROJ_OOSQL				"Function Projection is Not Implemented"
+	eNOTIMPLEMENTED_BOOL_OOSQL					"Boolean Value is Not Implemented"
+	eNOTIMPLEMENTED_NIL_OOSQL					"NIL Value is Not Implemented"
+	eNOTIMPLEMENTED_MBR_OOSQL					"MBR Value is Not Implemented"
+	eNOTIMPLEMENTED_ARGUMENT_OOSQL				"Not Implemented Argument Type"
+	eNOTIMPLEMENTED_VALUEPROJ_OOSQL				"Value Projection is Not Implemented"
+	eNOTIMPLEMENTED_EXPRPROJ_OOSQL				"Expression Projection is Not Implemented"
+	eNOTIMPLEMENTED_TEXTINDEXOR_OOSQL			"Not Implemented: Text Index ORing"
+	eNOTIMPLEMENTED_BTREEINDEX_ANDOR_OOSQL		"Not Implemented: B+ treee Index ANDing/ORing"
+	eNOTIMPLEMENTED_MLGFINDEXSCAN_OOSQL			"Not Implemented: MLGF Index Scan"
+	eNOTIMPLEMENTED_OIDSETSCAN_OOSQL			"Not Implemented: OID Set Scan"
+	eINVALID_CNF_OOSQL							"Not in a Conjunctive Normal Form"
+	eILLEGAL_OP_OOSQL							"Illegal Operator is Used"
+	eINCOMPATIBLE_TYPE_OOSQL					"Incompatible Type"
+	eINVALID_EXPRESSION_OOSQL					"Invalid Expression"
+	eINVALID_VALUE_OOSQL						"Invalid Value Type"
+	eINVALID_COLTYPE_OOSQL						"Invalid Column Type"
+	eINVALID_OPERAND_OOSQL						"Invalid Operand Type"
+	eDANGLINGREFERENCE_OOSQL					"Dangling Reference"
+	eSCAN_NOTFOUND_OOSQL						"Scan for a Class Not Found"
+	eOCN_NOTFOUND_OOSQL							"OCN for a Class Not Found"
+	eQPMM_INIT_FAILED_OOSQL						"Failed to Initialize Memory Manager"
+	eQPMM_REINIT_FAILED_OOSQL					"Failed to Re-Initialize Memory Manager"
+	eQPMM_FINAL_FAILED_OOSQL					"Failed to Finalize Memory Manager"
+	eINVALID_CLASSKIND_OOSQL					"Invalid Class Kind in Access Plan"
+	eINVALID_ACCESSMETHOD_OOSQL					"Invalid Access Method in Access Plan"
+	eINVALID_PROJECTION_OOSQL					"Invalid Projection Kind in Access Plan"
+	eINVALID_PLANNO_OOSQL						"Invalid Index to Access Plan Element"
+	eINVALID_COLNO_OOSQL						"Invalid Column Number"
+	eINVALID_METHODNO_OOSQL						"Invalid Method Number"
+	eINVALID_POOLINDEX_OOSQL					"Invalid Pool Index"
+	eINVALID_AGGRFUNC_OOSQL						"Invalid Aggregate Function"
+	eNULL_ACCESSPLAN_OOSQL						"Null Access Plan Has Been Generated"
+	eINVALID_JOINMETHOD_OOSQL					"Invalid Join Method"
+	eINCOMPATIBLE_BOOLCONST_OOSQL				"Incompatible Type of Constant in Boolean Expression Cons"
+	eINVALID_BOOLEXP_OOSQL						"Invalid Boolean Expression Has Been Constructed"
+	eCLASS_NOTOPENED_OOSQL						"Class Is Not Opened"
+	eSCANOPEN_FAILED_OOSQL						"Failed To Open Scan"
+	eINTERNAL_INVALIDSTATUS_OOSQL				"Internal Error: Invalid OOSQL Status"
+	eINTERNAL_INCORRECTEXECSEQUENCE_OOSQL		"Internal Error: Incorrect Execution Sequence"
+	eINVALID_INDEXINFONODE_OOSQL				"Internal Error: Invalid Index Info. Node"
+	eINVALID_TEMPFILENUM_OOSQL					"Invalid Temporary File Number"
+	eTEMPFILE_ALREADYCREATED_OOSQL				"Temporary File Already Created"
+	eTEMPFILE_NOTCREATED_OOSQL					"Temporary File is Not Created"
+	eTEMPFILE_SAVEDALL_OOSQL					"Finished to Save Into Temporary File"
+	eBUFFER_ALREADYFREED_OOSQL					"Buffer is Already Freed"
+	eINCONSISTENT_ACCESSPLAN_OOSQL				"[Internal Error] Inconsistent Access Plan"
+	eINVALID_OPERATOR_OOSQL						"[Internal Error] Invalid Operator"
+	eINVALID_CONTROLSTATUS_OOSQL				"[Internal Error] Invalid Control Status"
+	eINFANTBUFFER_EMPTY_OOSQL					"Infant Query Result Buffer Empty"
+	eINFANTBUFFER_FULL							"Infant Query Result Buffer Full"
+	eINVALID_SCANID_OOSQL						"[Internal Error] Invalid Scan ID"
+	eSCANALREADYOPENED_OOSQL					"[Internal Error] Scan has already been opened"
+	eSCANALREADYCLOSED_OOSQL					"[Internal Error] Scan has already been closed"
+	eSORT_NOT_PREPARED_OOSQL					"[Internal Error] Sort is not prepared"
+	eNULL_POINTER_OOSQL							"[Internal Error] Null Pointer Returned'"
+	eINVALID_FUNC_OOSQL							"[Internal Error] Invalid Function'"
+	eINVALID_CASE_OOSQL							"[Internal Error] Invalid Case'"
+	ePOSTINGBUFFER_EMPTY_OOSQL					"[Internal Error] Empty Posting Buffer (in OOSQL: Text IR). Since this error is raised also when the postings in posting file is not correctly sorted, please check the posting file.'"
+	eTEXTIR_EVALBUF_ALREADYMARKED_OOSQL			"[Internal Error] Posting has Already been Marked (in OOSQL: Text IR)'"
+	eNEEDMORESORTBUFFERMEMORY_OOSQL				"Need More SortBuffer Memory to Process Sort Posting in Memory"
+	eNORESULTS_OOSQL							"No results is returned"
+	eNOSUCH_FUNCTION_EXIST_OOSQL				"No such function exists"
+	eNOSUCH_PROCEDURE_EXIST_OOSQL				"No such procedure exists"
+	eCANT_EXECUTE_GETOID_OOSQL					"Can't Execute Get OID. In the case which aggregate function or group by is used in the query, It is not possible to get exact oid of the result."
+	eINVALID_API_CALL_OOSQL						"Invalid API Call. Check API call sequence."
+	eMULTIPLERESULTBUFFER_FULL_OOSQL			"MultipleResultBuffer is full"
+	eDUPLICATED_ELEMENTS_ARE_INSERTED_SET_OOSQL	"Duplicated elements are inserted into the set"
+	eINVALID_OID_STRING                         "Invalid OID string"
+}
+
+OOSQL_STORAGEMANAGER_ERR_BASE "OOSQL Storage Manager Error" {
+	eCLASSDUPLICATED_OOSQL						"Class definition is duplicated"
+	eINDEXNOTDEFINED_OOSQL						"No such a index is defined"
+	eINDEXDUPLICATED_OOSQL						"Index definition is duplicated"
+	eDEVICEOPENFAIL_OOSQL						"Device open is failed. The cause is that device does not exist or is corrupted"
+	eEXTERNALFUNCTION_DLCLOSE_FAIL_OOSQL		"Fails in closing dynamic linked external function"
+	eEXTERNALFUNCTION_DLOPEN_FAIL_OOSQL			"Fails in opening dynamic linked external function"
+	eEXTERNALFUNCTION_DLSYM_FAIL_OOSQL			"Fails in obtaining dynamic linked external function pointer"
+	eTOO_MANY_PARAMS_IN_FUNC_CALL_OOSQL			"Too many parameters are applied in external function call"
+	eCANT_EXECUTE_MSG_OOSQL						"Can't execute message in OOSQL server"
+	ePIPE_ALREADY_OPENED_OOSQL					"Pipe already opened"
+	ePIPE_ALREADY_CLOSED_OOSQL					"Pipe already closed"
+	ePIPE_CLOSE_ERROR_OOSQL						"Some errors are occurred in closeing pipes"
+	ePIPE_OPEN_ERROR_OOSQL						"Some errors are occurred in opening pipes"
+	ePIPE_READ_ERROR_OOSQL						"Some errors are occurred in reading pipes"
+	ePIPE_WRITE_ERROR_OOSQL						"Some errors are occurred in writing pipes"
+	eCREATE_PROCESS_ERROR_OOSQL					"Some errors are occurred in creating processes"
+	ePIPE_BAD_MESSAGE_OOSQL						"Invalid message is passed"
+	eBIGGERPOSTINGBUFFERNEEDED_OOSQL			"Bigger posting is needed to read posting structure"
+	eLARGETEMPOBJECT_ALREADY_CREATED_OOSQL		"Large Temporary Object is already created"
+	eLARGETEMPOBJECT_NOT_CREATED_OOSQL			"Large Temporary Object is not created"
+	eRESIZE_MEMORY_BLOCK_FAIL_OOSQL				"Fails in resizing memory block"
+	eBTREE_KEYLENGTH_EXCESS_OOSQL               "The key length of given table's column exceeds the maximum key length of B+tree index"
+}
+
+OOSQL_QPMM_ERR_BASE		"OOSQL Quick Fit Memory Manager Error" {
+	eBADPARAMETER_QPMM							"Bad Parameter (in QPMM)"
+	eCANNOTINIT_QPMM							"Cannot Allocate Initial Memory (in QPMM)"
+	eCANNOTDOUBLE_QPMM							"Cannot double Memory (in QPMM)"
+	eFAILTOREPLACEMENT_QPMM						"Fail to replacement (in QPMM)"
+	eNOTVALIDADDRESS_QPMM						"IS NOT VALID ADDRESS (in QPMM)"
+	eSHORTOFMEMORY_QPMM							"IS SHORT OF MEMORY (in QPMM)"
+	eALREAYEXISTINCATAHASH_QPMM					"Already Exist In Catalog Hash TTble (in QPMM)"
+	eINVALIDCATALOG_QPMM						"Invalid Catalog Information (in QPMM)"
+	eINSERTFAIL_QPMM							"Fail to Insert (in QPMM)"
+	eSEARCHFAIL_QPMM							"Fail to search (in QPMM)"
+	eINTERNAL_QPMM								"Internal Error... (in QPMM)"
+}
+
+OOSQL_API_ERR_BASE		"OOSQL API Error" {
+	eOUTOFHANDLE_OOSQL							"Cannot Allocate OOSQL Query Instance"
+	eBADQUERYSTRING_OOSQL						"Bad Query String"
+	eDATABASE_HAS_NOT_BEEN_MOUNTED_OOSQL		"Database has not been mounted"
+	eDATABASE_ALREADY_MOUNTED_OOSQL				"Database was already mounted"
+	eNO_SUCH_VOLUME_MOUNTED_OOSQL				"No no such a volume was mounted"
+	eTOOMANYVOLS_OOSQL							"Too many volumes are mounted"
+	eVOLUME_TITLE_TOO_LONG_OOSQL				"Volume title is too long to handle"
+	eDATABASENAME_TOO_LONG_OOSQL				"Database name is too long to handle"
+	eNOTESTABLISHEDCONNECTION_OOSQL				"You even didnot connect to server yet"
+	eNOTTEXTCOLUMN_OOSQL						"Given column is not a text column"
+    eNULLCOLLECTION_OOSQL                       "The collection to apply operation is NULL"
+    eNOTNULLCOLLECTION_OOSQL                    "The collection to be created is NOT NULL"
+    eFAILTOCONNECT_OOSQL                        "Bad connection between client and server"
+    eBADCONNECTION_OOSQL                        "Fail to connect to server"
+}
+
+OOSQL_SERVER_ERR_BASE	"OOSQL Server Error" {
+	eNOTYETIMPLEMENTED_SERVER					"Not yet implemented"
+	eINVALIDENVIRONMENT_SERVER					"Check your environment variable(ODYS_OODB) or Schema file"
+	eOUTOFMEMORY_SERVER							"Out of memory"
+	eINTERNAL_SERVER							"Internal Error"
+}
+OOSQL_TOOL_UTIL_ERR_BASE "OOSQL UTIL Error" {
+	eNOLOGICALIDINDEX_UTIL  					"There is no index on logical id column"
+	eOUTOFMEMORY_UTIL       					"Out of memory"
+	eNOBYTEOFFSETINFO_UTIL  					"There is no information for byte offset in the old posting file format"
+	eBADPOSTINGFORMAT_UTIL  					"Bad posting file format"
+	eBADCONTENTFILEFORMAT_UTIL  				"Bad content file format"
+	eDATAINCONSISTENCY_UTIL 					"There are data inconsistencies between database and posting file."
+	eWRITEFILEFAIL_UTIL     					"Fail to write on a file"
+	eTOOLARGELOGICALID_UTIL 					"Too large logical id to handle with this utility"
+	eNOMAPPINGEXIST_UTIL    					"There is no mapping object for an object of the class"
+    eNOCLASSINFO_UTIL							"There is no class information in the command line"
+    eNOATTRINFO_UTIL							"There is no attribute information in the command line"
+    eNORIGHTPARENTHESIS_UTIL					"No right parenthesis"
+    eUNIXFILEOPENERROR_UTIL						"UNIX file open error"
+    eUNKNOWNCOMMAND_UTIL						"An unknown command is used"
+    eILLEGALUSEOFBACKSLASH_UTIL					"Backslash must be used in double quote or single quote"
+    eILLEGALUSEOFDOUBLEQUOTE_UTIL				"Double quote cannot be used in numeric data"
+    eILLEGALUSEOFSINGLEQUOTE_UTIL				"Single quote cannot be used in numeric data"
+	eILLEGALUSEOFRIGHTBRACE_UTIL                "Right brace cannot be used in the outside of set data"
+    eILLEGALUSEOFLEFTBRACE_UTIL                 "Left brace cannot be used in the inside of set  data"
+    eINCONSISTENTDATATYPE_UTIL					"Input data have inconsistent data type"
+    eTEMPDIRNOTDEFINED_UTIL						"There is no environment variable, ODYS_TEMP_DIR, which points the temporary directory"
+    eUNIXSTATFAIL_UTIL							"Fail to call stat system call"
+    eUNIXFILEREADERROR_UTIL						"Fail to read from file"
+	eSETNOTIMPLEMENTED_UTIL						"Set is not implemented yet"
+    eINVALIDPOSTING_UTIL            			"Keyword extractor generated an invalid posting"
+    eUNIXFILEWRITEERROR_UTIL    				"Fail to write to file"
+	eNOSUCHATTRIBUTE_UTIL                       "There is no such attribute"
+	eBADPARAMETER_UTIL							"Bad parameter is used"
+	eINTERNAL_ERROR_UTIL						"Internal error is occurred"
+	eUNHANDLED_CASE_UTIL						"Unhandled case is occurred"
+	eTOOLARGENPOSOTION_UTIL                     "Too large number of positions is returned. Enlarge LOM_MAXPOSITIONLENGTH"
+}
+
+OOSQL_DBM_ERR_BASE "OOSQL DBM Error" {
+	eBADPARAMETER_DBM  							"Bad Parameter"
+	eCANNOTOPENFILE_DBM							"Cannot open file"
+	eCANNOTLOCKFILE_DBM							"Cannot lock file"
+	eCANNOTUNLOCKFILE_DBM						"Cannot unlock file"
+	eBADFILEFORMAT_DBM							"Bad file format"
+	eMEMORYALLOCERROR_DBM						"Memory allocation error"
+	eCANNOTWRITEFILE_DBM						"Error in writing on file"
+	eCANNOTREMOVEFILE_DBM 						"Cannot remove a file"
+	eNOSUCHDB_DBM 								"No such database"
+	eNOSUCHVOLUME_DBM 							"No such volume in the database"
+	eCANNOTCREATEFILE_DBM 						"Cannot create a file"
+	eBACKUPFILEEXIST_DBM 						"Backup file already exists"
+	eNOSUCHDEVICE_DBM 							"No such device in the volume"
+	eDBNAMEDUPLICATED_DBM 						"Duplicated database name"
+	eBADVOLUMEID_DBM 							"Bad volume ID"
+	eVOLUMENAMEDUPLICATED_DBM 					"Duplicated volume name"
+	eVOLUMEIDDUPLICATED_DBM 					"Duplicated volume ID"
+	eBADDEVICEID_DBM 							"Bad device ID"
+	eDEVICENAMEDUPLICATED_DBM 					"Duplicated device name"
+	eDEVICEIDDUPLICATED_DBM 					"Duplicated device ID"
+	eNOVOLUMEEXISTINDB_DBM  					"There is no volume in database"
+	eEXECERROR_DBM 								"An error occurred during running a extern program"
+	eNEEDMOREBUFFER_DBM 						"Need more buffer for return values"
+	eSMALLBUFFER_DBM  							"Too small bufer to store return values"
+	eINVALIDOPTION_DBM 							"Invalid option"
+	eENVNOTDEFINED_DBM  						"Environment variable OOSQLDB is not defined"
+	eCANNOTRENAMEFILE_DBM 						"Cannot rename a file"
+}
+
+OOSQL_SLIMDOWN_ERR_BASE "OOSQL SLIMDOWN Error" {
+    eTEXTIR_NOTENABLED_OOSQL                    "Text infomation retrieval is not enabled"
+    eBULKLOAD_NOTENABLED_OOSQL                  "Bulk loading is not enabled"
+    eBULKDELETE_NOTENABLED_OOSQL                "Bulk deletion is not enabled"
+    eCOLLECTIONTYPE_NOTENABLED_OOSQL            "Collection type is not enabled"
+    eRELATIONSHIP_NOTENABLED_OOSQL              "Relationship is not enabled"
+    eOPENGIS_NOTENABLED_OOSQL                   "OpenGIS is not enabled"
+}
+
+OOSQL_CLIENT_ERR_BASE "OOSQL Client Error(Socket)" {
+    eBADPARAMETER_CLIENT                        "Input parameter is invalid"
+    eOUTOFMEMORY_CLIENT                         "There is not enough memory to allocate"
+    eFAILTOCONNECTTOBROKER_CLIENT               "Fail to connect to the broker"
+    eFAILTOCONNECTTOSERVER_CLIENT               "Fail to connect to the server"
+    eFAILTODISCONNECTFROMBROKER_CLIENT          "Fail to disconnect from the broker"
+    eFAILTODISCONNECFROMSERVER_CLIENT           "Fail to disconnect from the server"
+    eFAILTOENCODEMESSAGE_CLIENT                 "Encoding a message failed"
+    eFAILTODECODEMESSAGE_CLIENT                 "Decoding a message failed"
+    eFAILTOCONNECT_CLIENT                       "Fail to connect to the broker or the server"
+    eNOTESTABLISHEDCONNECTION_CLIENT            "Connection between client and server or between client and broker is not established yet"
+    eTIMEOUTCALLSERVERFUNCTION_CLIENT           "Time out occurs after calling the server or broker function"
+    eUNDEFINEDMESSAGE_CLIENT                    "Received message's name is undefined"
+    eMISMATCHEDMESSAGE_CLIENT                   "Received message's name is not matched with sent message's name"
+    eFAILTOSENDMESSAGE_CLIENT                   "Sending a message failed"
+    eFAILTORECEIVEMESSAGE_CLIENT                "Receiving a message failed"
+}
+
+OOSQL_SERVER_ERR_SOCKET_BASE "OOSQL Server Error(Socket)" {
+    eBADPARAMETER_SERVER                        "Input parameter is invalid"
+    eOUTOFMEMORY_SERVER                         "There is not enough memory to allocate"
+    eFAILTOENCODEMESSAGE_SERVER                 "Encoding a message failed"
+    eFAILTODECODEMESSAGE_SERVER                 "Decoding a message failed"
+    eFAILTOCONNECTTOBROKER_SERVER               "Fail to connect to the broker"
+    eFAILTODISCONNECTFROMBROKER_SERVER          "Fail to disconnect from the broker"
+    eNOTESTABLISHEDCONNECTION_SERVER            "Connection between client and server is not established yet"
+    eUNDEFINEDMESSAGE_SERVER                    "Received message's name is undefined"
+    eMISMATCHEDMESSAGE_SERVER                   "Received message's name is not matched with sent message's name"
+    eFAILTOSENDMESSAGE_SERVER                   "Sending a message failed"
+    eFAILTORECEIVEMESSAGE_SERVER                "Receiving a message failed"
+}
+
+OOSQL_BROKER_ERR_BASE "OOSQL Broker Error(Socket)" {
+    eBADPARAMETER_BROKER                        "Input parameter is invalid"
+    eCONFIGURATION_BROKER                       "Environment variable is not set"
+    eCANNOTFORKPROCESS_BROKER                   "Can not fork a server process"
+    eCANTNOTOPENSERVERSETUPFILE_BROKER          "Can not open a server setup file"
+    eFAILTOCONNECTTOSERVER_BROKER               "Fail to connect to the server"
+    eFAILTODISCONNECTFROMSERVER_BROKER          "Fail to disconnect from the server"
+    eNOTESTABLISHEDCONNECTION_BROKER            "Connection between server and broker is not established yet"
+    eUNDEFINEDMESSAGE_BROKER                    "Received message's name is undefined"
+    eMISMATCHEDMESSAGE_BROKER                   "Received message's name is not matched with sent message's name"
+    eFAILTOSENDMESSAGE_BROKER                   "Sending a message failed"
+    eFAILTORECEIVEMESSAGE_BROKER                "Receiving a message failed"
+    eFAILTOENCODEMESSAGE_BROKER                 "Encoding a message failed"
+    eFAILTODECODEMESSAGE_BROKER                 "Decoding a message failed"
+}

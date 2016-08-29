@@ -1,0 +1,5 @@
+EXPORTS
+	EngKeywordExtractor_Init
+	EngKeywordExtractor_Next
+	EngKeywordExtractor_Final
+	convertf

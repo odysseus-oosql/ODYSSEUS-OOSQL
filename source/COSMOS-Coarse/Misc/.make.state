@@ -1,0 +1,4 @@
+.MAKE_VERSION:	VERSION-1.0
+.BUILT_LAST_MAKE_RUN:
+clean:
+	/bin/rm -f *.o *.ln *.i TAGS tags SM_Format SM_GetVolumeStatistics SM_GetNumPagesInDataFile SM_GetNumPagesInBtree LRDS_Format LRDS_ViewCatalog LRDS_ExpandDataVolume LRDS_ViewCatalog LRDS_GetNumLargeObject checkDummySize sedForCheckDummySize.dat

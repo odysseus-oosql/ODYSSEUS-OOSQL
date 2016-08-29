@@ -1,0 +1,718 @@
+/******************************************************************************/
+/*                                                                            */
+/*    Copyright (c) 1990-2016, KAIST                                          */
+/*    All rights reserved.                                                    */
+/*                                                                            */
+/*    Redistribution and use in source and binary forms, with or without      */
+/*    modification, are permitted provided that the following conditions      */
+/*    are met:                                                                */
+/*                                                                            */
+/*    1. Redistributions of source code must retain the above copyright       */
+/*       notice, this list of conditions and the following disclaimer.        */
+/*                                                                            */
+/*    2. Redistributions in binary form must reproduce the above copyright    */
+/*       notice, this list of conditions and the following disclaimer in      */
+/*       the documentation and/or other materials provided with the           */
+/*       distribution.                                                        */
+/*                                                                            */
+/*    3. Neither the name of the copyright holder nor the names of its        */
+/*       contributors may be used to endorse or promote products derived      */
+/*       from this software without specific prior written permission.        */
+/*                                                                            */
+/*    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS     */
+/*    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT       */
+/*    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS       */
+/*    FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE          */
+/*    COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,    */
+/*    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,    */
+/*    BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;        */
+/*    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER        */
+/*    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT      */
+/*    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN       */
+/*    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         */
+/*    POSSIBILITY OF SUCH DAMAGE.                                             */
+/*                                                                            */
+/******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
+/*    Version 5.0                                                             */
+/*                                                                            */
+/*    Developed by Professor Kyu-Young Whang et al.                           */
+/*                                                                            */
+/*    Advanced Information Technology Research Center (AITrc)                 */
+/*    Korea Advanced Institute of Science and Technology (KAIST)              */
+/*                                                                            */
+/*    e-mail: odysseus.oosql@gmail.com                                        */
+/*                                                                            */
+/*    Bibliography:                                                           */
+/*    [1] Whang, K., Lee, J., Lee, M., Han, W., Kim, M., and Kim, J., "DB-IR  */
+/*        Integration Using Tight-Coupling in the Odysseus DBMS," World Wide  */
+/*        Web, Vol. 18, No. 3, pp. 491-520, May 2015.                         */
+/*    [2] Whang, K., Lee, M., Lee, J., Kim, M., and Han, W., "Odysseus: a     */
+/*        High-Performance ORDBMS Tightly-Coupled with IR Features," In Proc. */
+/*        IEEE 21st Int'l Conf. on Data Engineering (ICDE), pp. 1104-1105     */
+/*        (demo), Tokyo, Japan, April 5-8, 2005. This paper received the Best */
+/*        Demonstration Award.                                                */
+/*    [3] Whang, K., Park, B., Han, W., and Lee, Y., "An Inverted Index       */
+/*        Storage Structure Using Subindexes and Large Objects for Tight      */
+/*        Coupling of Information Retrieval with Database Management          */
+/*        Systems," U.S. Patent No.6,349,308 (2002) (Appl. No. 09/250,487     */
+/*        (1999)).                                                            */
+/*    [4] Whang, K., Lee, J., Kim, M., Lee, M., Lee, K., Han, W., and Kim,    */
+/*        J., "Tightly-Coupled Spatial Database Features in the               */
+/*        Odysseus/OpenGIS DBMS for High-Performance," GeoInformatica,        */
+/*        Vol. 14, No. 4, pp. 425-446, Oct. 2010.                             */
+/*    [5] Whang, K., Lee, J., Kim, M., Lee, M., and Lee, K., "Odysseus: a     */
+/*        High-Performance ORDBMS Tightly-Coupled with Spatial Database       */
+/*        Features," In Proc. 23rd IEEE Int'l Conf. on Data Engineering       */
+/*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
+/*                                                                            */
+/******************************************************************************/
+
+
+/*
+    MODULE:
+	print_ast.h_for_file
+
+    DESCRIPTION:
+	header file for printing ast nodes after parsing in query processor
+*/
+
+
+/***************************************** 
+ ** #define YYSTYPE ASTnode*		**
+ **					**
+ ** struct ASTnode {			**
+ **	 short nodeType;		**
+ **	 char *tokenVal;		**
+ **	 struct ASTnode *brother;	**
+ **	 struct ASTnode *son;		**
+ ** } *root, *tmp;			**
+ **					**
+ *****************************************/
+
+#define TABS if (which) tabs(level)
+
+ case (QuProg)	:
+		
+		fprintf(out,"QuProg");
+		break;
+
+ case (null)	:
+		
+		fprintf(out,"(null)");
+		break;
+
+ case (QuDef)	:
+		
+		fprintf(out,"QuDef");
+		break;
+
+ case (QuSmp)	:
+		
+		fprintf(out,"QuSmp");
+		break;
+
+ case (QuCmp)	:
+		
+		fprintf(out,"QuCmp");
+		break;
+ case (QuBln)	:
+		
+		fprintf(out,"QuBln");
+		break;
+ case (QuCnsObj)	:
+		
+		fprintf(out,"QuCnsObj");
+		break;
+
+ case (QuCnsStruct)	:
+		
+		fprintf(out,"QuCnsStruct");
+		break;
+
+ case (QuCnsSet)	:
+		
+		fprintf(out,"QuCnsSet");
+		break;
+
+ case (QuCnsBag)	:
+		
+		fprintf(out,"QuCnsBag");
+		break;
+
+ case (QuCnsLst)	:
+		
+		fprintf(out,"QuCnsLst");
+		break;
+
+ case (QuCnsLstrn)	:
+		
+		fprintf(out,"QuCnsLstrn");
+		break;
+
+ case (QuCnsArr)	:
+		
+		fprintf(out,"QuCnsArr");
+		break;
+
+ case (QuAccPaex)	:
+		
+		fprintf(out,"QuAccPaex");
+		break;
+
+ case (QuAccPaexAll)    :
+
+        fprintf(out, "QuAccPaexAll");
+        break;
+
+ case (QuAccDref)	:
+		
+		fprintf(out,"QuAccDref");
+		break;
+
+ case (QuAccIcltnElem)	:
+		
+		fprintf(out,"QuAccIcltnElem");
+		break;
+
+ case (QuAccIcltnSub)	:
+		
+		fprintf(out,"QuAccIcltnSub");
+		break;
+
+ case (QuAccIcltnFr)	:
+		
+		fprintf(out,"QuAccIcltnFr");
+		break;
+
+ case (QuAccIcltnLs)	:
+		
+		fprintf(out,"QuAccIcltnLs");
+		break;
+
+ case (QuCltnAll)	:
+		
+		fprintf(out,"QuCltnAll");
+		break;
+
+ case (QuCltnEx)	:
+		
+		fprintf(out,"QuCltnEx");
+		break;
+
+ case (QuCltnExany)	:
+		
+		fprintf(out,"QuCltnExany");
+		break;
+
+ case (QuCltnUni)	:
+		
+		fprintf(out,"QuCltnUni");
+		break;
+
+ case (QuCltnIn)	:
+		
+		fprintf(out,"QuCltnIn");
+		break;
+
+ case (QuCltnCmpSome)	:
+		
+		fprintf(out,"QuCltnCmpSome");
+		break;
+
+ case (QuCltnCmpAny)	:
+		
+		fprintf(out,"QuCltnCmpAny");
+		break;
+
+ case (QuCltnCmpAll)	:
+		
+		fprintf(out,"QuCltnCmpAll");
+		break;
+
+ case (QuCltnAgg)	:
+		
+		fprintf(out,"QuCltnAgg");
+		break;
+
+ case (QuSel)	:
+		
+		fprintf(out,"QuSel");
+		break;
+
+ case (QuSet)	:
+		
+		fprintf(out,"QuSet");
+		break;
+
+ case (QuCnvL2s)	:
+		
+		fprintf(out,"QuCnvL2s");
+		break;
+
+ case (QuCnvElem)	:
+		
+		fprintf(out,"QuCnvElem");
+		break;
+
+ case (QuCnvDist)	:
+		
+		fprintf(out,"QuCnvDist");
+		break;
+
+ case (QuCnvFlat)	:
+		
+		fprintf(out,"QuCnvFlat");
+		break;
+
+ case (QuCnvType)	:
+		
+		fprintf(out,"QuCnvType");
+		break;
+
+
+ case (QuGeoCmp)	:
+		
+		fprintf(out,"QuGeoCmp");
+		break;
+
+ case (QuGeoFnNum)	:
+		
+		fprintf(out,"QuGeoFnNum");
+		break;
+
+ case (QuGeoFnSpa)	:
+		
+		fprintf(out,"QuGeoFnSpa");
+		break;
+
+
+ case (ClSelAll)	:
+		
+		fprintf(out,"ClSelAll");
+		break;
+
+ case (ClSelDist)	:
+		
+		fprintf(out,"ClSelDist");
+		break;
+
+ case (ClFr)	:
+		
+		fprintf(out,"ClFr");
+		break;
+
+ case (ClWh)	:
+		
+		fprintf(out,"ClWh");
+		break;
+
+ case (ClGrp)	:
+		
+		fprintf(out,"ClGrp");
+		break;
+
+ case (ClHav)	:
+		
+		fprintf(out,"ClHav");
+		break;
+
+ case (ClOrd)	:
+		
+		fprintf(out,"ClOrd");
+		break;
+
+
+ case (OpBiPlu)	:
+		
+		fprintf(out,"OpBiPlu");
+		break;
+
+ case (OpBiMin)	:
+		
+		fprintf(out,"OpBiMin");
+		break;
+
+ case (OpBiMul)	:
+		
+		fprintf(out,"OpBiMul");
+		break;
+
+ case (OpBiDiv)	:
+		
+		fprintf(out,"OpBiDiv");
+		break;
+
+ case (OpBiMod)	:
+		
+		fprintf(out,"OpBiMod");
+		break;
+
+ case (OpBiStrcat)	:
+		
+		fprintf(out,"OpBiStrcat");
+		break;
+
+ case (OpUnMin)	:
+		
+		fprintf(out,"OpUnMin");
+		break;
+
+ case (OpUnAbs)	:
+		
+		fprintf(out,"OpUnAbs");
+		break;
+
+ case (OpCmpLike)	:
+		
+		fprintf(out,"OpCmpLike");
+		break;
+
+ case (OpCmpEq)	:
+		
+		fprintf(out,"OpCmpEq");
+		break;
+
+ case (OpCmpNe)	:
+		
+		fprintf(out,"OpCmpNe");
+		break;
+
+ case (OpCmpGt)	:
+		
+		fprintf(out,"OpCmpGt");
+		break;
+
+ case (OpCmpLt)	:
+		
+		fprintf(out,"OpCmpLt");
+		break;
+
+ case (OpCmpGe)	:
+		
+		fprintf(out,"OpCmpGe");
+		break;
+
+ case (OpCmpLe)	:
+		
+		fprintf(out,"OpCmpLe");
+		break;
+
+ case (OpBlnNot)	:
+		
+		fprintf(out,"OpBlnNot");
+		break;
+
+ case (OpBlnAnd)	:
+		
+		fprintf(out,"OpBlnAnd");
+		break;
+
+ case (OpBlnOr)	:
+		
+		fprintf(out,"OpBlnOr");
+		break;
+
+ case (OpSetInt)	:
+		
+		fprintf(out,"OpSetInt");
+		break;
+
+ case (OpSetUni)	:
+		
+		fprintf(out,"OpSetUni");
+		break;
+
+ case (OpSetExc)	:
+		
+		fprintf(out,"OpSetExc");
+		break;
+
+
+ case (ProAll)	:
+		
+		fprintf(out,"ProAll");
+		break;
+
+ case (ProSmp)	:
+		
+		fprintf(out,"ProSmp");
+		break;
+
+ case (ProAs)	:
+		
+		fprintf(out,"ProAs");
+		break;
+
+
+ case (FnAggCntall)	:
+		
+		fprintf(out,"FnAggCntall");
+		break;
+
+ case (FnAggCnt)	:
+		
+		fprintf(out,"FnAggCnt");
+		break;
+
+ case (FnAggSum)	:
+		
+		fprintf(out,"FnAggSum");
+		break;
+
+ case (FnAggMin)	:
+		
+		fprintf(out,"FnAggMin");
+		break;
+
+ case (FnAggMax)	:
+		
+		fprintf(out,"FnAggMax");
+		break;
+
+ case (FnAggAvg)	:
+		
+		fprintf(out,"FnAggAvg");
+		break;
+
+
+ case (VaNil)	:
+		
+		fprintf(out,"VaNil");
+		break;
+
+ case (VaTr)	:
+		
+		fprintf(out,"VaTr");
+		break;
+
+ case (VaFls)	:
+		
+		fprintf(out,"VaFls");
+		break;
+
+ case (VaLt)	:
+		
+		fprintf(out,"VaLt");
+		break;
+
+
+ case (OrdAsc)	:
+		
+		fprintf(out,"OrdAsc");
+		break;
+
+ case (OrdDesc)	:
+		
+		fprintf(out,"OrdDesc");
+		break;
+
+
+ case (Method)	:
+		
+		fprintf(out,"Method");
+		break;
+
+ case (FnOrCltnobj)	:
+		
+		fprintf(out,"FnOrCltnobj");
+		break;
+
+
+ case (OpGeoNorth)	:
+		
+		fprintf(out,"OpGeoNorth");
+		break;
+
+ case (OpGeoSouth)	:
+		
+		fprintf(out,"OpGeoSouth");
+		break;
+
+ case (OpGeoEast)	:
+		
+		fprintf(out,"OpGeoEast");
+		break;
+
+ case (OpGeoWest)	:
+		
+		fprintf(out,"OpGeoWest");
+		break;
+
+ case (OpGeoCover)	:
+		
+		fprintf(out,"OpGeoCover");
+		break;
+
+ case (OpGeoCovered)	:
+		
+		fprintf(out,"OpGeoCovered");
+		break;
+
+ case (OpGeoContain)	:
+		
+		fprintf(out,"OpGeoContain");
+		break;
+
+ case (OpGeoContained)	:
+		
+		fprintf(out,"OpGeoContained");
+		break;
+
+ case (OpGeoDisjoint)	:
+		
+		fprintf(out,"OpGeoDisjoint");
+		break;
+
+ case (OpGeoEqual)	:
+		
+		fprintf(out,"OpGeoEqual");
+		break;
+
+ case (OpGeoMeet)	:
+		
+		fprintf(out,"OpGeoMeet");
+		break;
+
+ case (OpGeoOverlap)	:
+		
+		fprintf(out,"OpGeoOverlap");
+		break;
+
+
+ case (FnGeoDistance)	:
+		
+		fprintf(out,"FnGeoDistance");
+		break;
+
+ case (FnGeoArea)	:
+		
+		fprintf(out,"FnGeoArea");
+		break;
+
+ case (FnGeoLength)	:
+		
+		fprintf(out,"FnGeoLength");
+		break;
+
+ case (FnGeoNearest)	:
+		
+		fprintf(out,"FnGeoNearest");
+		break;
+
+ case (FnGeoFurthest)	:
+		
+		fprintf(out,"FnGeoFurthest");
+		break;
+
+ case (FnGeoBoundary)	:
+		
+		fprintf(out,"FnGeoBoundary");
+		break;
+
+ case (FnGeoInterior)	:
+		
+		fprintf(out,"FnGeoInterior");
+		break;
+
+ case (FnGeoBuffer)	:
+		
+		fprintf(out,"FnGeoBuffer");
+		break;
+
+ case (FnGeoUnion)	:
+		
+		fprintf(out,"FnGeoUnion");
+		break;
+
+ case (FnGeoIntersect)	:
+		
+		fprintf(out,"FnGeoIntersect");
+		break;
+
+ case (FnGeoDifference)	:
+		
+		fprintf(out,"FnGeoDifference");
+		break;
+
+
+ case (GeoMbr)	:
+		
+		fprintf(out,"GeoMbr");
+		break;
+
+
+/*
+ * extended for Text IR
+ */ 
+
+ case (QuIrFnWeight)	:
+		fprintf(out,"QuIrFnWeight");
+		break;
+
+ case (QuIrFnNmatch)	:
+		fprintf(out,"QuIrFnNmatch");
+		break;
+
+ case (QuIrFnMatch)	:
+		fprintf(out,"QuIrFnMatch");
+		break;
+
+ case (OpIrBlnAccum)	:
+		fprintf(out,"OpIrBlnAccum");
+		break;
+
+ case (OpIrBlnOr)	:
+		fprintf(out,"OpIrBlnOr");
+		break;
+
+ case (OpIrBlnAnd)	:
+		fprintf(out,"OpIrBlnAnd");
+		break;
+
+ case (OpIrBlnMinus)	:
+		fprintf(out,"OpIrBlnMinus");
+		break;
+
+ case (OpIrBlnThreshold) :
+		fprintf(out,"OpIrBlnThreshold");
+		break;
+
+ case (OpIrBlnMultiply)	:
+		fprintf(out,"OpIrBlnMultiply");
+		break;
+
+ case (OpIrBlnMax)	:
+		fprintf(out,"OpIrBlnMax");
+		break;
+
+ case (OpIrBlnNear)	:
+		fprintf(out,"OpIrBlnNear");
+		break;
+
+ case (INTEGER) :
+			 
+		fprintf(out,"%d", IntPool[AST(t).tokenVal]);
+		break;
+ 
+ case (REAL): 	 
+		fprintf(out,"%f", RealPool[AST(t).tokenVal]);
+		break;
+ 
+ case (STRING) :
+
+		fprintf(out, "\"");
+		printnametofile(out, AST(t).tokenVal);
+		fprintf(out, "\"");
+		break;
+ 
+ case (ID ) :
+		 
+		printnametofile(out, AST(t).tokenVal);
+		break;
+ 
+ 
+/* include "print_ast.h"*/
+ 

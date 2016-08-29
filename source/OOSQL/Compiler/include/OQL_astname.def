@@ -1,0 +1,334 @@
+/*
+ * MODULE: OQL_astname.def
+ *
+ * DESCRIPTION:
+ *	This module defines all kind of AST node names.
+ * 	The principles of naming is based on the OQL BNF and 
+ * 	the descriptions of "ODMG-93 release 1.2, Chap.4".
+ *
+ * LOG:
+ */
+
+#ifndef _OQL_ASTNAME_DEF_
+#define _OQL_ASTNAME_DEF_
+
+typedef enum {
+    QuProg = 1000,          /* Query Program: root node of AST */
+
+	null,					/* null node: means that optional clause is omitted */
+
+	QuDef,					/* Query Definition Statement */
+	QuSmp,					/* Simple Query: arithmetic and string expressions */
+	QuCmp,					/* Comparison Query: operators are =, !=, >, <, >=, <=, like */
+	QuBln,					/* Boolean Query: operators are not, and, or */
+	QuCnsCltnobj,
+	QuCnsObj,				/* Construction Query: object construction */
+	QuCnsStruct,			/* Construction Query: structure literal construction */
+	QuCnsSet,				/* Construction Query: set literal construction */
+	QuCnsBag,				/* Construction Query: bag literal construction */
+	QuCnsLst,				/* Construction Query: list literal construction */
+	QuCnsLstrn,				/* Construction Query: list literal construction with range */
+	QuCnsArr,				/* Construction Query: array literal construction */
+	QuAccPaex,				/* Accessor Query: path expression */
+    QuAccPaexAll,           /* Accessor Query: path expression all */
+	QuAccDref,				/* Accessor Query: dereferencing an object */
+	QuAccIcltnElem,			/* Accessor Query: getting an element of indexed collection */
+	QuAccIcltnSub,			/* Accessor Query: extracting a subcollection of indexed cltn. */
+	QuAccIcltnFr,			/* Accessor Query: getting the first element of indexed cltn. */
+	QuAccIcltnLs,			/* Accessor Query: getting the last element of indexed cltn. */
+	QuAccFn,				/* Accessor Query: function call */
+	QuCltnAll,				/* Collection Query: universal quantification (for all ..) */
+	QuCltnEx,				/* Collection Query: existential quantification (exists in ..) */
+	QuCltnExany,			/* Collection Query: existential quantification (exists) */
+	QuCltnUni,				/* Collection Query: existential quantification (unique) */
+	QuCltnIn,				/* Collection Query: membership testing (in operator) */
+	QuCltnCmpSome,			/* Collection Query: quantified comparison (existential) */
+	QuCltnCmpAny,			/* Collection Query: quantified comparison (existential) */
+	QuCltnCmpAll,			/* Collection Query: quantified comparison (universal) */
+	QuCltnAgg,				/* Collection Query: aggregate functions */
+	QuCltnAggDist,			/* extends SQL feature: Collection Query: aggregate functions with distinct flag */
+	QuSel,					/* Select Query */
+	QuDel,					/* Delete Query */
+	QuDeferredDel,			/* Deferred Delete Query */
+	QuIns,					/* Insert Query */
+	QuInsCol,				/* Inserted columns */
+	QuInsValue,				/* Inserted values */
+	QuUpd,					/* Update Query */
+	QuUpdSetList,			/* Update Set List */
+	QuUpdSet,				/* Update Set */
+	QuCreateTbl,			/* Create Table */
+	QuCreateTempTbl,		/* Create Temporary Table */
+	QuCreateIdx,			/* Create Index */
+	QuDropIdx,				/* Drop Index */
+	QuDropTbl,				/* Drop Table */
+	QuAlterTbl,				/* alter table query */
+	QuCreateSeq,			/* create sequence */	
+	QuDropSeq,				/* drop sequence */
+	QuCreateFunc,			/* Create Function */
+	QuCreateMethod,			/* Create Method */
+	QuCreateProc,			/* Create Procedure */
+	QuDropFunc,				/* Drop Function */
+	QuDropSpecFunc,			/* Drop Specific Function */
+	QuDropProc,				/* Drop Procedure */
+	QuDropSpecProc,			/* Drop Specific Procedure */
+	QuCallProc,				/* Call Procedure */
+	QuSet,					/* Set Query: operators are intersect, union, except */
+	QuCnvL2s,				/* Conversion Query: converting list to set */
+	QuCnvElem,				/* Conversion Query: extracting the element of a singleton c.f., singleton: a collection containing only one element */
+	QuCnvDist,				/* Conversion Query: removing duplicates */
+	QuCnvFlat,				/* Conversion Query: flattening collection of collections */
+	QuCnvType,				/* Conversion Query: typing an expressions for a class */
+	QuCnvTypeStar,			/* Conversion Query: typing an expressions for a class hierarchy */
+	QuUserFunction,
+
+	QuGeoCmp,				/* GeoSQL Query: topological relational comparisons */
+	QuGeoFnNum,				/* GeoSQL Query: numerical functions */
+	QuGeoFnSpa,				/* GeoSQL Qeury: spatial functions */
+
+	QuIrFnNmatch,			/* IR Query: NMATCH function */
+	QuIrFnMatch,			/* IR Query: MATCH function */
+	QuIrFnWeight,			/* IR Query: WEIGHT function */
+
+	ClSelAll,				/* SELECT Clause: select all */
+	ClSelDist,				/* SELECT Clause: select distinct */
+	ClFr,					/* FROM Clause */
+	ClWh,					/* WHERE Clause */
+	ClGrp,					/* GROUP BY Clause */
+	ClHav,					/* HAVING Clause */
+	ClOrd,					/* ORDER BY Clause */
+	ClLim,					/* kNN LIMIT Clause */
+
+	OpBiPlu,				/* Binary Operator: plus */
+	OpBiMin,				/* Binary Operator: minus */
+	OpBiMul,				/* Binary Operator: multiplication */
+	OpBiDiv,				/* Binary Operator: division */
+	OpBiMod,				/* Binary Operator: modulo */
+	OpBiStrcat,				/* Binary Operator: string concatenation */
+	OpUnMin,				/* Unary Operator: minus */
+	OpUnAbs,				/* Unary Operator: abstract value */
+	OpCmpLike,				/* Comparison Operator: like (string matching) */
+	OpCmpEq,				/* Comparison Operator: = */
+	OpCmpNe,				/* Comparison Operator: != */
+	OpCmpGt,				/* Comparison Operator: > */
+	OpCmpLt,				/* Comparison Operator: < */
+	OpCmpGe,				/* Comparison Operator: >= */
+	OpCmpLe,				/* Comparison Operator: <= */
+	OpCmpIsNull,            /* Comparison Operator: is null */
+	OpCmpIsNotNull,         /* Comparison Operator: is not null */
+	OpBlnNot,				/* Boolean Operator: not */
+	OpBlnAnd,				/* Boolean Operator: and */
+	OpBlnOr,				/* Boolean Operator: or */
+	OpSetInt,				/* Set Operator: intersect */
+	OpSetUni,				/* Set Operator: union */
+	OpSetExc,				/* Set Operator: except */
+
+	ProAll,					/* "*": select * */
+	ProSmp,					/* Projection without column name of query result tuple */
+	ProAs,					/* Projection with column name of query result tuple */
+	ProAllLogicalID,		/* "#": select # (project all logical IDs) */
+
+	FrCltn,					/* Collection(Class) in From Clause */
+	FrCltnStar,				/* Collection(Class) in From Clause: querying against class hierarchy */
+
+	FnAggCntall,			/* Aggregate Function: count(*) */
+	FnAggCnt,				/* Aggregate Function: count */
+	FnAggSum,				/* Aggregate Function: sum */
+	FnAggMin,				/* Aggregate Function: min */
+	FnAggMax,				/* Aggregate Function: max */
+	FnAggAvg,				/* Aggregate Function: avg */
+
+	VaNil,					/* Value: nil (object literal) */
+	VaTr,					/* Value: true (boolean literal) */
+	VaFls,					/* Value: false (boolena literal) */
+	VaLt,					/* Value: integer, float, character, or string literal */ 
+	VaLtDate,				/* Value: Date literal */ 
+	VaLtTime,				/* Value: Time literal */ 
+	VaLtTimestamp,			/* Value: Timestamp literal */ 
+	VaLtInterval,			/* Value: Interval literal */ 
+	VaLtComplex,			/* VALUE: Complex type literal */
+
+	IntervalYear,			/* Interval Precision: year */
+	IntervalMonth,			/* Interval Precision: month */
+	IntervalDay,			/* Interval Precision: day */
+	IntervalHour,			/* Interval Precision: hour */
+	IntervalMinute,			/* Interval Precision: minute */
+	IntervalSecond,			/* Interval Precision: second */
+
+	OrdAsc,					/* Ordering info.: Ascending */
+	OrdDesc,				/* ordering info.: Descending */
+
+	Method,					/* Method */
+	FnOrCltnobj,			/* Funcation call or collection object construction */
+
+							/* NOTE: This AST node is necessary because 
+							 *   the syntax for function call have reduce/reduce conflict with
+							 *   the syntax for collection object construction.
+							 */ 
+
+	OpGeoNorth,				/* GeoSQL operator: north */
+	OpGeoSouth,				/* GeoSQL operator: south */
+	OpGeoEast,				/* GeoSQL operator: east */
+	OpGeoWest,				/* GeoSQL operator: west */
+	OpGeoCover,				/* GeoSQL operator: cover */
+	OpGeoCovered,			/* GeoSQL operator: covered */
+	OpGeoContain,			/* GeoSQL operator: contain */
+	OpGeoContained,			/* GeoSQL operator: contained */
+	OpGeoDisjoint,			/* GeoSQL operator: disjoint */
+	OpGeoEqual,				/* GeoSQL operator: equal */
+	OpGeoMeet,				/* GeoSQL operator: meet */
+	OpGeoOverlap,			/* GeoSQL operator: overlap */
+
+	FnGeoDistance,			/* GeoSQL function: distance */
+	FnGeoArea,				/* GeoSQL function: area */
+	FnGeoLength,			/* GeoSQL function: length */
+	FnGeoNearest,			/* GeoSQL function: nearest */
+	FnGeoFurthest,			/* GeoSQL function: furthest */
+	FnGeoBoundary,			/* GeoSQL function: boundary */
+	FnGeoInterior,			/* GeoSQL function: interior */
+	FnGeoBuffer,			/* GeoSQL function: buffer */
+	FnGeoUnion,				/* GeoSQL function: union */
+	FnGeoIntersect,			/* GeoSQL function: intersect */
+	FnGeoDifference,		/* GeoSQL function: difference */
+
+	GeoMbr,					/* GeoSQL MBR */
+
+	OpIrBlnAccum,			/* IR boolean operator: accumulator */
+	OpIrBlnOr,				/* IR boolean operator: or */
+	OpIrBlnAnd,				/* IR boolean operator: and */
+	OpIrBlnMinus,			/* IR boolean operator: minus */
+	OpIrBlnThreshold,		/* IR boolean operator: threshold */
+	OpIrBlnMultiply,		/* IR boolean operator: and weight */
+	OpIrBlnMax,				/* IR boolean operator: max */
+	OpIrBlnNear,			/* IR boolean operator: near */
+	OpIrBlnNearWithOrder,	/* IR boolean operator: near with order */
+	OpIrBlnUnIn,			/* IR boolean unary operator: in */
+	OpIrRange,				
+	OpIrBetween,			
+	OpIrScanForward,		
+	OpIrScanBackward,		
+
+	TblAttrList,
+	TblAttr,	
+	TblKeyDef,
+	TblAttrName,	
+	TblAttrDomain,
+
+	IdxTypeNormal,
+	IdxTypeUnique,
+	IdxTypeCluster,
+	IdxTypeUniqueCluster,
+	IdxKeyList,	
+	IdxTypeMlgf,
+	IdxTypeUniqueMlgf,
+	IdxTypeClusterMlgf,
+	IdxTypeUniqueClusterMlgf,
+
+	SuperClasses,
+	VaParam,					/* Question mark, parameter */
+	VaText,
+	TextUpdModeDeferred,
+	TextUpdModeImmediate,
+	FrObject,
+
+	FuncArgList,
+	FuncReturns,
+	FuncArg,
+	FucnArgAsLocator,
+
+	FuncSpecific,
+	FuncExternalName,
+	FuncDeterministic,
+	FuncExternalAction,
+	FuncNullCall,
+	FuncLanguage,
+	FuncParameterStyle,
+	FuncScratchpad,
+	FuncFinalCall,
+	FuncParallel,
+	FuncDbinfo,
+	FuncFenced,
+	
+	ProcArgList,
+	ProcArg,
+	ProcArgModeIn,
+	ProcArgModeOut,
+	ProcArgModeInOut,
+	ProcResultSet,
+
+	AltActList,
+	AltActAddCol,
+	AltActDropCol,
+	AltActDropColList,
+
+	SeqOptList,
+	SeqStartWith,
+	VaSeqCurr,
+	VaSeqNext,
+
+	QuOgisQuery,
+	QuOgisTranslatableOp,
+	QuOgisGeometricOp,
+	QuOgisRelationalOp,
+	QuOgisMiscellaneousOp,
+	QuOgisTrGeometryFT,
+	QuOgisTrPointFT,
+	QuOgisTrLineStringFT,
+	QuOgisTrPolygonFT,
+	QuOgisTrMultiPointFT,
+	QuOgisTrMultiLineStringFT,
+	QuOgisTrMultiPolygonFT,
+	QuOgisTrGeometryCollectionFT,
+	QuOgisTrGeometryFB,
+	QuOgisTrPointFB,
+	QuOgisTrLineStringFB,
+	QuOgisTrPolygonFB,
+	QuOgisTrMultiPointFB,
+	QuOgisTrMultiLineStringFB,
+	QuOgisTrMultiPolygonFB,
+	QuOgisTrGeometryCollectionFB,
+	QuOgisTrAsText,
+	QuOgisTrAsBinary,
+	QuOgisGeDimension,
+	QuOgisGeGeometryType,
+	QuOgisGeSRID,
+	QuOgisGeBoundary,
+	QuOgisGeLength,
+	QuOgisGeX,
+	QuOgisGeY,
+	QuOgisGeArea,
+	QuOgisGeNumGeometries,
+	QuOgisGeNumPoints,
+	QuOgisGeNumInteriorRings,
+	QuOgisReIsEmpty,
+	QuOgisReIsSimple,
+	QuOgisReIsClosed,
+	QuOgisReIsRing,
+	QuOgisReContains,
+	QuOgisReCrosses,
+	QuOgisReDisjoint,
+	QuOgisReEquals,
+	QuOgisReIntersects,
+	QuOgisReOverlaps,
+	QuOgisReRelated,
+	QuOgisReTouches,
+	QuOgisReWithin,
+	QuOgisMiDifference,
+	QuOgisMiIntersection,
+	QuOgisMiSymDifference,
+	QuOgisMiUnion,
+	QuOgisMiDistance,
+	QuOgisMiEnvelope,
+	QuOgisMiBuffer,
+	QuOgisMiConvexHull,
+	QuOgisMiExteriorRing,
+	QuOgisMiInteriorRingN,
+	QuOgisMiCentriod,
+	QuOgisMiStartPoint,
+	QuOgisMiEndPoint,
+	QuOgisMiPointOnSurface,
+	QuOgisMiPointN,
+	QuOgisMiGeometryN
+
+} OQL_ASTNodeNameType;
+	
+#endif /* _OQL_ASTNAME_DEF_ */

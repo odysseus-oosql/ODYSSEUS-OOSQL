@@ -1,0 +1,4 @@
+.MAKE_VERSION:	VERSION-1.0
+.BUILT_LAST_MAKE_RUN:
+clean:
+	/bin/rm -f *.o *.i *.ln TAGS tags

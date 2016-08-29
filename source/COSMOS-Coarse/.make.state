@@ -1,0 +1,7 @@
+.MAKE_VERSION:	VERSION-1.0
+.BUILT_LAST_MAKE_RUN:
+clean:
+	for dir in Err Util RDsM BfM LOT OM BtM MLGF SM RM LRDS XA THM; do ( cd ./${dir}; make clean); done;
+	(cd ./Misc; make clean )
+	/bin/rm -f ./Header/errorcodes.h
+	/bin/rm -f cosmos.o cosmos.so.1

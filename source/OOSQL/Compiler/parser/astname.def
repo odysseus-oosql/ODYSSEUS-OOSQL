@@ -1,0 +1,90 @@
+#define BlBo		121	/* boolean expr binary	or		*/
+#define BlBa		122	/*			and		*/
+#define BlUn		123	/*		unary	not		*/
+
+#define ClFr		824	/* from clause without correlation*/
+#define ClFrCo		825	/* 	"      with correlation	*/
+#define ClFrStar	826	/*	"      without correlation*/
+#define ClFrStarCo	827	/* 	"      with correlation	*/
+#define ClWh		212	/* where          			*/
+#define ClGr		213	/* groupby        			*/
+#define ClHv		214	/* having         			*/
+
+#define CoEq		224	/* compare operator equal		*/
+#define CoNe		225	/*		    not equal	*/
+#define CoGt		226	/*		    greater than	*/
+#define CoLt		227	/*		    less than	*/
+#define CoGe		228	/*		    greater than or equal*/
+#define CoLe		229	/*		    less than or equal	*/
+
+#define	CrIx		300	/* create index */
+#define	CrUniQIx	310	/* create unique index */
+#define DrIx		350	/* drop index */
+
+#define ObNa		431	/* orderby clause with  integer  ASC	*/
+#define ObNd		432	/* 				 DESC	*/
+#define ObNn		433	/* 				 no code*/
+#define ObDa		434	/* 			identifier ASC	*/
+#define ObDd		435	/* 				   DESC	*/
+#define ObDn		436	/* 				   no code*/
+
+#define PaEx		501	/* path expr e.g. classA.classB.attrC	*/
+#define PaSubst		502	/* path expr with domain substitution	*
+				 * e.g. classA[classA'].attrB		*/
+
+#define PdCv		511	/* predicate compare with value expr.	*/
+
+#define PdBe		521	/*	     between			*/
+#define PdNBe		522	/*	     not between		*/
+
+#define PdIn		533	/*	     in with value list		*/
+#define PdNIn		534	/*	     not in with value list	*/
+
+#define PdLi		541	/*	     like			*/
+#define PdNLi		542	/*	     not like		*/
+
+#define PdLiE		543	/*	     like with escape	*/
+#define PdNLiE		544	/*	     not like with escape	*/
+
+#define PdNu		551	/*	     null			*/
+#define PdNNu		552	/*	     not null		*/
+
+#define SfCo		661	/* set function COUNT (*)		*/
+#define SfDs		662	/*		set_fnc (DISTINCT attr_name )*/
+#define SfDc		663	/*		COUNT (DISTINCT attr_name)*/
+#define SfAa		664	/*		set_fnc (ALL attr_name)	*/
+#define SfAn		665	/*		set_fnc (attr_name)	*/
+
+#define StSe		761	/* statement	select			*/
+#define StSd		762	/*			distinct	*/
+#define StSa		763	/*			all		*/
+
+#define Valt		832	/*		       literal		*/
+#define Vebp		841	/* value expression binary plus		*/
+#define Vebs		842	/*			   subtract	*/
+#define Vebm		843	/*			   multiplicate	*/
+#define Vebd		844	/*			   divide	*/
+#define Veup		845	/*		    unary plus		*/
+#define Veum		846	/*		          minus		*/
+
+#define expp		931	/* exponent in literal : real E + int	*/ 
+#define expm		932	/*			 real E - int	*/
+
+#define sfav		951	/* set function average			*/
+#define sfma		952	/*		max			*/
+#define sfmi		953	/*		min			*/
+#define sfsu		954	/*		sum			*/
+
+#define star		955	/* star(*)				*/
+
+#define selL		962	/*   select list			*/
+#define Where		991
+#define Grpby		992
+#define Havi		993
+#define Ordby		994
+			
+/*  INT_NUM	259  these are defined as a token*/
+/*  REAL_NUM	260  used as an ast node name.	*/
+/*  STR		258				*/
+/*  ID		257				*/
+/*  NulL	318				*/

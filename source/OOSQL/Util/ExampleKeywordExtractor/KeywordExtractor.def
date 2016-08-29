@@ -1,0 +1,4 @@
+EXPORTS
+	openAndExecuteKeywordExtractor
+	getAndNextKeywordExtractor
+	closeKeywordExtractor

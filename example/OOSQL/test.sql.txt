@@ -1,0 +1,8 @@
+CREATE TABLE test1 ( a integer, b varchar(30) );
+INSERT INTO test1 VALUES (10, 'abc');
+INSERT INTO test1 VALUES (20, 'def');
+INSERT INTO test1 VALUES (30, 'ghi');
+SELECT * FROM test1;
+UPDATE test1 SET b='aaa' WHERE a=30;
+SELECT b FROM test1 WHERE a>15;
+quit
