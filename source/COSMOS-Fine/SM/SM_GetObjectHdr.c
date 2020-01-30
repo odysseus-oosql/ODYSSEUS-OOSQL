@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,117 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_GetObjectHdr.c
+ *
+ * Description:
+ *  Returns the object header for a given object.
+ *  The object is specified as 'oid'.
+ *
+ * Exports:
+ *  Four SM_GetObjectHdr(Four, Four, ObjectID*, ObjectHdr*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*@================================
+ * SM_GetObjectHdr( )
+ *================================*/
+/*
+ * Function: Four SM_GetObjectHdr(Four, Four, ObjectID*, ObjectHdr*)
+ *
+ * Description:
+ *  Returns the object header for a given object.
+ *  The object is specified as 'oid'.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eBADCURSOR
+ *    some errors caused by function calls
+ */
+Four SM_GetObjectHdr(
+    Four      handle,
+    Four      scanId,		/* IN scan to use */
+    ObjectID  *oid,		/* IN object whose header will be returned */
+    ObjectHdr *objHdr,		/* OUT returned object header */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four e;			/* error number */
+    ObjectID *getOid;		/* ObjectID to be get its object header */
+    LockParameter *realLockup;
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_GetObjectHdr(handle, scanId=%ld, oid=%P, objHdr=%P, lockup=%P)",
+	      scanId, oid, objHdr, lockup));
+
+    /*@
+     * Check parameters.
+     */
+    if (!VALID_SCANID(handle, scanId)) ERR(handle, eBADPARAMETER);
+
+    if (objHdr == NULL) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /*@ oid is equal to NULL? */
+    /* If 'oid' is NULL, then use the current cursor's ObjectID. */
+    if (oid == NULL) {
+
+	if (SM_SCANTABLE(handle)[scanId].cursor.any.flag != CURSOR_ON)
+	    ERR(handle, eBADCURSOR);
+
+	getOid = &(SM_SCANTABLE(handle)[scanId].cursor.any.oid);
+
+    } else
+	getOid = oid;
+
+    /* check the lockup parameter */
+    realLockup = NULL;
+
+    if(lockup){
+	if(lockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+	if((lockup->mode != L_X) && (lockup->mode != L_S)) ERR(handle, eBADLOCKMODE_SM);
+        switch ( SM_SCANTABLE(handle)[scanId].acquiredFileLock ) {
+	  case L_S  :
+	  case L_X  : realLockup = NULL; break; /* already enough lock  */
+	  case L_IS :
+	  case L_SIX:
+	  case L_IX : realLockup = lockup; break;
+          /*
+           * This error can detected by LM_getObjectLock call
+           * default   : ERR(handle, eINVALIDHIERARCHICALLOCK_SM);
+           */
+	}
+    }
+
+    /* Get the object's header. */
+    e = OM_GetObjectHdr(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_SCANTABLE(handle)[scanId].finfo), getOid, objHdr, realLockup);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* SM_GetObjectHdr( ) */

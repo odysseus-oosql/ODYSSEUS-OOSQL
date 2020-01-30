@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,92 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lot_DropTree.c
+ *
+ * Description:
+ *  Drop the large object tree rooted at 'root'.
+ *
+ * Exports:
+ *  Four lot_DropTree(Four, XactTableEntry_T*, PageID*, Boolean, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * lot_DropTree( )
+ *================================*/
+/*
+ * Function: Four lot_DropTree(Four, XactTableEntry_T*, PageID*, Boolean, LogParameter_T*)
+ *
+ * Description:
+ *  Drop the large object tree rooted at 'root'.
+ *
+ * Returns:
+ *  Error codes
+ *    some errors caused by function calls
+ */
+Four lot_DropTree(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    PageID *root,		/* IN root page's PageID */
+    Boolean immediateFlag,      /* IN TRUE if drop immediately */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four e;			/* Error Number */
+    PageID pid;			/* PageID for the child node */
+    L_O_T_INodePage *apage;     /* root page */
+    L_O_T_INode *anode;		/* pointer to node buffer of root */
+    Buffer_ACC_CB *apage_BCBP;
+    Four i;
+
+
+    TR_PRINT(handle, TR_LOT, TR1, ("lot_DropTree(root=%P)", root));
+
+
+    /*@ read the page containing the root node in */
+    e = BfM_getAndFixBuffer(handle, root, M_FREE, &apage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    apage = (L_O_T_INodePage *)apage_BCBP->bufPagePtr;
+    anode = &apage->node;
+
+    for (i = 0; i < anode->header.nEntries; i++) {
+
+	/* construct the child's PageID */
+	MAKE_PAGEID(pid, root->volNo, anode->entry[i].spid);
+
+	if (anode->header.height == 1) {	/* the deepest internal node */
+
+            e = RDsM_FreeTrain(handle, xactEntry, &pid, TRAINSIZE2, immediateFlag, logParam);
+            if (e < eNOERROR) ERRB1(handle, e, apage_BCBP, PAGE_BUF);
+
+	} else {		/* the internal node except the deepest internal node */
+
+	    /*@ recursive call to drop the subtree */
+	    e = lot_DropTree(handle, xactEntry, &pid, immediateFlag, logParam);
+	    if (e < eNOERROR) ERRB1(handle, e, apage_BCBP, PAGE_BUF);
+	}
+    }
+
+    e = BfM_unfixBuffer(handle, apage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* deallocate the leaf data page */
+    e = RDsM_FreeTrain(handle, xactEntry, root, PAGESIZE2, immediateFlag, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* lot_DropTree( ) */

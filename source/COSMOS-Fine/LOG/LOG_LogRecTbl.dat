@@ -1,0 +1,771 @@
+#/******************************************************************************/
+#/*                                                                            */
+#/*    Copyright (c) 1990-2016, KAIST                                          */
+#/*    All rights reserved.                                                    */
+#/*                                                                            */
+#/*    Redistribution and use in source and binary forms, with or without      */
+#/*    modification, are permitted provided that the following conditions      */
+#/*    are met:                                                                */
+#/*                                                                            */
+#/*    1. Redistributions of source code must retain the above copyright       */
+#/*       notice, this list of conditions and the following disclaimer.        */
+#/*                                                                            */
+#/*    2. Redistributions in binary form must reproduce the above copyright    */
+#/*       notice, this list of conditions and the following disclaimer in      */
+#/*       the documentation and/or other materials provided with the           */
+#/*       distribution.                                                        */
+#/*                                                                            */
+#/*    3. Neither the name of the copyright holder nor the names of its        */
+#/*       contributors may be used to endorse or promote products derived      */
+#/*       from this software without specific prior written permission.        */
+#/*                                                                            */
+#/*    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS     */
+#/*    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT       */
+#/*    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS       */
+#/*    FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE          */
+#/*    COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,    */
+#/*    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,    */
+#/*    BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;        */
+#/*    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER        */
+#/*    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT      */
+#/*    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN       */
+#/*    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         */
+#/*    POSSIBILITY OF SUCH DAMAGE.                                             */
+#/*                                                                            */
+#/******************************************************************************/
+#/******************************************************************************/
+#/*                                                                            */
+#/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+#/*    Fine-Granule Locking Version                                            */
+#/*    Version 3.0                                                             */
+#/*                                                                            */
+#/*    Developed by Professor Kyu-Young Whang et al.                           */
+#/*                                                                            */
+#/*    Advanced Information Technology Research Center (AITrc)                 */
+#/*    Korea Advanced Institute of Science and Technology (KAIST)              */
+#/*                                                                            */
+#/*    e-mail: odysseus.oosql@gmail.com                                        */
+#/*                                                                            */
+#/*    Bibliography:                                                           */
+#/*    [1] Whang, K., Lee, J., Lee, M., Han, W., Kim, M., and Kim, J., "DB-IR  */
+#/*        Integration Using Tight-Coupling in the Odysseus DBMS," World Wide  */
+#/*        Web, Vol. 18, No. 3, pp. 491-520, May 2015.                         */
+#/*    [2] Whang, K., Lee, M., Lee, J., Kim, M., and Han, W., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with IR Features," In Proc. */
+#/*        IEEE 21st Int'l Conf. on Data Engineering (ICDE), pp. 1104-1105     */
+#/*        (demo), Tokyo, Japan, April 5-8, 2005. This paper received the Best */
+#/*        Demonstration Award.                                                */
+#/*    [3] Whang, K., Park, B., Han, W., and Lee, Y., "An Inverted Index       */
+#/*        Storage Structure Using Subindexes and Large Objects for Tight      */
+#/*        Coupling of Information Retrieval with Database Management          */
+#/*        Systems," U.S. Patent No.6,349,308 (2002) (Appl. No. 09/250,487     */
+#/*        (1999)).                                                            */
+#/*    [4] Whang, K., Lee, J., Kim, M., Lee, M., Lee, K., Han, W., and Kim,    */
+#/*        J., "Tightly-Coupled Spatial Database Features in the               */
+#/*        Odysseus/OpenGIS DBMS for High-Performance," GeoInformatica,        */
+#/*        Vol. 14, No. 4, pp. 425-446, Oct. 2010.                             */
+#/*    [5] Whang, K., Lee, J., Kim, M., Lee, M., and Lee, K., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with Spatial Database       */
+#/*        Features," In Proc. 23rd IEEE Int'l Conf. on Data Engineering       */
+#/*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
+#/*                                                                            */
+#/******************************************************************************/
+#
+# File: logdef.dat
+#
+# Description:
+#  For each log record type specify the buffer type, redo function, and
+#  undo function.
+#
+# Format:
+#	LOG_RECORD_ACTION_NAME {
+#		buffer_type
+#		redo_function_name
+#		undo_function_name
+#	}
+#
+
+
+LOG_ACTION_DUMMY_CLR {
+	PAGE_BUF
+	NULL
+	NULL
+}
+
+#
+# LOT
+#
+
+# internal entries' count fields are represented without accumulation
+# after deletion count fields are adjusted
+# With entry deletion, # of deleted bytes before and after the deleted entries
+# are considered.
+LOG_ACTION_LOT_DELETE_INTERNAL_ENTRIES {
+	PAGE_BUF
+	Redo_LOT_DeleteInternalEntries
+	Undo_LOT_DeleteInternalEntries
+}
+
+LOG_ACTION_LOT_DELETE_DATA {
+	TRAIN_BUF
+	Redo_LOT_DeleteData
+	Undo_LOT_DeleteData
+}
+
+LOG_ACTION_LOT_INIT_INTERNAL_NODE_PAGE {
+	PAGE_BUF
+	Redo_LOT_InitInternalNodePage
+	NULL
+}
+
+LOG_ACTION_LOT_INIT_LEAF_NODE {
+	TRAIN_BUF
+	Redo_LOT_InitLeafNode
+	NULL
+}
+
+LOG_ACTION_LOT_INSERT_DATA {
+	TRAIN_BUF
+	Redo_LOT_InsertData
+	Undo_LOT_InsertData
+}
+
+# internal entries' count fields are represented without accumulation
+# after replace, count fields are adjusted
+LOG_ACTION_LOT_REPLACE_INTERNAL_ENTRIES {
+	PAGE_BUF
+	Redo_LOT_ReplaceInternalEntries
+	Undo_LOT_ReplaceInternalEntries
+}
+
+# internal entries' count fields are represented without accumulation
+# after insertion of deleted entries, count fields are adjusted
+# With entry deletion, # of deleted bytes before and after the deleted entries
+# are considered.
+# this is undo log record of LOG_ACTION_LOT_DELETE_INTERNAL_ENTRIES
+LOG_ACTION_LOT_UNDO_DELETE_INTERNAL_ENTRIES {
+	PAGE_BUF
+	Redo_LOT_UndoDeleteInternalEntries
+	NULL
+}
+
+#
+# Update count fields after the start position including the start position
+LOG_ACTION_LOT_UPDATE_COUNT_FIELDS {
+	PAGE_BUF
+	Redo_LOT_UpdateCountFields
+	Undo_LOT_UpdateCountFields
+}
+
+LOG_ACTION_LOT_WRITE_DATA {
+	TRAIN_BUF
+	Redo_LOT_WriteData
+	Undo_LOT_WriteData
+}
+
+#
+# MLGF
+#
+LOG_ACTION_MLGF_CHANGE_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_ChangeLeafEntry
+	Undo_MLGF_ChangeLeafEntry
+}
+LOG_ACTION_MLGF_COPY_PAGE {
+	PAGE_BUF
+	Redo_MLGF_CopyPage
+	NULL
+}
+LOG_ACTION_MLGF_DELETE_DIRECTORY_ENTRIES {
+	PAGE_BUF
+	Redo_MLGF_DeleteDirectoryEntries
+	Undo_MLGF_DeleteDirectoryEntries
+}
+LOG_ACTION_MLGF_DELETE_DIRECTORY_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_DeleteDirectoryEntry
+	Undo_MLGF_DeleteDirectoryEntry
+}
+LOG_ACTION_MLGF_DELETE_LEAF_ENTRIES {
+	PAGE_BUF
+	Redo_MLGF_DeleteLeafEntries
+	Undo_MLGF_DeleteLeafEntries
+}
+LOG_ACTION_MLGF_DELETE_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_DeleteLeafEntry
+	Undo_MLGF_DeleteLeafEntry
+}
+LOG_ACTION_MLGF_DELETE_OBJECT_FROM_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_MLGF_DeleteObjectFromOverflowPage
+	Undo_MLGF_DeleteObjectFromOverflowPage
+}
+LOG_ACTION_MLGF_DELETE_OBJECT_FROM_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_DeleteObjectFromLeafEntry
+	Undo_MLGF_DeleteObjectFromLeafEntry
+}
+LOG_ACTION_MLGF_DELETE_OBJECT_WITH_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_DeleteObjectWithLeafEntry
+	Undo_MLGF_DeleteObjectWithLeafEntry
+}
+LOG_ACTION_MLGF_DELETE_OBJECTS_FROM_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_MLGF_DeleteObjectsFromOverflowPage
+	Undo_MLGF_DeleteObjectsFromOverflowPage
+}
+LOG_ACTION_MLGF_INIT_DIRECTORY_PAGE {
+	PAGE_BUF
+	Redo_MLGF_InitDirectoryPage
+	NULL
+}
+LOG_ACTION_MLGF_INIT_LEAF_PAGE {
+	PAGE_BUF
+	Redo_MLGF_InitLeafPage
+	NULL
+}
+LOG_ACTION_MLGF_INIT_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_MLGF_InitOverflowPage
+	NULL
+}
+LOG_ACTION_MLGF_INSERT_DIRECTORY_ENTRIES {
+	PAGE_BUF
+	Redo_MLGF_InsertDirectoryEntries
+	Undo_MLGF_InsertDirectoryEntries
+}
+LOG_ACTION_MLGF_INSERT_DIRECTORY_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_InsertDirectoryEntry
+	Undo_MLGF_InsertDirectoryEntry
+}
+LOG_ACTION_MLGF_INSERT_LEAF_ENTRIES {
+	PAGE_BUF
+	Redo_MLGF_InsertLeafEntries
+	Undo_MLGF_InsertLeafEntries
+}
+LOG_ACTION_MLGF_INSERT_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_InsertLeafEntry
+	NULL
+}
+LOG_ACTION_MLGF_INSERT_OBJECT_INTO_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_InsertObjectIntoLeafEntry
+	Undo_MLGF_InsertObjectIntoLeafEntry
+}
+LOG_ACTION_MLGF_INSERT_OBJECT_INTO_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_MLGF_InsertObjectIntoOverflowPage
+	Undo_MLGF_InsertObjectIntoOverflowPage
+}
+LOG_ACTION_MLGF_INSERT_OBJECT_WITH_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_InsertObjectWithLeafEntry
+	Undo_MLGF_InsertObjectWithLeafEntry
+}
+LOG_ACTION_MLGF_INSERT_OBJECTS_INTO_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_MLGF_InsertObjectsIntoOverflowPage
+	Undo_MLGF_InsertObjectsIntoOverflowPage
+}
+
+LOG_ACTION_MLGF_MODIFY_DIRECTORY_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_ModifyDirectoryEntry
+	Undo_MLGF_ModifyDirectoryEntry
+}
+
+LOG_ACTION_MLGF_MODIFY_INDEXID_OF_MLGF_PAGE {
+	PAGE_BUF
+	Redo_MLGF_ModifyIndexIdOfMlgfPage
+	Undo_MLGF_ModifyIndexIdOfMlgfPage
+}
+
+LOG_ACTION_MLGF_MODIFY_HASH_VALUES_OF_DIRECTORY_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_ModifyHashValuesOfDirectoryEntry
+	Undo_MLGF_ModifyHashValuesOfDirectoryEntry
+}
+
+LOG_ACTION_MLGF_MODIFY_NUM_VALID_BITS_OF_DIRECTORY_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_ModifyNumValidBitsOfDirectoryEntry
+	Undo_MLGF_ModifyNumValidBitsOfDirectoryEntry
+}
+
+LOG_ACTION_MLGF_MODIFY_OVERFLOW_CHAIN_NEXT_LINK {
+	PAGE_BUF
+	Redo_MLGF_ModifyOverflowChainNextLink
+	Undo_MLGF_ModifyOverflowChainNextLink
+}
+
+LOG_ACTION_MLGF_MODIFY_OVERFLOW_CHAIN_PREV_LINK {
+	PAGE_BUF
+	Redo_MLGF_ModifyOverflowChainPrevLink
+	Undo_MLGF_ModifyOverflowChainPrevLink
+}
+
+LOG_ACTION_MLGF_MODIFY_THETA_VALUE_OF_DIRECTORY_ENTRY {
+	PAGE_BUF
+	Redo_MLGF_ModifyThetaValueOfDirectoryEntry
+	Undo_MLGF_ModifyThetaValueOfDirectoryEntry
+} 
+LOG_ACTION_MLGF_ROOT_PAGE_LEVEL_DOWN {
+	PAGE_BUF
+	Redo_MLGF_RootPageLevelDown
+	Undo_MLGF_RootPageLevelDown	
+}
+LOG_ACTION_MLGF_ROOT_PAGE_LEVEL_UP {
+	PAGE_BUF
+	Redo_MLGF_RootPageLevelUp
+	Undo_MLGF_RootPageLevelUp	
+}
+	
+#
+# OM
+#
+LOG_ACTION_OM_APPEND_TO_SMALL_OBJECT {
+	PAGE_BUF
+	Redo_OM_AppendToSmallObject
+	Undo_OM_AppendToSmallObject
+}
+LOG_ACTION_OM_CHANGE_OBJECT {
+	PAGE_BUF
+	Redo_OM_ChangeObject
+	Undo_OM_ChangeObject
+}
+LOG_ACTION_OM_CREATE_SMALL_OBJECT {
+	PAGE_BUF
+	Redo_OM_CreateSmallObject
+	Undo_OM_CreateSmallObject
+}
+LOG_ACTION_OM_DECREASE_OBJECT_HEADER_LENGTH {
+	PAGE_BUF
+	Redo_OM_DecreaseObjHdrLength
+	Undo_OM_DecreaseObjHdrLength
+}
+LOG_ACTION_OM_DELETE_FROM_SMALL_OBJECT {
+	PAGE_BUF
+	Redo_OM_DeleteFromSmallObject
+	Undo_OM_DeleteFromSmallObject
+}
+LOG_ACTION_OM_DESTROY_SMALL_OBJECT {
+	PAGE_BUF
+	Redo_OM_DestroySmallObject
+	Undo_OM_DestroySmallObject
+}
+LOG_ACTION_OM_GET_UNIQUES {
+	PAGE_BUF
+	Redo_OM_GetUniques
+	NULL
+}
+LOG_ACTION_OM_INCREASE_OBJECT_HEADER_LENGTH {
+	PAGE_BUF
+	Redo_OM_IncreaseObjHdrLength
+	Undo_OM_IncreaseObjHdrLength
+}
+LOG_ACTION_OM_INIT_SLOTTED_PAGE {
+	PAGE_BUF
+	Redo_OM_InitSlottedPage
+	NULL
+}
+LOG_ACTION_OM_INSERT_INTO_SMALL_OBJECT {
+	PAGE_BUF
+	Redo_OM_InsertIntoSmallObject
+	Undo_OM_InsertIntoSmallObject
+}
+LOG_ACTION_OM_MODIFY_LAST_PAGE_IN_CATALOG_ENTRY {
+	PAGE_BUF
+	Redo_OM_ModifyLastPageInCatalog
+	Undo_OM_ModifyLastPageInCatalog
+}
+LOG_ACTION_OM_MODIFY_TRAIN_SEGMENT_ID_IN_CATALOG_ENTRY {
+	PAGE_BUF
+	Redo_OM_ModifyTrainSegmentIDInCatalog
+	Undo_OM_ModifyTrainSegmentIDInCatalog
+}
+LOG_ACTION_OM_MODIFY_PAGE_LIST_NEXT_LINK {
+	PAGE_BUF
+	Redo_OM_ModifyPageListNextLink
+	Undo_OM_ModifyPageListNextLink
+}
+LOG_ACTION_OM_MODIFY_PAGE_LIST_PREV_LINK {
+	PAGE_BUF
+	Redo_OM_ModifyPageListPrevLink
+	Undo_OM_ModifyPageListPrevLink
+}
+LOG_ACTION_OM_SET_OBJECT_HEADER {
+	PAGE_BUF
+	Redo_OM_SetObjectHdr
+	Undo_OM_SetObjectHdr
+}
+LOG_ACTION_OM_WRITE_SMALL_OBJECT {
+	PAGE_BUF
+	Redo_OM_WriteSmallObject
+	Undo_OM_WriteSmallObject
+}
+
+#
+# RDsM
+#
+LOG_ACTION_RDSM_ALLOC_TRAINS {
+	TRAIN_BUF
+	Redo_RDsM_AllocTrains
+	Undo_RDsM_AllocTrains
+}
+LOG_ACTION_RDSM_DELETE_METADICTENTRY {
+	PAGE_BUF
+	Redo_RDsM_DeleteMetaDictEntry
+	NULL
+}
+LOG_ACTION_RDSM_FREE_TRAINS {
+	TRAIN_BUF
+	Redo_RDsM_FreeTrains
+	Undo_RDsM_FreeTrains
+}
+LOG_ACTION_RDSM_FREE_TRAINS_WITH_DEFERMENT {
+	TRAIN_BUF
+	Redo_RDsM_FreeTrainsWithDeferment
+	Undo_RDsM_FreeTrains
+}
+LOG_ACTION_RDSM_GET_UNIQUES {
+	PAGE_BUF
+	Redo_RDsM_GetUniques
+	NULL
+}
+LOG_ACTION_RDSM_INSERT_METADICTENTRY {
+	PAGE_BUF
+	Redo_RDsM_InsertMetaDictEntry
+	NULL
+}
+LOG_ACTION_RDSM_SET_METADICTENTRY {
+	PAGE_BUF
+	Redo_RDsM_SetMetaDictEntry
+	NULL
+}
+LOG_ACTION_RDSM_MODIFY_EXTENT_LINK {
+        PAGE_BUF
+        Redo_RDsM_Modify_Extent_Link
+        Undo_RDsM_Modify_Extent_Link
+}
+LOG_ACTION_RDSM_MODIFY_FREE_EXTENT_LIST_HEADER {
+        PAGE_BUF
+        Redo_RDsM_Modify_Free_Extent_List_Header
+        Undo_RDsM_Modify_Free_Extent_List_Header
+}
+#
+# BtM
+#
+LOG_ACTION_BTM_CHANGE_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_BtM_ChangeLeafEntry
+	Undo_BtM_ChangeLeafEntry
+}
+
+LOG_ACTION_BTM_COPY_PAGE {
+	PAGE_BUF
+	Redo_BtM_CopyPage
+	Undo_BtM_CopyPage
+}
+
+LOG_ACTION_BTM_DELETE_INTERNAL_ENTRIES {
+	PAGE_BUF
+	Redo_BtM_DeleteInternalEntries
+	Undo_BtM_DeleteInternalEntries
+}
+
+LOG_ACTION_BTM_DELETE_INTERNAL_ENTRIES_WITHOUT_MORE_UPDATE {
+	PAGE_BUF
+	Redo_BtM_DeleteInternalEntries
+	Undo_BtM_DeleteInternalEntriesWithoutMoreUpdate
+}
+
+LOG_ACTION_BTM_DELETE_INTERNAL_ENTRY {
+	PAGE_BUF
+	Redo_BtM_DeleteInternalEntry
+	Undo_BtM_DeleteInternalEntry
+}
+
+LOG_ACTION_BTM_DELETE_LEAF_ENTRIES {
+	PAGE_BUF
+	Redo_BtM_DeleteLeafEntries
+	NULL
+}
+
+LOG_ACTION_BTM_DELETE_LEAF_ENTRIES_WITHOUT_MORE_UPDATE {
+	PAGE_BUF
+	Redo_BtM_DeleteLeafEntries
+	Undo_BtM_DeleteLeafEntriesWithoutMoreUpdate
+}
+
+LOG_ACTION_BTM_DELETE_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_BtM_DeleteLeafEntry
+	Undo_BtM_DeleteLeafEntry
+}
+
+LOG_ACTION_BTM_DELETE_OID_FROM_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_BtM_DeleteOidFromLeafEntry
+	Undo_BtM_DeleteOidFromLeafEntry
+}
+
+LOG_ACTION_BTM_DELETE_OID_FROM_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_BtM_DeleteOidFromOverflowPage
+	Undo_BtM_DeleteOidFromOverflowPage
+}
+
+LOG_ACTION_BTM_DELETE_OID_WITH_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_BtM_DeleteOidWithLeafEntry
+	Undo_BtM_DeleteOidWithLeafEntry
+}
+
+LOG_ACTION_BTM_DELETE_OIDS_FROM_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_BtM_DeleteOidsFromOverflowPage
+	Undo_BtM_DeleteOidsFromOverflowPage
+}
+
+LOG_ACTION_BTM_REPLACE_ROOT_PAGE_WITH_CHILD_PAGE {
+	PAGE_BUF
+	Redo_BtM_ReplaceRootPageWithChildPage
+	Undo_BtM_ReplaceRootPageWithChildPage
+}
+
+LOG_ACTION_BTM_INIT_INTERNAL_PAGE {
+	PAGE_BUF
+	Redo_BtM_InitInternalPage
+	NULL
+}
+
+LOG_ACTION_BTM_INIT_LEAF_PAGE {
+	PAGE_BUF
+	Redo_BtM_InitLeafPage
+	Undo_BtM_InitLeafPage
+}
+
+LOG_ACTION_BTM_INIT_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_BtM_InitOverflowPage
+	NULL
+}
+
+LOG_ACTION_BTM_INSERT_INTERNAL_ENTRIES {
+	PAGE_BUF
+	Redo_BtM_InsertInternalEntries
+	Undo_BtM_InsertInternalEntries
+}
+
+LOG_ACTION_BTM_INSERT_INTERNAL_ENTRY {
+	PAGE_BUF
+	Redo_BtM_InsertInternalEntry
+	Undo_BtM_InsertInternalEntry
+}
+
+LOG_ACTION_BTM_INSERT_LEAF_ENTRIES {
+	PAGE_BUF
+	Redo_BtM_InsertLeafEntries
+	Undo_BtM_InsertLeafEntries
+}
+
+LOG_ACTION_BTM_INSERT_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_BtM_InsertLeafEntry
+	NULL
+}
+
+LOG_ACTION_BTM_INSERT_OID_INTO_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_BtM_InsertOidIntoLeafEntry
+	Undo_BtM_InsertOidIntoLeafEntry
+}
+
+LOG_ACTION_BTM_INSERT_OID_INTO_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_BtM_InsertOidIntoOverflowPage
+	Undo_BtM_InsertOidIntoOverflowPage
+}
+
+LOG_ACTION_BTM_INSERT_OID_WITH_LEAF_ENTRY {
+	PAGE_BUF
+	Redo_BtM_InsertOidWithLeafEntry
+	Undo_BtM_InsertOidWithLeafEntry
+}
+
+LOG_ACTION_BTM_INSERT_OIDS_INTO_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_BtM_InsertOidsIntoOverflowPage
+	Undo_BtM_InsertOidsIntoOverflowPage
+}
+
+LOG_ACTION_BTM_MAKE_ROOT_PAGE {
+	PAGE_BUF
+	Redo_BtM_MakeRootPage
+	NULL
+}
+
+LOG_ACTION_BTM_MERGE_LEAF_PAGE {
+	PAGE_BUF
+	Redo_BtM_MergeLeafPage
+	Undo_BtM_MergeLeafPage
+}
+
+LOG_ACTION_BTM_MODIFY_FIRST_CHILD_OF_INTERNAL_PAGE {
+	PAGE_BUF
+	Redo_BtM_ModifyFirstChildOfInternalPage
+	Undo_BtM_ModifyFirstChildOfInternalPage
+}
+
+LOG_ACTION_BTM_MODIFY_INDEXID_OF_BTREE_PAGE {
+	PAGE_BUF
+	Redo_BtM_ModifyIndexIdOfBtreePage
+	Undo_BtM_ModifyIndexIdOfBtreePage
+}
+
+LOG_ACTION_BTM_MODIFY_LEAF_CHAIN_NEXT_LINK {
+	PAGE_BUF
+	Redo_BtM_ModifyLeafChainNextLink
+	Undo_BtM_ModifyLeafChainNextLink
+}
+
+LOG_ACTION_BTM_MODIFY_LEAF_CHAIN_PREV_LINK {
+	PAGE_BUF
+	Redo_BtM_ModifyLeafChainPrevLink
+	Undo_BtM_ModifyLeafChainPrevLink
+}
+
+LOG_ACTION_BTM_MODIFY_OVERFLOW_CHAIN_NEXT_LINK {
+	PAGE_BUF
+	Redo_BtM_ModifyOverflowChainNextLink
+	Undo_BtM_ModifyOverflowChainNextLink
+}
+
+LOG_ACTION_BTM_MODIFY_OVERFLOW_CHAIN_PREV_LINK {
+	PAGE_BUF
+	Redo_BtM_ModifyOverflowChainPrevLink
+	Undo_BtM_ModifyOverflowChainPrevLink
+}
+
+LOG_ACTION_BTM_REPLACE_INTERNAL_ENTRY_KEY_VALUE {
+	PAGE_BUF
+	Redo_BtM_ReplaceInternalEntryKeyValue
+	Undo_BtM_ReplaceInternalEntryKeyValue
+}
+
+LOG_ACTION_BTM_SPLIT_LEAF_PAGE {
+	PAGE_BUF
+	Redo_BtM_SplitLeafPage
+	Undo_BtM_SplitLeafPage
+}
+
+LOG_ACTION_BTM_SPLIT_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_BtM_SplitOverflowPage
+	Undo_BtM_SplitOverflowPage
+}
+
+LOG_ACTION_BTM_UNDO_SPLIT_LEAF_PAGE {
+	PAGE_BUF
+	Redo_BtM_UndoSplitLeafPage
+	NULL
+}
+
+LOG_ACTION_BTM_UNDO_SPLIT_OVERFLOW_PAGE {
+	PAGE_BUF
+	Redo_BtM_UndoSplitOverflowPage
+	NULL
+}
+
+
+#
+# Transaction Related Log Actions
+#
+LOG_ACTION_XACT_BEGIN_LOGGING_DEALLOC_LIST {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_XACT_DEALLOC_LIST {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_XACT_COMMIT_TRANSACTION {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_XACT_ABORT_TRANSACTION {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_XACT_PREPARE_TRANSACTION {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_XACT_END_TRANSACTION {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_XACT_PREPARE_LOCKS {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_XACT_DELETE_ENTRY_FROM_DEALLOC_LIST {
+	NULL
+	NULL
+	NULL
+}
+
+#
+# Checkpoint Related Log Actions
+#
+LOG_ACTION_CHKPT_BEGIN {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_CHKPT_END {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_CHKPT_ACTIVE_XACTS {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_CHKPT_DIRTY_PAGES {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_CHKPT_MOUNTED_VOLS {
+	NULL
+	NULL
+	NULL
+}
+
+#
+# Volume Related Log Actions
+#
+LOG_ACTION_VOL_MOUNT_VOLUME {
+	NULL
+	NULL
+	NULL
+}
+LOG_ACTION_VOL_DISMOUNT_VOLUME {
+	NULL
+	NULL
+	NULL
+}
+

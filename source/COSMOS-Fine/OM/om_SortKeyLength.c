@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,60 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include <string.h> /* for memcpy */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "BfM.h"
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+Four om_CalculateSortKeyLengthFromAttrInfo(
+    Four               handle,
+    omSortKeyAttrInfo* attrInfo,        /* IN */
+    Four*              sortKeyLen,      /* OUT */
+    Four*              numVarAttrs)     /* OUT */
+{
+    Four               i;
+    Four               localSortKeyLen;
+    Four               localNumVarAttrs;
+
+    for (i = 0, localSortKeyLen = 0, localNumVarAttrs = 0; i < attrInfo->nparts; i++ ) {
+        /* In case of variable attrbute, you must add space for length field */
+        if(IS_VARIABLE_FOR_SORT(attrInfo->parts[i].type)) {
+            localSortKeyLen += sizeof(Two);
+            localNumVarAttrs ++;
+        }
+        localSortKeyLen += attrInfo->parts[i].length;
+    }
+
+    *sortKeyLen = localSortKeyLen;
+    *numVarAttrs = localNumVarAttrs;
+
+    return eNOERROR;
+}
+
+Four om_CalculateSortKeyLengthFromSortKey(
+    Four 	       handle,
+    Object*            obj,             /* IN */
+    omSortKeyAttrInfo* attrInfo)        /* IN */
+{
+    Four               i;
+    Two                varAttrLength;         /* length of varible attribute */
+    Four               sortKeyLength = 0;
+
+    for( i=0; i<attrInfo->nparts; i++ ) {
+        if(IS_VARIABLE_FOR_SORT(attrInfo->parts[i].type)) {
+
+            /* get variable attribute's length */
+            memcpy(&varAttrLength, &(obj->data[sortKeyLength+OFFSETARRAYSIZE(attrInfo->nparts)]), sizeof(Two));
+
+            /* you must remember length field */
+            sortKeyLength += sizeof(Two) + varAttrLength;
+        }
+        else
+            sortKeyLength += attrInfo->parts[i].length;
+    }
+
+    return sortKeyLength;
+}

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,110 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SHM_dump.c
+ *
+ * Description:
+ *  Dump routines used in SHM.
+ *
+ * Exports:
+ *  shm_dumpMyLatches()
+ *  shm_dumpMemory()
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@================================
+ * shm_dumpMyLatches( )
+ *================================*/
+/*
+ * Module: shm_dumpMyLatches( )
+ *
+ * Description:
+ *  Dump all latches which are granted by myself.
+ *
+ */
+Four shm_dumpMyLatches(
+    Four 		handle
+)
+{
+    LatchEntry  	*list;
+    Four 		current;		/* temporary index */
+    Four 		e;			/* returned error number */
+
+    list = MY_GRANTEDLATCHLIST(handle);
+    for ( current = MY_NUMGRANTED(handle)-1; current >= 0; current-- )
+	if ( list[current].counter > 0) {
+	    printf("count = %ld,", list[current].counter);
+	    printf("latchPtr = %P,", list[current].latchPtr);
+	    printf("latch mode = %ld\n", list[current].latchPtr->mode);
+	}
+
+    return(eNOERROR);
+
+
+}
+
+
+
+/*@================================
+ * shm_dumpMemory( )
+ *================================*/
+/* shm_dumpMemory :: print the usage of the shared memory */
+Four shm_dumpMemory(
+    Four 		handle,
+    Four 		procIndex
+)
+{
+    Four 		e;			/* error number */
+    Four 		i;         		/* loop index */
+    Four 		nWords;			/* # of heap words needed */
+    Four 		nWordsUsed, nWordsFree;
+    HeapWord 		*current;		/* points to control heap word of current block */
+    HeapWord 		*next;			/* points to control heap word of next block */
+
+
+    TR_PRINT(handle, TR_SHM, TR1, ("shm_dumpMemory(procIndex=%ld)", procIndex));
+
+    /*@ get latch */
+    /* Mutex Begin ---------------------------------------------------- */
+    e = SHM_getLatch(handle, &LATCH_SHAREDHEAP, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if ( e < eNOERROR ) return(e);
+
+    current = &shmPtr->freeSpaceBase[0];
+
+
+    printf("sharedHeap = %0p\n", shmPtr->sharedHeap);
+    nWordsUsed = nWordsFree = 0;
+    for (i = 0; ; i++) {
+	next = RESET_USED( PHYSICAL_PTR(current->ptr)); 
+	nWords = next - current;
+	if (IS_USED( PHYSICAL_PTR(current->ptr))) nWordsUsed += nWords; 
+	else nWordsFree += nWords;
+	printf("BLOCK [%3ld]: %0p (%6ld words) (%s)\n", i, current, nWords, IS_USED( PHYSICAL_PTR(current->ptr)) ? "USED":"FREE"); 
+
+	if (next < current) break;
+
+	current = next;
+    }
+
+    printf("nWordsFree: %ld  nWordsUsed: %ld\n", nWordsFree, nWordsUsed);
+
+    /*@ release latch */
+    e = SHM_releaseLatch(handle, &LATCH_SHAREDHEAP, procIndex);
+    if ( e < eNOERROR ) return(e);
+    /* MUTEX end --------------------------------------------------------*/
+
+    return(eNOERROR);
+
+}
+

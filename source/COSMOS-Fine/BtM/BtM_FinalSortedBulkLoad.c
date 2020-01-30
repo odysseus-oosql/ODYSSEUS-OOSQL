@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,131 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_FinalSortedBulkLoad.c
+ *
+ * Description:
+ *  Finalize B+ tree index bulkload
+ *
+ * Exports:
+ *  Four BtM_FinalSortedBulkLoad()
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "BtM.h"
+#include "BL_BtM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+
+/*@===========================
+ * BtM_FinalSortedBulkLoad()
+ *===========================*/
+/*
+ * Function: Four BtM_FinalSortedBulkLoad()
+ *
+ * Description:
+ *  Finalize B+ tree index bulkload
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *
+ */
+Four BtM_FinalSortedBulkLoad (
+    Four		    handle,
+    XactTableEntry_T        *xactEntry,                             /* IN transaction table entry */
+    Four                    btmBlkLdId,                             /* IN BtM bulkload ID */
+    LogParameter_T          *logParam)                              /* IN log parameter */
+{
+    Four                    e;                                      /* error number */
+    BtM_BlkLdTableEntry*    blkLdEntry;                             /* entry in which information about bulkload is saved */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+            ("BtM_FinalSortedBulkLoad(xactEntry=%P, btmBlkLdId=%ld, logParam=%P)",
+             xactEntry, btmBlkLdId, logParam));
+
+
+
+    /*
+    ** O. Check parameters
+    */
+
+    if (xactEntry == NULL)              ERR(handle, eBADPARAMETER);
+
+    if (logParam == NULL)               ERR(handle, eBADPARAMETER);
+
+
+    /*
+    ** O. set entry for fast access
+    */
+
+    blkLdEntry = &BTM_BLKLD_TABLE(handle)[btmBlkLdId];
+
+
+    /*
+    ** I. End of bulkload
+    */
+
+    /* 1. case : end of duplicate key occurrence */
+    if (blkLdEntry->btmBlkLdoidBuffer.hdr.nSlots != 0) {
+        e = btm_BlkLdEndOidBuffer(handle, xactEntry, btmBlkLdId, logParam);
+        if (e < 0)  ERR(handle, e);
+    }
+
+    /* 2. case : end of bulkload in overflow page */
+    if (blkLdEntry->btmBlkLdoverflow == TRUE) {
+        e = btm_BlkLdEndOverflow(handle, xactEntry, btmBlkLdId, logParam);
+        if (e < 0)  ERR(handle, e);
+    }
+
+    /* 3. end of bulkload in leaf page */
+    e = btm_BlkLdEndLeaf(handle, xactEntry, btmBlkLdId, logParam);
+    if (e < 0)  ERR(handle, e);
+
+    /* 4. end of bulkload in internal page */
+    e = btm_BlkLdEndInternal(handle, xactEntry, btmBlkLdId, logParam);
+    if (e < 0)  ERR(handle, e);
+
+    /* 5. end of bulkload in write buffer */
+    e = btm_BlkLdEndWriteBuffer(handle, xactEntry, btmBlkLdId, logParam);
+    if (e < 0)  ERR(handle, e);
+
+
+
+    /*
+    ** II. Finalize buffer
+    */
+
+    /* 1. finalize internal node buffer */
+    e = btm_BlkLdFinalInternalBuffer(handle, btmBlkLdId);
+    if (e < 0)  ERR(handle, e);
+
+    /* 2. finalize write buffer */
+    e = btm_BlkLdFinalWriteBuffer(handle, btmBlkLdId);
+    if (e < 0)  ERR(handle, e);
+
+
+
+    /*
+    ** III. Empty entry of SORT_STREAM_TABLE(handle)
+    */
+
+    blkLdEntry->isUsed = FALSE;
+
+
+
+    return eNOERROR;
+
+}   /* BtM_FinalSortedBulkLoad() */

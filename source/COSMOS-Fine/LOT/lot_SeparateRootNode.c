@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,124 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lot_SeparateRootNode.c
+ *
+ * Description:
+ *  lot_SeparateRootNode( ) separate the root node from the large object header.
+ *
+ * Exports:
+ *  Four lot_SeparateRootNode(Four, DataFileInfo*, char*, Boolean*, Four, Four, char*, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * lot_SeparateRootNode( )
+ *================================*/
+/*
+ * Function: Four lot_SeparateRootNode(Four, DataFileInfo*, char*, Boolean*, Four, Four, char*, LogParameter_T*)
+ *
+ * Description:
+ *  lot_SeparateRootNode( ) separate the root node from the large object header.
+ *
+ * Returns:
+ *  Error codes
+ *    eBADOBJECTID_OM
+ *    some errors caused by function calls
+ */
+Four lot_SeparateRootNode(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    DataFileInfo *finfo,	/* IN file information */
+    PageID *nearPidForRoot,     /* IN near page for root */ 
+    char *anodeOrRootPageNo,    /* INOUT anode or root page no */
+    Boolean *rootWithHdr_Flag,  /* OUT TRUE if root is with header */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four e;			/* error number */
+    PageID root;		/* new root page */
+    L_O_T_INode *anode;		/* pointer to buffer holding the root node */
+    L_O_T_INodePage *rootPage;  /* root page */
+    Buffer_ACC_CB *rootPage_BCBP;
+    Four inodeUsedSize;         /* used size of internal node */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T logRecInfo; /* log record information */
+    SegmentID_T pageSegmentID;  /* page segment ID */
+
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_LOT, TR1, ("lot_SeparateRootNode()"));
+
+
+    anode = (L_O_T_INode*)anodeOrRootPageNo;
+
+    inodeUsedSize = LOT_INODE_USED_SIZE(anode);
+
+
+    e = om_GetSegmentIDFromDataFileInfo(handle, xactEntry, finfo, &pageSegmentID, PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = RDsM_AllocTrains(handle, xactEntry, finfo->fid.volNo, &pageSegmentID,
+			 nearPidForRoot, 1, PAGESIZE2, FALSE, &root, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = BfM_getAndFixBuffer(handle, &root, M_FREE, &rootPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    rootPage = (L_O_T_INodePage *)rootPage_BCBP->bufPagePtr;
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+
+        LOG_FILL_LOGRECINFO_2(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_LOT_INIT_INTERNAL_NODE_PAGE, LOG_REDO_ONLY,
+                              root, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(FileID), &finfo->fid,
+                              inodeUsedSize, anode);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERRB1(handle, e, rootPage_BCBP, PAGE_BUF);
+
+        /* mark the lsn in the page */
+        rootPage->header.lsn = lsn;
+        rootPage->header.logRecLen = logRecLen;
+    }
+
+    LOT_INIT_INODE_PAGE_HDR(rootPage, finfo->fid, root);
+
+    memcpy(&rootPage->node, anode, inodeUsedSize);
+
+    rootPage_BCBP->dirtyFlag = 1;
+
+    e = BfM_unfixBuffer(handle, rootPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*@ store the root PageNo */
+    *((ShortPageID *)anodeOrRootPageNo) = root.pageNo;
+
+    *rootWithHdr_Flag = FALSE;
+
+    return(eNOERROR);
+
+} /* lot_SeparateRootNode() */

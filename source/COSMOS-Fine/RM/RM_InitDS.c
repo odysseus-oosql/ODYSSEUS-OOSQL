@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,70 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RM_InitDS.c
+ *
+ * Description :
+ *  Initialize data structures used in recovery manager.
+ *
+ * Exports:
+ *  Four RM_InitSharedDS(Four)
+ *  Four RM_InitLocalDS(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "Util.h"
+#include "trace.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@================================
+ * Four RM_InitSharedDS( )
+ *================================*/
+/*
+ * Function: Four RM_InitSharedDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four RM_InitSharedDS(Four handle)
+{
+    TR_PRINT(handle, TR_RM, TR1, ("RM_InitSharedDS()"));
+
+    return(eNOERROR);
+
+} /* RM_InitSharedDS() */
+
+
+
+/*@================================
+ * Four RM_InitLocalDS( )
+ *================================*/
+/*
+ * Function: Four RM_InitLocalDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four RM_InitLocalDS(Four handle)
+{
+    Four e;             /* error number */
+
+    TR_PRINT(handle, TR_RM, TR1, ("RM_InitLocalDS()"));
+
+    return(eNOERROR);
+
+} /* RM_InitLocalDS() */
+
+
+
+
+
+
+
+

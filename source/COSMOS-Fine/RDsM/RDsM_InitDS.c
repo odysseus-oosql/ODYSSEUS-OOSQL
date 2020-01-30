@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,135 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_InitDS.c
+ *
+ * Description:
+ *  Initialize data structures used in Raw Disk Manager.
+ *
+ * Exports:
+ *  Four RDsM_InitSharedDS(void)
+ *  Four RDsM_InitLocalDS(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "SHM.h"
+#include "RDsM.h"
+#include "Util_heap.h"
+#include "Util_varArray.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four RDsM_InitSharedDS(void)
+ *
+ * Description:
+ *   Initialize the VolTable[] for the Raw Disk Manager.
+ *
+ * Returns:
+ *  Error code
+ */
+Four RDsM_InitSharedDS(
+    Four                handle 		/* handle */
+)
+{
+    register Four       e;
+    register Four	i, j;	/* loop index */
+    rdsm_VolTableEntry_T *entry;/* volume table entry (in shared memory) corresponding to the given volume */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_InitSharedDS()"));
+
+
+    SHM_initLatch(handle, &RDSM_LATCH_VOLTABLE);
+
+
+    /*
+     *  Initialize heap for devInfoArray & segmentInfoArray in volume information table
+     */
+
+    e = Util_initHeap(handle, &RDSM_DEVINFOTABLEHEAP, sizeof(RDsM_DevInfo), INIT_SIZE_OF_DEVINFO_ARRAY_HEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_initHeap(handle, &RDSM_DEVINFOFORDATAVOLTABLEHEAP, sizeof(RDsM_DevInfoForDataVol), INIT_SIZE_OF_DEVINFO_ARRAY_HEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_initHeap(handle, &RDSM_SEGMENTINFOTABLEHEAP, sizeof(RDsM_SegmentInfo), INIT_SIZE_OF_SEGMENTINFO_ARRAY_HEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     *	nullify all the volume entries
+     */
+    entry = &RDSM_VOLTABLE[0];
+    for (i = 0; i < MAXNUMOFVOLS; i++, entry++) {
+
+	SHM_initLatch(handle, &entry->latch);
+
+	entry->volInfo.volNo = NOVOL;
+	entry->volInfo.title[0] = '\0';                   /* null string */
+	entry->volInfo.numDevices = 0;
+	entry->nMounts = 0;
+
+        entry->volInfo.devInfo = LOGICAL_PTR(NULL); 
+        entry->volInfo.dataVol.devInfo = LOGICAL_PTR(NULL); 
+
+        /* Initialize pageAllocDeallocLatch which is used to page alloc & free algorithm */
+    	SHM_initLatch(handle, &RDSM_LATCH_PAGEALLOCDEALLOC(&(entry->volInfo)));
+
+    }
+
+
+
+    return(eNOERROR);
+
+} /* RDsM_InitSharedDS() */
+
+
+/*
+ * Function: Four RDsM_InitLocalDS(void)
+ *
+ * Description:
+ *   initialize the private data structure in RDsM.
+ *
+ * Returns:
+ *  Error code
+ */
+Four RDsM_InitLocalDS(
+    Four handle 		/* handle */
+)
+{
+    Four e;
+    Four i, j;
+
+
+    /* pointer for RDsM Data Structure of perThreadTable */
+    RDsM_PerThreadDS_T *rdsm_perThreadDSptr = RDsM_PER_THREAD_DS_PTR(handle);
+
+
+    for (i = 0; i < MAXNUMOFVOLS; i++) {
+
+	e = Util_initVarArray(handle, &RDSM_USERVOLTABLE(handle)[i].openFileDesc, sizeof(FileDesc), INIT_SIZE_OF_DEVINFO_ARRAY);
+        if (e < eNOERROR) ERR(handle, e);
+
+        RDSM_USERVOLTABLE(handle)[i].volNo = NOVOL;
+        RDSM_USERVOLTABLE(handle)[i].numDevices = 0;
+	for (j = 0; j < INIT_SIZE_OF_DEVINFO_ARRAY; j++)
+            OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[i].openFileDesc)[j] = NIL;
+    }
+
+    /* initialize aligned system read/write buffer */
+#ifdef READ_WRITE_BUFFER_ALIGN_FOR_LINUX
+    e = rdsm_InitReadWriteBuffer(handle, &rdsm_perThreadDSptr->rdsm_ReadWriteBuffer);
+#endif
+
+
+    return(eNOERROR);
+
+} /* RDsM_InitLocalDS() */

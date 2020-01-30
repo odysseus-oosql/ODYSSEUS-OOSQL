@@ -1,0 +1,3 @@
+#!/bin/csh
+SM_Format duribaba2.vol test_database 210 8 500 300  7
+LRDS_Format duribaba2.vol

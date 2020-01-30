@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,92 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: TM_IsDuplicatedGXID.c
+ *
+ * Description:
+ *  Inquiry  whether the global transaction is duplicated in this system
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "xactTable.h"
+#include "TM.h"
+#include "LOG.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four TM_IsDuplicatedGXID(GlobalXactID*, Boolean*)
+ *
+ * Description:
+ *  Inquiry  whether the global transaction is duplicated in this system
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ */
+
+Four TM_IsDuplicatedGXID(
+    Four         handle,         /* IN handle */
+    GlobalXactID *globalXactId,  /* IN global transaction id to compare */
+    Boolean      *flag)          /* OUT TRUE if duplicated; FALSE otherwise */
+{
+
+    Four        e;
+    Four        i;              /* loop index */
+    XactTableEntry_T *entryPtr; /* points to an transaction table entry */
+
+
+    /* acquire the latch for the transaction table */
+    e = SHM_getLatch(handle, &(TM_XACTTBL.latch), procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     *  find the respective entry and get the field value
+     */
+    for (i = 0; i <= TM_XACTTBL.hashTableSize_1; i++) {
+
+        /* search corresponding entry in hash chain */
+        entryPtr = PHYSICAL_PTR(TM_XACTTBL_HASHTBLENTRY(i));
+
+        while (entryPtr != NULL) {
+
+            if (entryPtr->globalXactId != NULL) {
+
+                if ( GLOBALXACTID_CMP_EQ(globalXactId, entryPtr->globalXactId) ) {
+
+		    /* exist same global transaction id in this system */
+		    *flag = TRUE;
+
+                    /* release latch */
+                    e = SHM_releaseLatch(handle, &(TM_XACTTBL.latch), procIndex);
+                    if (e < eNOERROR) ERR(handle, e);
+
+                    return (eNOERROR);
+
+                }
+            }
+
+            /* points to the next entry */
+            entryPtr = PHYSICAL_PTR(entryPtr->nextEntry);
+        }
+    }
+
+    /* there is no duplicated global transaction id */
+    *flag = FALSE;
+
+    /* release latch */
+    e = SHM_releaseLatch(handle, &(TM_XACTTBL.latch), procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+    
+} /* TM_IsDuplicatedGXID() */

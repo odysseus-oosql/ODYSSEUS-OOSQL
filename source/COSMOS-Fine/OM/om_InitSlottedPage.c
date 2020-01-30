@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,71 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module:	om_InitSlottedPage.c
+ *
+ * Description :
+ *  Initialize a slotted page.
+ *
+ * Exports:
+ *  Four om_InitSlottedPage(Four, SlottedPage*, FileID*, PageID*)
+ *
+ * Return Values:
+ *  None
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "OM.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four om_InitSlottedPage(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 		/* IN transaction table entry */
+    SlottedPage 	*apage,			/* OUT page to initialize */
+    FileID      	*fid,			/* IN file containing the page */
+    PageID      	*pid,			/* IN page id of this page */
+    LogParameter_T 	*logParam)              /* IN log parameter */
+{
+    Four 		e;                      /* error code */
+    Lsn_T 		lsn;                    /* lsn of the newly written log record */
+    Four 		logRecLen;              /* log record length */
+    LOG_LogRecInfo_T 	logRecInfo; 		/* log record information */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_OM, TR1, ("om_InitSlottedPage(apage=%P, fid=%P, pid=%P)", apage, fid, pid));
+
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+
+        LOG_FILL_LOGRECINFO_1(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_OM_INIT_SLOTTED_PAGE, LOG_REDO_ONLY,
+                              *pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(FileID), fid);
+
+	e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+	if (e < eNOERROR) ERR(handle, e);
+
+	/* mark the lsn in the page */
+	apage->header.lsn = lsn;
+	apage->header.logRecLen = logRecLen;
+    }
+
+
+    /* Initialize Slotted Page */
+    OM_INIT_SLOTTED_PAGE(apage, *fid, *pid);
+
+    return(eNOERROR);
+
+} /* om_InitSlottedPage() */

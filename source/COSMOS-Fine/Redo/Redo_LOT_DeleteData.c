@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,56 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_LOT_DeleteData.c
+ *
+ * Description:
+ *  redo delete some data from leaf node
+ *
+ * Exports:
+ *  Four Redo_LOT_DeleteData(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_LOT_DeleteData(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    L_O_T_LNode *anode = anyPage;
+    LOG_Image_LOT_ModifyLeafData_T *modifyDataInfo;
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_LOT_DeleteData()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (anyPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    modifyDataInfo = (LOG_Image_LOT_ModifyLeafData_T*)logRecInfo->imageData[0];
+
+    /*
+     *	redo deleting some data
+     */
+    assert(modifyDataInfo->start + modifyDataInfo->length <= modifyDataInfo->oldTotalLength);
+
+    memmove(&anode->data[modifyDataInfo->start],
+            &anode->data[modifyDataInfo->start+modifyDataInfo->length],
+            modifyDataInfo->oldTotalLength - modifyDataInfo->start - modifyDataInfo->length);
+
+    return(eNOERROR);
+
+} /* Redo_LOT_DeleteData( ) */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,111 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : SM_SortStream.c
+ *
+ * Description :
+ *  Manages sort streams.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <assert.h> /* for assertion check */
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "SM.h"
+#include "RDsM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/* ========================================
+ *  SM_OpenSortStream()
+ * =======================================*/
+Four SM_OpenSortStream(
+    Four		  handle,
+    Four                  volId,                   /* IN  volume ID in which temporary files are allocated */
+    SortTupleDesc*        sortTupleDesc)           /* IN  sort key */
+{
+    LogParameter_T        logParam;
+
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return Util_OpenSortStream(handle, MY_XACT_TABLE_ENTRY(handle), volId, sortTupleDesc, &logParam);
+
+} /* SM_OpenSortStream() */
+
+
+/* ========================================
+ *  SM_CloseSortStream()
+ * =======================================*/
+Four SM_CloseSortStream(
+    Four		  handle,
+    Four                  sortStreamId)            /* IN */
+{
+    LogParameter_T        logParam;
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return Util_CloseSortStream(handle, MY_XACT_TABLE_ENTRY(handle), sortStreamId, &logParam);
+
+} /* SM_CloseSortStream() */
+
+
+Four SM_PutTuplesIntoSortStream(
+    Four		  handle,
+    Four                  sortStreamId,    /* IN */
+    Four                  numTuples,       /* IN */
+    SortStreamTuple*      tuples)          /* IN */
+{
+    LogParameter_T        logParam;
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return Util_PutTuplesIntoSortStream(handle, MY_XACT_TABLE_ENTRY(handle), sortStreamId, numTuples, tuples, &logParam);
+
+} /* SM_PutTuplesIntoSortStream() */
+
+
+
+/* ========================================
+ *  SM_SortingSortStream()
+ * =======================================*/
+Four SM_SortingSortStream(
+    Four		handle,
+    Four                sortStreamId)    /* IN */
+{
+    LogParameter_T      logParam;
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return Util_SortingSortStream(handle, MY_XACT_TABLE_ENTRY(handle), sortStreamId, &logParam);
+
+} /* SM_SortingSortStream() */
+
+
+
+Four SM_GetTuplesFromSortStream(
+    Four		     handle,
+    Four                     sortStreamId,       /* IN */
+    Four*                    numTuples,          /* INOUT */
+    SortStreamTuple*         tuples,             /* OUT */
+    Boolean*                 eof)                /* OUT */
+{
+    return Util_GetTuplesFromSortStream(handle, sortStreamId, numTuples, tuples, eof);
+
+} /* SM_GetTuplesFromSortStream() */
+
+
+Four SM_GetNumTuplesInSortStream(
+    Four	handle,
+    Four        sortStreamId)
+{
+    return Util_GetNumTuplesInSortStream(handle, sortStreamId);
+}
+
+Four SM_GetSizeOfSortStream(
+    Four	handle,
+    Four        sortStreamId)
+{
+    return Util_GetSizeOfSortStream(handle, sortStreamId);
+}
+

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,134 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LM_initDS.c
+ *
+ * Description:
+ *  Initialize data structures used in lock manager.
+ *
+ * Exports:
+ *  Four LM_initSharedDS(Four)
+ *  Four LM_initLocalDS(Four)
+*/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * Four LM_initSharedDS( )
+ *================================*/
+/*
+ * Function: Four LM_initSharedDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four LM_initSharedDS(
+    Four    	handle
+)
+{
+    Four 	e;                     /* error code */
+
+
+    TR_PRINT(handle, TR_LM, TR1, ("LM_initSharedDS()"));
+
+    /* initialize the lock table structure */
+    e = LM_initLockTBL(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LM_initSharedDS() */
+
+
+
+/*@================================
+ * Four LM_initLocalDS( )
+ *================================*/
+/*
+ * Function: Four LM_initLocalDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four LM_initLocalDS(
+    Four    	handle
+)
+{
+    Four 	e;             /* error number */
+
+
+    TR_PRINT(handle, TR_LM, TR1, ("LM_initLocalDS()"));
+
+    LM_DISABLE_ACTION_FLAG(handle);
+    LM_DISABLE_AUTO_ACTION_FLAG(handle); 
+
+    return(eNOERROR);
+
+} /* LM_initLocalDS() */
+
+
+/*@================================
+ * LM_initLockTBL( )
+ *================================*/
+Four LM_initLockTBL(
+    Four    		handle
+)
+{
+    register Four	i;
+
+
+    Util_initPool(handle, &LM_REQUESTNODEPOOL, sizeof(RequestNode_Type),MAXREQUESTNODE);
+    Util_initPool(handle, &LM_LOCKBUCKETPOOL, sizeof(LockBucket_Type), MAXLOCKBUCKET);
+    Util_initPool(handle, &LM_XACTBUCKETPOOL, sizeof(XactBucket_Type), MAXXACTBUCKET);
+
+    SHM_initLatch(handle, &LM_LATCH);
+    SHM_initLatch(handle, &LM_MAX_LOCKS_ON_FILE_LATCH); 
+
+    LM_MAX_LOCKS_ON_FILE = LM_INIT_MAX_LOCKS_ON_FILE; 
+
+    for( i = 0; i < MAXLOCKHASHENTRY; i++) {
+
+	LM_LOCKHASHTABLE[i].bucketPtr = LOGICAL_PTR(NULL);
+	SHM_initLatch(handle, &LM_LOCKHASHTABLE[i].latch);
+    }
+
+    for( i = 0; i < MAXXACTHASHENTRY; i++) {
+
+	LM_XACTHASHTABLE[i].bucketPtr = LOGICAL_PTR(NULL);
+	SHM_initLatch(handle, &LM_XACTHASHTABLE[i].latch);
+    }
+
+    return(eNOERROR);
+}
+
+
+
+/*@================================
+ * LM_cleanupLockTBL( )
+ *================================*/
+Four LM_cleanupLockTBL(
+    Four    	handle
+)
+{
+
+    Util_finalPool(handle, &LM_REQUESTNODEPOOL);
+    Util_finalPool(handle, &LM_LOCKBUCKETPOOL);
+    Util_finalPool(handle, &LM_XACTBUCKETPOOL);
+
+    return(eNOERROR);
+}

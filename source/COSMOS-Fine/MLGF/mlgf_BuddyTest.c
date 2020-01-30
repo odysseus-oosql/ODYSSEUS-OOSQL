@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,90 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_BuddyTest.c
+ *
+ * Description:
+ *  Test if the given two entries are buddy.
+ *
+ * Exports:
+ *  Boolean mlgf_BuddyTest(Four, Four, mlgf_DirectoryEntry*, mlgf_DirectoryEntry*, Four*)
+ *
+ * Returns:
+ *  TRUE if two entries are buddy entries
+ *  FALSE otherwise
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Boolean mlgf_BuddyTest(
+    Four 		handle,
+    Four 		nKeys,	 	/* IN number of keys of MLGF index */
+    mlgf_DirectoryEntry *entry_x, 	/* IN one entry */
+    mlgf_DirectoryEntry *entry_y, 	/* IN other entry */
+    Four 		*buddyKey)	/* OUT buddy key no */
+{
+    Four 		i;		/* index */
+    Four 		buddyMatch;	/* number of buddy matches */
+    MLGF_HashValue 	*hx;		/* pointer to array of hash values of entry_x */
+    MLGF_HashValue 	*hy;		/* pointer to array of hash values of entry_y */
+    MLGF_HashValue 	xor;		/* XOR value of two hash values */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_BuddyTest(handle, nKeys=%ld, entry_x=%P, entry_y=%P, buddyKey=%P",
+	      nKeys, entry_x, entry_y, buddyKey));
+
+
+    /* initialization */
+    buddyMatch = 0;
+
+    /* hx/hy points to array of hash values of entry_x/entry_y. */
+    hx = MLGF_DIRENTRY_HASHVALUEPTR(entry_x, nKeys);
+    hy = MLGF_DIRENTRY_HASHVALUEPTR(entry_y, nKeys);
+
+    /* for all the keys */
+    for (i = 0; i < nKeys; i++) {
+	/* do buddy prefix test */
+
+	if (entry_x->nValidBits[i] != entry_y->nValidBits[i]) return(FALSE);
+
+	xor = (*hx ^ *hy) >> (MLGF_MAXNUM_VALIDBITS - entry_x->nValidBits[i]);
+
+	if (xor == 1) {
+	    if (buddyMatch++) return(FALSE);
+	    *buddyKey = i;
+	} else if (xor != 0)
+	    return(FALSE);
+
+        hx++; hy++;
+    }
+
+    if (buddyMatch == 0) return(FALSE);
+
+    /* Buddys are regions which were splitted from the same region. */
+    for (i = 0; i < nKeys-1; i++)
+	if (entry_x->nValidBits[i] != entry_x->nValidBits[i+1]) break;
+
+    if (*buddyKey != i) return(FALSE);
+
+    return TRUE;
+
+} /* mlgf_BuddyTest() */

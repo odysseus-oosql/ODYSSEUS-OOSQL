@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,62 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LM_initXact.c
+ *
+ * Description:
+ *   Allocate xactBucket for given xactID in Transaction Hash Table.
+ *
+ * Exports: Four LM_initXactBucket(Four, xactID*)
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LM_initXact()
+ *================================*/
+/* ------------------------------------------------------------ */
+/*								*/
+/* LM_initXact ::	 					*/
+/*  	request lock of the file for this transaction 		*/
+/*								*/
+/* paprameters 							*/
+/*    xactID	IN transaction identifier 			*/
+/*								*/
+/* return value							*/
+/*    result messages 						*/
+/*								*/
+/* ------------------------------------------------------------ */
+Four LM_initXactBucket (
+    Four    		handle,
+    XactID 		*xactID,	/* IN transaction identifier */
+    ConcurrencyLevel 	ccLevel) 	/* IN concurrency level of this transaction */ 
+{
+    return(eNOERROR);
+}
+
+
+
+/*@================================
+ * LM_dropXactBucket( )
+ *================================*/
+Four LM_dropXactBucket (
+    Four    		handle,
+    XactID 		*xactID)	/* IN transaction identifier */
+{
+    return(eNOERROR);
+}

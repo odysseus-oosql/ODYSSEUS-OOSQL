@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,75 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOT_FinalDS.c
+ *
+ * Description :
+ *  finalize the data structure used in btree manager.
+ *
+ * Exports:
+ *  Four LOT_FinalLocalDS(void)
+ *  Four LOT_FinalSharedDS(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "Util.h"
+#include "trace.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LOT_FinalSharedDS()
+ *================================*/
+/*
+ * Function: Four LOT_FinalSharedDS(void)
+ *
+ * Description:
+ *  finalize the data structure used in LOT manager.
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ *
+ */
+Four LOT_FinalSharedDS(Four handle)
+{
+    Four e;             /* error number */
+
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_FinalSharedDS()"));
+
+    return(eNOERROR);
+
+} /* LOT_FinalSharedDS() */
+
+
+/*@================================
+ * LOT_FinalLocalDS()
+ *================================*/
+Four LOT_FinalLocalDS(Four handle)
+{
+    Four e;                     /* error number */
+
+    /* pointer for LOT Data Structure of perThreadTable */
+    LOT_PerThreadDS_T *lot_perThreadDSptr = LOT_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_FinalLocalDS()"));
+
+    /* Finalize the LockStack */
+    e = Util_finalVarArray(handle, &(lot_perThreadDSptr->lot_pageidArray));
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_finalVarArray(handle, &(lot_perThreadDSptr->lot_entryArray[0]));
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_finalVarArray(handle, &(lot_perThreadDSptr->lot_entryArray[1]));
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LOT_FinalLocalDS() */

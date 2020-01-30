@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,74 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_MLGF_InsertObjectIntoLeafEntry.c
+ *
+ * Description:
+ *  redo inserting an object into a leaf entry
+ *
+ * Exports:
+ *  Four Redo_MLGF_InsertObjectIntoLeafEntry(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_MLGF_InsertObjectIntoLeafEntry(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing the small object */
+{
+    mlgf_LeafPage *aPage = anyPage;
+    Four objectItemLen;
+    mlgf_LeafEntry *entry;       /* the updated leaf entry */
+    Four entryLen;
+    ObjectID *objArray;         /* start position of the ObjectID array */
+    LOG_Image_MLGF_ObjectInLeafEntry_T *insertObjInfo;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_MLGF_InsertObjectIntoLeafEntry()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+    /* Get the length of an object item. */
+    objectItemLen = MLGF_LEAFENTRY_OBJECTITEM_LEN(aPage->hdr.extraDataLen);
+
+    /* get the images */
+    insertObjInfo = (LOG_Image_MLGF_ObjectInLeafEntry_T*)logRecInfo->imageData[0];
+
+    entry = MLGF_ITH_LEAFENTRY(aPage, insertObjInfo->entryNo);
+    entryLen = MLGF_LEAFENTRY_LENGTH(aPage->hdr.nKeys, aPage->hdr.extraDataLen, entry->nObjects);
+
+    mlgf_ChangeLeafEntrySize(handle, aPage, aPage->hdr.nKeys, aPage->hdr.extraDataLen,
+                             insertObjInfo->entryNo, entryLen, entryLen+objectItemLen);
+
+    /* entry might be moved in the above call */
+    entry = MLGF_ITH_LEAFENTRY(aPage, insertObjInfo->entryNo);
+
+    /* Insert the object */
+    MLGF_INSERT_OBJECTS_SPACE_INTO_OBJECT_ARRAY(
+        MLGF_LEAFENTRY_ITH_OBJECTITEM(aPage->hdr.nKeys, aPage->hdr.extraDataLen, entry, 0),
+        entry->nObjects, insertObjInfo->objArrayElemNo, 1, objectItemLen);
+
+    MLGF_WRITE_OBJECTS_IN_OBJECT_ARRAY(
+        MLGF_LEAFENTRY_ITH_OBJECTITEM(aPage->hdr.nKeys, aPage->hdr.extraDataLen, entry, 0),
+        insertObjInfo->objArrayElemNo, 1, logRecInfo->imageData[1], objectItemLen);
+
+    entry->nObjects ++;
+
+    return(eNOERROR);
+
+} /* Redo_MLGF_InsertObjectIntoLeafEntry( ) */

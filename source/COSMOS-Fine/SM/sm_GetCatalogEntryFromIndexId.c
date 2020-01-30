@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,128 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: sm_GetCatalogEntryFromIndexId.c
+ *
+ * Description:
+ *  Get the object identifier of the catalog object for B+ tree file containing
+ *  the given index. We look up the catalog object from SM_SYSTABLES.
+ *
+ * Exports:
+ *  Four sm_GetCatalogEntryFromIndexId(Four, Four, IndexID *, ObjectID *)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * sm_GetCatalogEntryFromIndexId( )
+ *================================*/
+/*
+ * Function: Four sm_GetCatalogEntryFromIndexId(Four, Four, IndexID *, ObjectID *)
+ *
+ * Description:
+ *  Get the object identifier of the catalog object for B+ tree file containing
+ *  the given index. We look up the catalog object from SM_SYSTABLES.
+ *
+ * Returns:
+ *  Error code
+ *    eBADINDEXED_SM
+ *    eNOTFOUNDCATALOGENTRY_SM
+ *    some errors caused by function calls
+ *
+ * Side effects:
+ *  1) catalogEntry - ObjectID of the catalog entry in SM_SYSTABLES
+ */
+Four sm_GetCatalogEntryFromIndexId(
+    Four 			handle,
+    Four 			v,			/* index for the used volume on the mount table */
+    IndexID 			*index,			/* IN index identifier of the given index */
+    ObjectID 			*catalogEntry,		/* OUT object identifier of the catalog object in SM_SYSINDEXES */
+    PhysicalIndexID 		*pIid)			/* OUT physical index identifier */ 
+{
+    Four 			e;			/* error number */
+    BtreeCursor 		schBid;			/* a B+ tree cursor */
+    KeyValue 			kval;			/* key value */
+    Four 			i;
+    sm_CatOverlayForSysIndexes 	sysIndexesOverlay; 	/* entry of SM_SYSINDEXES */ 
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("sm_GetCatalogEntryFromIndexId(handle, v=%ld, index=%P, catalogEntry=%P)",
+	      v, index, catalogEntry));
+
+    /*
+    ** Get the B+ tree file's FileID.
+    */
+    /*@ Construct kval. */
+    /* Construct a key for the B+ tree on IndexID field of SM_SYSINDEXES */
+    kval.len = sizeof(Two) + sizeof(Four);
+    memcpy(&kval.val[0], &(index->volNo), sizeof(Two)); /* volNo is Two */
+    memcpy(&kval.val[sizeof(Two)], &(index->serial), sizeof(Four)); 
+
+    /* Get the ObjectID of the catalog object for 'index' in SM_SYSINDEXES */
+    e = BtM_Fetch(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_MOUNTTABLE[v].sysIndexesIndexIdIndexInfo), 
+		  &(SM_MOUNTTABLE[v].sysIndexesInfo.fid), 
+                  &SM_SYSIDX_INDEXID_KEYDESC, &kval, SM_EQ, &kval, SM_EQ, &schBid, NULL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* consider temporar file */
+    if (schBid.flag == CURSOR_ON) {
+
+	/* catalogEntry is one for the Btree in SM_SYSINDEXES. */
+	/*             In the past catalogEntry deonted one for the Btree in SM_SYSTABLES. */
+
+	*catalogEntry = schBid.oid;
+
+        if (pIid != NULL) {
+	    /* Read catalog entry in SM_SYSINDEXES. */
+            e = OM_ReadObject(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_MOUNTTABLE[v].sysIndexesInfo.fid),
+                              catalogEntry, 0, REMAINDER, (char *)&sysIndexesOverlay, NULL); 
+            if (e < eNOERROR) ERR(handle, e);
+
+            /* get physical index ID */
+            MAKE_PHYSICALINDEXID(*pIid, index->volNo, sysIndexesOverlay.rootPage);
+	}
+
+    } else {
+	/* Check if the index is one defined on a temporary file. */
+	for (i = 0; i < SM_NUM_OF_ENTRIES_OF_SI_FOR_TMP_FILES(handle); i++)
+	    if (!SM_IS_UNUSED_ENTRY_OF_SI_FOR_TMP_FILES(SM_SI_FOR_TMP_FILES(handle)[i]) &&
+		EQUAL_INDEXID(*index, SM_SI_FOR_TMP_FILES(handle)[i].iid)) {
+
+		   /* HURRY UP PATCH: we know catalogEntry is not used by the caller. */
+		   /* This should be changed. */
+		   /* catalogEntry = (void*)&(SM_SI_FOR_TMP_FILES(handle)[i]); */
+		   catalogEntry->volNo = index->volNo;
+		   catalogEntry->pageNo = NIL;
+		   catalogEntry->slotNo = NIL;
+
+           if (pIid != NULL) {
+               MAKE_PHYSICALINDEXID(*pIid, index->volNo, SM_SI_FOR_TMP_FILES(handle)[i].rootPage);
+           }
+		   break;
+	    }
+
+	/* invalid index id */
+	if (i == SM_NUM_OF_ENTRIES_OF_SI_FOR_TMP_FILES(handle)) ERR(handle, eBADINDEXID);
+    }
+
+    return(eNOERROR);
+
+} /* sm_GetCatalogEntryFromIndexId( ) */
+

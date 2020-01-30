@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,50 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Err_GetErrBaseMsg.c
+ *
+ * Description:
+ *  Return the error base message when an error code is given.
+ *
+ * Exports:
+ *  char *Err_GetErrBaseMsg(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <errno.h>
+#include "common.h"
+#include "error.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: char *Err_GetErrBaseMsg(Four)
+ *
+ * Description:
+ *  Return the error base message when an error code is given.
+ *
+ * Returns:
+ *  error base message
+ */
+char *Err_GetErrBaseMsg(
+    Four 	errCode)	/* IN error code */
+{
+    Four 	base;		/* base of the error code */
+
+
+    if (errCode > 0) return("Invalid error code");
+
+    if (errCode == 0) return("no base message");
+
+    base = ERR_GET_BASE_FROM_ERROR_CODE(errCode);
+
+    if (base >= NUM_OF_ERROR_BASES)
+	return("Invalid error code");
+
+    return(err_errBaseInfo[base].msg);
+
+} /* Err_GetErrBaseMsg() */
+
+

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,89 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: MLGF_InitDS.c
+ *
+ * Description :
+ *  Initialize data structures used in mlgf manager.
+ *  The used data structure is mlgfLockStack, one per each x-lock of mlgf internal page.
+ *  For each mlgfLockStackEntry, the required information is mlgf internal pageID.
+ *  At last, all data structure is initiated with the intial value.
+ *
+ * Exports:
+ *  Four MLGF_InitSharedDS(Four)
+ *  Four MLGF_InitLocalDS(Four)
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "Util.h"
+#include "trace.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four MLGF_InitSharedDS( )
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four MLGF_InitSharedDS(
+    Four    handle)
+{
+    TR_PRINT(handle, TR_MLGF, TR1, ("MLGF_InitSharedDS()"));
+
+    return(eNOERROR);
+
+} /* MLGF_InitSharedDS() */
+
+
+/*
+ * Function: Four MLGF_InitLocalDS( )
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four MLGF_InitLocalDS(
+    Four			handle
+)
+{
+    Four 			e;             		/* error number */
+
+    /* pointer for MLGF Data Structure of perThreadTable */
+    MLGF_PerThreadDS_T *mlgf_perThreadDSptr = MLGF_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("MLGF_InitLocalDS()"));
+
+
+    /* Initialize the Stack top index */
+    MLGF_LOCKSTACK_INIT(mlgf_perThreadDSptr->mlgfLockStack);
+
+    /* Allocate some entries in the LockStack */
+    e = Util_initVarArray(handle, &(mlgf_perThreadDSptr->mlgfLockStack.lockStack), sizeof(mlgf_LockStackElem), INITMLGFDEPTH);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Initialize the LogicalID Mapping Table for MLGF */
+    e = mlgf_IdMapping_InitTable(handle); 
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* MLGF_InitLocalDS() */

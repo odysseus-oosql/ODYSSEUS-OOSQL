@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,45 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : Util_Sleep.c
+ *
+ * Description :
+ *  Sleep given time.
+ *
+ * Exports :
+ *  Four Util_Sleep(float)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <stdio.h>
+#include <math.h>
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "Util.h"
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <time.h>
+#include <sys/select.h>
+#endif
+
+Four Util_Sleep(
+    Four 	handle,
+    double 	secs
+)
+{
+#ifdef WIN32
+    Sleep(((Four)secs) * 1000);
+#else
+    struct timeval t;
+    double frac;
+
+    frac = fmod(secs, 1.0);
+    secs = floor(secs);
+    t.tv_sec = (Four_Invariable)secs;
+    t.tv_usec = (Four_Invariable)(frac*1000000.0);
+    select(0, (fd_set *)0, (fd_set *)0, (fd_set *)0, &t);
+#endif
+    return eNOERROR;
+}
+

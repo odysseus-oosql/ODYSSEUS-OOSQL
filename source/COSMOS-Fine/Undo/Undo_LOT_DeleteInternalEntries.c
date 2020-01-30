@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,119 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_LOT_DeleteInternalEntries.c
+ *
+ * Description:
+ *  Undo deleting entries into internal node
+ *
+ * Exports:
+ *  Four Undo_LOT_DeleteInternalEntries(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_LOT_DeleteInternalEntries(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing a small object */
+{
+    Four e;			/* error code */
+    L_O_T_INodePage *apage;     /* pointer to an internal node page */
+    L_O_T_INode *anode;         /* pointer to an internal node */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Lsn_T lastLsn;		/* last lsn of the current transaction */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_LOT_DeleteInternalEntries_T *deleteInternalEntriesInfo;
+    Four i;
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_LOT_DeleteInternalEntries()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    apage = (L_O_T_INodePage*)aPage_BCBP->bufPagePtr;
+    anode = &apage->node;
+    deleteInternalEntriesInfo = (LOG_Image_LOT_DeleteInternalEntries_T*)logRecInfo->imageData[0];
+
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_LOT_UNDO_DELETE_INTERNAL_ENTRIES, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          logRecInfo->imageSize[1], logRecInfo->imageData[1]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    apage->header.lsn = lsn;
+    apage->header.logRecLen = logRecLen;
+
+    /*
+     * undo deleting entries
+     */
+    /* change the count to subtree count instead of accumulated count */
+    for (i = anode->header.nEntries - 1; i > 0; i--)
+	anode->entry[i].count -= anode->entry[i-1].count;
+
+    if (deleteInternalEntriesInfo->nEntries != 0) {
+        /* reserve space */
+        memmove(&anode->entry[deleteInternalEntriesInfo->start + deleteInternalEntriesInfo->nEntries],
+                &anode->entry[deleteInternalEntriesInfo->start],
+                (anode->header.nEntries - deleteInternalEntriesInfo->start) * sizeof(L_O_T_INodeEntry));
+
+        /* copy deleted entries */
+        memcpy(&anode->entry[deleteInternalEntriesInfo->start],
+               logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+
+        anode->header.nEntries += deleteInternalEntriesInfo->nEntries;
+    }
+
+    if (deleteInternalEntriesInfo->nDeletedBytesBefore != 0) {
+        assert(deleteInternalEntriesInfo->start > 0);
+        anode->entry[deleteInternalEntriesInfo->start-1].count += deleteInternalEntriesInfo->nDeletedBytesBefore;
+    }
+
+    if (deleteInternalEntriesInfo->nDeletedBytesAfter != 0) {
+        assert(deleteInternalEntriesInfo->start + deleteInternalEntriesInfo->nEntries + 1 <= anode->header.nEntries); 
+        anode->entry[deleteInternalEntriesInfo->start + deleteInternalEntriesInfo->nEntries].count += deleteInternalEntriesInfo->nDeletedBytesAfter;
+    }
+
+    /* adjust the count */
+    for (i = 1; i < anode->header.nEntries; i++)
+        anode->entry[i].count += anode->entry[i-1].count;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_LOT_DeleteInternalEntries( ) */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,147 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_BlkLdFreeIndex.c
+ *
+ * Description :
+ *  Free all pages of B+ tree index except root page
+ *
+ * Exports:
+ *  Four btm_BlkLdFreeIndex(Pool*, DeallocListElem*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "BL_BtM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+/*@=====================
+ * btm_BlkLdFreeIndex()
+ *=====================*/
+/*
+ * Function: Four btm_BlkLdFreeIndex(Pool*, DeallocListElem*)
+ *
+ * Description:
+ *  Free all pages of B+ tree index except root page
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *
+ */
+Four btm_BlkLdFreeIndex (
+    Four		    handle,
+    XactTableEntry_T        *xactEntry,         /* IN transaction table entry */
+    Four                    btmBlkLdId,         /* IN BtM bulkload ID */
+    LogParameter_T          *logParam)          /* IN log parameter */
+{
+    Four                    e;                  /* error number */
+    Four                    i;                  /* index */
+    Four                    alignedKlen;        /* aligned length of the key length */
+    PageID                  tPid;               /* a temporary PageID */
+    PageID                  ovPid;              /* a temporary PageID of an overflow page */
+    BtreePage               *apage;             /* a page pointer */
+    Buffer_ACC_CB           *aPage_BCBP;
+    BtreeOverflow           *opage;             /* page pointer to a buffer holding an overflow page */
+    Buffer_ACC_CB           *oPage_BCBP;
+    Four                    iEntryOffset;       /* starting offset of an internal entry */
+    Four                    lEntryOffset;       /* starting offset of a leaf entry */
+    btm_InternalEntry       *iEntry;            /* an internal entry */
+    btm_LeafEntry           *lEntry;            /* a leaf entry */
+    BtM_BlkLdTableEntry*    blkLdEntry;         /* entry in which information about BtM bulkload is saved */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+            ("btm_FreePages(xactEntry=%P, btmBlkLdId=%ld, logParam=%P)",
+             xactEntry, btmBlkLdId, logParam));
+
+
+    /* 0. set entry for fast access */
+    blkLdEntry = &BTM_BLKLD_TABLE(handle)[btmBlkLdId];
+
+
+    /* 1. get root page */
+    e = BfM_getAndFixBuffer(handle, &blkLdEntry->btmBlkLdblkldInfo.root, M_FREE, &aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    apage = (BtreePage *)aPage_BCBP->bufPagePtr;
+
+
+
+    if (apage->any.hdr.type & INTERNAL) {   /* Internal Page */
+
+        /*@ Recursively call itself for all children of this page */
+
+        /*
+         * the p0 page also must be deleted
+         */
+        MAKE_PAGEID(tPid, blkLdEntry->btmBlkLdblkldInfo.root.volNo, apage->bi.hdr.p0);
+        e = btm_FreePages(handle, xactEntry, &tPid, TRUE, logParam);
+
+        for (i = 0; i < apage->bi.hdr.nSlots; i++) {
+            iEntryOffset = apage->bi.slot[-i];
+            iEntry = (btm_InternalEntry*)&(apage->bi.data[iEntryOffset]);
+
+            MAKE_PAGEID(tPid, blkLdEntry->btmBlkLdblkldInfo.root.volNo, iEntry->spid);
+            e = btm_FreePages(handle, xactEntry, &tPid, TRUE, logParam);
+            if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+        }
+
+    }
+    else if (apage->any.hdr.type & LEAF)  {   /* Leaf Page */
+
+        /* For all leaf items, examine whether it has an overflow page */
+        for (i = 0; i < apage->bl.hdr.nSlots; i++) {
+            lEntryOffset = apage->bl.slot[-i];
+            lEntry = (btm_LeafEntry*)&(apage->bl.data[lEntryOffset]);
+
+            /*@ recursive call */
+            /* If the item has an overflow page, recursively call itself */
+            if (lEntry->nObjects < 0)  {
+                alignedKlen = ALIGNED_LENGTH(lEntry->klen);
+                MAKE_PAGEID(ovPid, blkLdEntry->btmBlkLdblkldInfo.root.volNo, *((ShortPageID*)&(lEntry->kval[alignedKlen])));
+
+                do {
+
+                    e = BfM_getAndFixBuffer(handle, &ovPid, M_FREE, &oPage_BCBP, PAGE_BUF);
+                    if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+
+                    opage = (BtreeOverflow *)oPage_BCBP->bufPagePtr;
+
+                    MAKE_PAGEID(tPid, blkLdEntry->btmBlkLdblkldInfo.root.volNo, opage->hdr.nextPage);
+
+                    e = BfM_unfixBuffer(handle, oPage_BCBP, PAGE_BUF);
+                    if (e < eNOERROR) ERRBL1(handle, e, aPage_BCBP, PAGE_BUF);
+
+                    e = RDsM_FreeTrain(handle, xactEntry, &ovPid, PAGESIZE2, TRUE, logParam);
+                    if (e < eNOERROR) ERR(handle, e);
+
+                    ovPid = tPid;
+
+                } while (ovPid.pageNo != NIL);
+            }
+        }
+
+    }
+    else
+        ERRB1(handle, eBADBTREEPAGE_BTM, aPage_BCBP, PAGE_BUF);
+
+    e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+}   /* btm_BlkLdFreeIndex() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,92 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_DeleteFromDirectory.c
+ *
+ * Description:
+ *  Delete a directory entry from the directory page.
+ *
+ * Exports:
+ *  void mlgf_DeleteFromDirectory(handle, mlgf_DirectoryPage*, MLGF_KeyDesc*, Four)
+ *
+ * Returns:
+ *  None
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four mlgf_DeleteFromDirectory(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 	/* IN transaction table entry */
+    mlgf_DirectoryPage 	*dirPage, 	/* INOUT where the new entry is deleted */
+    MLGF_KeyDesc 	*kdesc,	 	/* IN key descriptor of used index */
+    Four 		entryNo,        /* IN entry to be deleted */
+    LogParameter_T 	*logParam) 	/* IN log parameter */
+{
+    Four 		e;              /* error code */
+    Four 		entryLen;	/* length of a directory entry */
+    mlgf_DirectoryEntry *entry;		/* points to the insertion position */
+    Four 		i;
+    Lsn_T 		lsn;            /* lsn of the newly written log record */
+    Four 		logRecLen;      /* log record length */
+    LOG_LogRecInfo_T 	logRecInfo; 	/* log record information */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("mlgf_DeleteFromDirectory()"));
+
+
+    /* Get the length of a directory entry. */
+    entryLen = MLGF_DIRENTRY_LENGTH(kdesc->nKeys);
+
+    /* Points to the deleted entry. */
+    entry = MLGF_ITH_DIRENTRY(dirPage, entryNo, entryLen);
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+        Two tmpEntryNo = entryNo;
+
+        LOG_FILL_LOGRECINFO_2(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_MLGF_DELETE_DIRECTORY_ENTRY, LOG_REDO_UNDO,
+                              dirPage->hdr.pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(Two), &tmpEntryNo,
+                              entryLen, entry);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* mark the lsn in the page */
+        dirPage->hdr.lsn = lsn;
+        dirPage->hdr.logRecLen = logRecLen;
+    }
+
+    memmove(entry, (char*)entry + entryLen, (dirPage->hdr.nEntries-entryNo-1)*entryLen);
+
+    dirPage->hdr.nEntries --;
+
+    return(eNOERROR);
+
+} /* mlgf_DeleteFromDirectory() */

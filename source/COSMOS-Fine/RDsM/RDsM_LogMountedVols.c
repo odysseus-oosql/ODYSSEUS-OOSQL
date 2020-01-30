@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,124 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_LogMountedVols.c
+ *
+ * Description:
+ *  Write a log record containing the mounted volumes.
+ *
+ * Exports:
+ *  Four RDsM_LogMountedVols(void)
+ *
+ * Returns:
+ *  error code
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Four RDsM_LogMountedVols(
+    Four		handle 			/* handle */
+)
+{
+    Four 		 e;                     /* error code */
+    rdsm_VolTableEntry_T *entry; 		/* volume table entry corresponding to the given volume */
+    RDsM_VolumeInfo_T 	 *volInfo; 		/* volume information in volume table entry */
+    Four 		 i;
+    Four 		 entryNo;               /* entry no of volume table */
+    Four   		 nVolumes_in_chunk;
+    Four 		 stringLen_in_chunk;
+    Four 		 len;
+    char 		 buf[LOG_MAX_IMAGE_SIZE];
+    Lsn_T                lsn;                  	/* LSN of the newly written log record */
+    Four                 logRecLen;             /* log record length */
+    LOG_LogRecInfo_T     logRecInfo;            /* log record information */
+    RDsM_DevInfo 	 *devInfo; 
+    RDsM_DevInfoForDataVol *devInfoForDataVol; 
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_LogMountedVols()"));
+
+
+    /*
+     * Mutex Begin : for controlling table lookup with mount/dismount operation
+     */
+    e = SHM_getLatch(handle, &RDSM_LATCH_VOLTABLE, procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+    if ( e < eNOERROR ) ERR(handle, e);
+
+    nVolumes_in_chunk = 0;
+    stringLen_in_chunk = 0;
+
+    for (entryNo = 0, entry = &RDSM_VOLTABLE[0]; entryNo < MAXNUMOFVOLS; entryNo++, entry++) {
+        /* points to the volume information for the fast access */
+        volInfo = &entry->volInfo;
+
+        if (PHYSICAL_PTR(volInfo->devInfo) == NULL || volInfo->type != VOLUME_TYPE_DATA) continue; /* not used or no data volume */ 
+
+        devInfo = PHYSICAL_PTR(volInfo->devInfo); 
+
+        len = 0;
+        for (i = 0; i < volInfo->numDevices; i++)
+            len += strlen(devInfo[i].devName) + 1; 
+
+        if (len > sizeof(buf)) ERRL1(handle, eINTERNAL, &RDSM_LATCH_VOLTABLE);
+
+        if (len + stringLen_in_chunk > sizeof(buf)) {
+            LOG_FILL_LOGRECINFO_2(logRecInfo, common_perThreadDSptr->nilXactId, LOG_TYPE_CHECKPOINT,
+                                  LOG_ACTION_CHKPT_MOUNTED_VOLS, LOG_REDO_ONLY,
+                                  common_perThreadDSptr->nilPid, common_perThreadDSptr->nilLsn, common_perThreadDSptr->nilLsn,
+                                  sizeof(Four), &nVolumes_in_chunk,
+                                  stringLen_in_chunk, buf);
+
+            e = LOG_WriteLogRecord(handle, NULL, &logRecInfo, &lsn, &logRecLen);
+            if (e < eNOERROR) ERRL1(handle, e, &RDSM_LATCH_VOLTABLE);
+
+            nVolumes_in_chunk = 0;
+            stringLen_in_chunk = 0;
+        }
+
+        for (i = 0, len = 0; i < volInfo->numDevices; i++) {
+            len = strlen(devInfo[i].devName)+1; 
+            sprintf(&buf[stringLen_in_chunk], "%s", devInfo[i].devName); 
+            stringLen_in_chunk += len;
+            buf[stringLen_in_chunk-1] = ';'; 
+        }
+        buf[stringLen_in_chunk-1] = '\0';
+        nVolumes_in_chunk ++;
+    }
+
+    if (nVolumes_in_chunk != 0) {
+        LOG_FILL_LOGRECINFO_2(logRecInfo, common_perThreadDSptr->nilXactId, LOG_TYPE_CHECKPOINT,
+                              LOG_ACTION_CHKPT_MOUNTED_VOLS, LOG_REDO_ONLY,
+                              common_perThreadDSptr->nilPid, common_perThreadDSptr->nilLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(Four), &nVolumes_in_chunk,
+                              stringLen_in_chunk, buf);
+
+        e = LOG_WriteLogRecord(handle, NULL, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERRL1(handle, e, &RDSM_LATCH_VOLTABLE);
+    }
+
+    /*
+     * Mutex End: for controlling table lookup with mount/dismount operation
+     */
+    e = SHM_releaseLatch(handle, &RDSM_LATCH_VOLTABLE, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* RDsM_LogMountedVols() */
+
+

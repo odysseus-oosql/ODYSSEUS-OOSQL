@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,70 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_BtM_InsertOidIntoLeafEntry.c
+ *
+ * Description:
+ *  redo inserting an object into a leaf entry
+ *
+ * Exports:
+ *  Four Redo_BtM_InsertOidIntoLeafEntry(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_BtM_InsertOidIntoLeafEntry(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing the small object */
+{
+    BtreeLeaf *aPage = anyPage;
+    Four alignedKlen;		/* aligned length of the key length */
+    Four entryLen;              /* entry length */
+    btm_LeafEntry *entry;       /* the updated leaf entry */
+    ObjectID *oidArray;		/* start position of the ObjectID array */
+    LOG_Image_BtM_OidInLeafEntry_T *insertOidInfo;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_BtM_InsertOidIntoLeafEntry(anyPage=%P, logRecInfo=%P)", anyPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* get the images */
+    insertOidInfo = (LOG_Image_BtM_OidInLeafEntry_T*)logRecInfo->imageData[0];
+
+    entry = (btm_LeafEntry*)&aPage->data[aPage->slot[-insertOidInfo->slotNo]];
+
+    entryLen = BTM_LEAF_ENTRY_LENGTH(entry->klen, entry->nObjects);
+
+    btm_ChangeLeafEntrySize(handle, aPage, insertOidInfo->slotNo, entryLen+OBJECTID_SIZE);
+    /* entry might be moved in the above call */
+    entry = (btm_LeafEntry*)&aPage->data[aPage->slot[-insertOidInfo->slotNo]];
+
+    /* aligned length of the key length */
+    alignedKlen = ALIGNED_LENGTH(entry->klen);
+
+    oidArray = (ObjectID*)&(entry->kval[alignedKlen]);
+
+    /* Insert the object */
+    BTM_INSERT_OIDS_SPACE_INTO_OID_ARRAY(oidArray, entry->nObjects, insertOidInfo->oidArrayElemNo, 1);
+    oidArray[insertOidInfo->oidArrayElemNo] = insertOidInfo->oid;
+    entry->nObjects ++;
+
+    return(eNOERROR);
+
+} /* Redo_BtM_InsertOidIntoLeafEntry( ) */

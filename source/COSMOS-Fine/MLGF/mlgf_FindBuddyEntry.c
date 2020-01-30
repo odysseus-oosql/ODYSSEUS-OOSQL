@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,74 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_FindBuddyEntry.c
+ *
+ * Description:
+ *  Find a buddy entry of the given entry.
+ *
+ * Exports:
+ *  Boolean mlgf_FindBuddyEntry(Four, mlgf_DirectoryPage*, Four, mlgf_DirectoryEntry*,
+ *                              Four*, Four*)
+ *
+ * Returns:
+ *  TRUE if a buddy entry is found
+ *  FALSE otherwise
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Boolean mlgf_FindBuddyEntry(
+    Four 		handle,
+    mlgf_DirectoryPage 	*dirPage, 		/* IN a directory page */
+    Four 		nKeys,		 	/* IN number of keys in MLGF */
+    mlgf_DirectoryEntry *entry,	 		/* IN we find buddy entry of this 'entry' */
+    Four 		*buddyEntryNo,		/* OUT entry no of buddy entry */
+    Four 		*buddyKey)		/* OUT buddy key no */
+{
+    Four 		i;			/* index variable */
+    Four 		entryLen;		/* length of a directory entry */
+    mlgf_DirectoryEntry *otherEntry; 		/* entries in directory page */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_FindBuddyEntry(handle, dirPage=%P, nKeys=%ld, entry=%P, buddyEntryNo=%P, buddyKey=%P",
+	      dirPage, nKeys, entry, buddyEntryNo, buddyKey));
+
+
+    /* Calculate the length of a directory entry. */
+    entryLen = MLGF_DIRENTRY_LENGTH(nKeys);
+
+    /* for all the entries */
+    for (i = 0; i < dirPage->hdr.nEntries; i++) {
+	otherEntry = MLGF_ITH_DIRENTRY(dirPage, i, entryLen);
+
+	/* do buddy region test */
+	if (mlgf_BuddyTest(handle, nKeys, entry, otherEntry, buddyKey) == TRUE) {
+	    /* return the entry no of buddy entry */
+	    *buddyEntryNo = i;
+
+	    return(TRUE);
+	}
+    }
+
+    return(FALSE);
+
+} /* mlgf_FindBuddyEntry( ) */

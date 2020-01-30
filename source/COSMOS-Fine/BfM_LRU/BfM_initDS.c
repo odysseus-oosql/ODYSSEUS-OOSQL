@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,195 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BfM_init.c
+ *
+ * Description :
+ *  Initialize the data structure used in buffer manager.
+ *
+ * Exports:
+ *  Four BfM_initSharedDS(Four)
+ *   (Internally BfM_initSharedDS( ) use bfm_initBufferInfo( ) function.)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "SHM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * BfM_InitSharedDS()
+ *================================*/
+/*
+ * Function: Four BfM_InitSharedDS(void)
+ *
+ * Description:
+ *  Initialize the data structure used in buffer manager.
+ *  The used data structure is BufferInfo, one per each buffer pool.
+ *  For each buffer pool, the required information is buffer size and
+ *  the number of buffers in it. With these information, the needed
+ *  memory for buffer pool, buffer table, and hash table is allocated.
+ *  At last, all data structure is initiated with the intial value.
+ *
+ * Returns:
+ *  error code
+ *    some errors cased by function calls
+ */
+Four BfM_initSharedDS(
+    Four    handle
+)
+{
+    Four e;			/* error number */
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_initSharedDS()"));
+
+    e = bfm_initBufferInfo(handle, PAGE_BUF, 1, NUM_PAGE_BUFS);
+    if (e < 0) return(e);
+
+    e = bfm_initBufferInfo(handle, TRAIN_BUF, TRAINSIZE2, NUM_LOT_LEAF_BUFS); 
+    if (e < eNOERROR) return(e);
+
+    return (eNOERROR);
+
+}  /* BfM_initSharedDS( ) */
+
+
+
+
+/*@================================
+ * BfM_initLocalDS( )
+ *================================*/
+Four BfM_initLocalDS(
+    Four    handle
+)
+{
+    Four e;			/* error number */
+
+    /* pointer for BfM Data Structure of perThreadTable */
+    BfM_PerThreadDS_T *bfm_perThreadDSptr = BfM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_initLocalDS()"));
+
+    e = Util_initLocalPool(handle, &(bfm_perThreadDSptr->BACB_pool), sizeof(Buffer_ACC_CB), BFM_BACB_POOLSIZE);
+    if ( e < eNOERROR ) return(e);
+
+    /*@ initialization */
+    /* initialize circular doubly linked list */
+    bfm_perThreadDSptr->MyFixed_BACB.prev = &(bfm_perThreadDSptr->MyFixed_BACB);
+    bfm_perThreadDSptr->MyFixed_BACB.next = &(bfm_perThreadDSptr->MyFixed_BACB);
+
+    return (eNOERROR);
+
+}  /* BfM_initLocalDS */
+
+
+
+/*@================================
+ * bfm_initBufferInfo( )
+ *================================*/
+/*
+ * Function: Four bfm_initBufferInfo(Four, Four, Four, Four)
+ *
+ * Description:
+ *  Initialize the BufferInfo data structure.
+ *
+ * Returns:
+ *  error code
+ *    some errors caused by function calls
+ */
+Four bfm_initBufferInfo(
+    Four handle,
+    Four type,			/* IN buffer type */
+    Four bufSize,		/* IN buffer size */
+    Four nBufs)			/* IN number of buffers */
+{
+    Four e;			/* error code */
+    Four i;			/* loop index */
+    BufTBLEntry *anEntry;	/* a Buffer Table Entry */
+    void *physical_ptr;
+
+
+    TR_PRINT(handle, TR_BFM, TR1, ("bfm_initBufferInfo(type=%lD, bufSize=%lD, nBufs=%lD)",
+			   type, bufSize, nBufs));
+
+
+    /*@ set the control values */
+    BI_BUFSIZE(type) = bufSize;
+    BI_NBUFS(type) = nBufs;
+
+    /*@
+     * allocate the needed memory
+     */
+    /* allocate memory for buffer table */
+    e = SHM_alloc(handle, sizeof(BufTBLEntry)*nBufs, -1, (char **)&physical_ptr);
+    BI_BUFTABLE(type) = LOGICAL_PTR(physical_ptr);
+    if ( e < eNOERROR )	ERR(handle, e);
+
+    /* allocate memory for buffer pool */
+    e = SHM_alloc(handle, nBufs*bufSize*PAGESIZE, -1, (char **)&physical_ptr);
+    BI_BUFFERPOOL(type) = LOGICAL_PTR(physical_ptr);
+    if ( e < eNOERROR )	ERR(handle, e);
+
+    /*@
+     * initialize the allocated memory
+     */
+    /* initialize the buffer table */
+    for (i = 0, anEntry = &BI_BTENTRY(type, 0); i < nBufs; i++, anEntry++) {
+
+	/* reset dirty/invalid Flag */
+	anEntry->dirtyFlag = FALSE;
+	anEntry->invalidFlag = TRUE;
+
+	/* fixed counter is reset to 0. */
+	anEntry->fixed = 0;
+
+	/* hash key is initialized to NIL value. */
+	SET_NILBFMHASHKEY(anEntry->key);
+
+	/* initialize LRU chain */
+	anEntry->prev_in_LRU = LOGICAL_PTR(anEntry-1);
+	anEntry->next_in_LRU = LOGICAL_PTR(anEntry+1);
+
+        /* initialize the latch of buffer hash entries */
+        e = SHM_initLatch(handle, &anEntry->latch);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    /* nullify the marignal links in LRU chain */
+    BI_BTENTRY(type,0).prev_in_LRU = LOGICAL_PTR(NULL);
+    BI_BTENTRY(type, nBufs-1).next_in_LRU = LOGICAL_PTR(NULL);
+
+    /* initialize LRU_ENTRY and MRU_ENTRY in LRU chain */
+    BI_LRU_ENTRY(type) = LOGICAL_PTR(&BI_BTENTRY(type, 0));
+    BI_MRU_ENTRY(type) = LOGICAL_PTR(&BI_BTENTRY(type, nBufs-1));
+
+    /* initialize LRU latch */
+    SHM_initLatch(handle, &BI_LRU_LATCH(type));
+
+    /* Initialize the hash table */
+    e = bfm_initBufferHashTable(handle, type);
+    if (e < eNOERROR) {
+	SHM_free(handle, (char *)PHYSICAL_PTR(BI_BUFTABLE(type)), -1);
+	SHM_free(handle, (char *)PHYSICAL_PTR(BI_BUFFERPOOL(type)), -1);
+	ERR(handle, e);
+    }
+
+    /* Initialize the hash table */
+    e = bfm_initLockHashTable(handle, type);
+    if (e < eNOERROR) {
+	SHM_free(handle, (char *)PHYSICAL_PTR(BI_HASHTABLE(type)), -1);
+	SHM_free(handle, (char *)PHYSICAL_PTR(BI_BUFTABLE(type)), -1);
+	SHM_free(handle, (char *)PHYSICAL_PTR(BI_BUFFERPOOL(type)), -1);
+	ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* bfm_initBufferInfo() */

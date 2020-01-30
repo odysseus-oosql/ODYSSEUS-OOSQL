@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,65 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_ReadLogRecord.c
+ *
+ * Description:
+ *  read a gvien record log record from the log file into the logRecInfo.
+ *
+ * Exports:
+ *  Four LOG_ReadLogRecord(Four, LOG_Lsn_T*, LOG_LogRecInfo_T*, Four*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_ReadLogRecord(Four, LOG_Lsn_T*, LOG_LogRecInfo_T*, Four*)
+ *
+ * Description:
+ *  read a given log record from the log file into logRecInfo.
+ *
+ * Returns:
+ *  error code
+ *
+ * Assumption:
+ *  logRecInfo's image buffers have enough spaces.
+ */
+Four LOG_ReadLogRecord(
+    Four 		handle,
+    Lsn_T 		*lsn,                 	/* IN lsn of the log record to be read */
+    LOG_LogRecInfo_T 	*logRecInfo, 		/* OUT log record information */
+    Four 		*logRecLen)            	/* OUT log record length */
+{
+    Four 		e;			/* error code */
+    Four 		i;			/* loop index */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_ReadLogRecord(lsn=%P, logRecInfo=%P, logRecLen)", lsn, logRecInfo, logRecLen));
+
+
+    /*
+     *  check input parameters
+     */
+    if (lsn == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     * Read the given log record.
+     */
+    e = log_ReadLogRecord(handle, lsn, logRecInfo);
+    if(e == eENDOFLOG_LOG) return eENDOFLOG_LOG; if (e < eNOERROR) ERR(handle, e);
+
+    *logRecLen = log_GetLogRecordLength(handle, logRecInfo);
+
+    return(eNOERROR);
+
+} /* LOG_ReadLogRecord() */

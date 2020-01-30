@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,136 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_MLGF_SearchNearTuple.c
+ *
+ * Description:
+ *  Search the near tuple of the given tuple when the tuples are ordered
+ *  with the given MLGF index.
+ *
+ * Exports:
+ *  Four LRDS_MLGF_SearchNearObject(handle, Four, IndexID*, MLGF_HashValue[], ObjectID*, LockParameter*)
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eDEADLOCK
+ *    eINDEXNOTFOUND_LRDS
+ *    some errors caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#ifndef COSMOS_S
+#include "LM.h"
+#endif /* COSMOS_S */
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four LRDS_MLGF_SearchNearTuple(
+    Four handle,
+    Four orn,			/* IN open relation number */
+    IndexID  *iid,		/* IN the used index */
+    MLGF_HashValue kval[],	/* IN hash values of the given object */
+    TupleID *tid,		/* OUT TupleID of the near tuple */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four e;			/* error number */
+    Four indexInfoIndex;	/* corresponding entry of index info entry */
+    LockReply lockReply;	/* lock reply */
+    LockMode oldMode;
+    lrds_RelTableEntry *relTableEntry; /* pointer to an entry of relation table */
+    IndexInfo *relTableEntry_ii;
+    PageID catalogPid;
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_MLGF_SearchNearTuple()"));
+
+
+    /* check parameters */
+    if (!LRDS_VALID_ORN(handle, orn)) ERR(handle, eBADPARAMETER);
+
+    if (iid == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kval == NULL) ERR(handle, eBADPARAMETER);
+
+    if (tid == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Get the relation table entry. */
+    relTableEntry = LRDS_GET_RELTABLE_ENTRY(handle, orn);
+    relTableEntry_ii = PHYSICAL_PTR(relTableEntry->ii);
+
+
+    /*
+    ** Request Manual Duration lock for read
+    ** Not follow Lock Hierarchy
+    */
+
+#ifdef SYSTABLE_RECORD_LOCKING
+    e = LM_getFlatObjectLock(handle, &MY_XACTID(handle), &(relTableEntry->ri.catalogEntry),
+			   L_S, L_MANUAL, L_UNCONDITIONAL, &lockReply, &oldMode);
+    if (e < eNOERROR) ERR(handle, e);
+#else
+    /* get the pid from the tid of the catalog entry */
+    MAKE_PAGEID(catalogPid, relTableEntry->ri.catalogEntry.volNo, relTableEntry->ri.catalogEntry.pageNo);
+
+    e = LM_getFlatPageLock(handle, &MY_XACTID(handle), &catalogPid,
+			   L_S, L_MANUAL, L_UNCONDITIONAL, &lockReply, &oldMode);
+    if (e < eNOERROR) ERR(handle, e);
+#endif
+
+    if ( lockReply == LR_DEADLOCK )
+	 ERR(handle, eDEADLOCK);
+
+
+    /* Search for the index info about the given index. */
+    /* 'indexInfoIndex' points to the corresponding entry of index info array */
+    for (indexInfoIndex = 0; indexInfoIndex < relTableEntry->ri.nIndexes; indexInfoIndex++)
+	if (EQUAL_INDEXID(*iid, relTableEntry_ii[indexInfoIndex].iid)) break; 
+
+    if (indexInfoIndex == relTableEntry->ri.nIndexes) {
+
+#ifdef SYSTABLE_RECORD_LOCKING
+	ERROR_PASS(handle, LM_releaseFlatObjectLock(handle, &MY_XACTID(handle), &(relTableEntry->ri.catalogEntry), L_MANUAL));
+	ERR(handle, eINDEXNOTFOUND_LRDS);
+#else
+	ERROR_PASS(handle, LM_releaseFlatPageLock(handle, &MY_XACTID(handle), &catalogPid, L_MANUAL));
+	ERR(handle, eINDEXNOTFOUND_LRDS);
+#endif
+
+    }
+
+
+    /* Search the near tuple. */
+    e = SM_MLGF_SearchNearObject(handle, iid, &(relTableEntry_ii[indexInfoIndex].kdesc.mlgf),
+				 kval, (ObjectID*)tid, lockup);
+    if (e < 0) {
+
+#ifdef SYSTABLE_RECORD_LOCKING
+	ERROR_PASS(handle, LM_releaseFlatObjectLock(handle, &MY_XACTID(handle), &(relTableEntry->ri.catalogEntry), L_MANUAL));
+	ERR(handle, e);
+#else
+	ERROR_PASS(handle, LM_releaseFlatPageLock(handle, &MY_XACTID(handle), &catalogPid, L_MANUAL));
+	ERR(handle, e);
+#endif
+
+    }
+
+#ifdef SYSTABLE_RECORD_LOCKING
+    e = LM_releaseFlatObjectLock(handle, &MY_XACTID(handle), &(relTableEntry->ri.catalogEntry), L_MANUAL);
+    if ( e < eNOERROR ) ERR(handle, e);
+#else
+    e = LM_releaseFlatPageLock(handle, &MY_XACTID(handle), &catalogPid, L_MANUAL);
+    if ( e < eNOERROR ) ERR(handle, e);
+#endif
+
+
+    return(eNOERROR);
+
+} /* LRDS_MLGF_SearchNearTuple( ) */

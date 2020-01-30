@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,148 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_InitSortedBulkLoad.c
+ *
+ * Description:
+ *  Initialize B+ tree index bulkloading
+ *
+ * Exports:
+ *  Four BtM_InitSortedBulkLoad(ObjectID*, PageID*, KeyDesc*, Two, Two)
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "BtM.h"
+#include "BL_BtM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+
+
+/*@===========================
+ * BtM_InitSortedBulkLoad()
+ *===========================*/
+/*
+ * Function: Four BtM_InitSortedBulkLoad(ObjectID*, PageID*, KeyDesc*, Two, Two)
+ *
+ * Description:
+ *  Initialize B+ tree index bulkloading
+ *
+ * Returns:
+ *  BtM bulkload ID
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *
+ */
+Four BtM_InitSortedBulkLoad (
+    Four		    handle,
+    XactTableEntry_T        *xactEntry,                             /* IN transaction table entry */
+    BtreeIndexInfo          *iinfo,                                 /* IN B tree information */
+    PageID                  *root,                                  /* IN root PageID of index to be created */
+    KeyDesc                 *kdesc,                                 /* IN key descriptor of the given B+ tree */
+    Two                     eff,                                    /* IN extent fill factor */
+    Two                     pff,                                    /* IN page fill factor */
+    LogParameter_T          *logParam)                              /* IN log parameter */
+{
+    Four                    e;                                      /* error number */
+    Four                    btmBlkLdId;                             /* BtM bulkload ID */
+    BtM_BlkLdTableEntry*    blkLdEntry;                             /* entry in which information about bulkload is saved */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+             ("BtM_InitSortedBulkLoad(xactEntry=%P, iinfo=%P, root=%P, kdesc=%P, eff=%ld, pff=%ld, logParam=%P)",
+              xactEntry, iinfo, root, kdesc, eff, pff, logParam));
+
+
+    /*
+    ** O. Check parameters
+    */
+
+    if (xactEntry == NULL)              ERR(handle, eBADPARAMETER);
+
+    if (iinfo== NULL)                   ERR(handle, eBADPARAMETER);
+
+    if (root == NULL)                   ERR(handle, eBADPARAMETER);
+
+    if (kdesc == NULL)                  ERR(handle, eBADPARAMETER);
+
+    if (eff < 0 || eff > 100)           ERR(handle, eBADPARAMETER);
+
+    if (pff < MINPFF || pff > MAXPFF)   ERR(handle, eBADPARAMETER);
+
+    if (logParam == NULL)               ERR(handle, eBADPARAMETER);
+
+
+
+    /*
+    ** I. Find empty entry from BtM bulkload table
+    */
+
+    for (btmBlkLdId = 0; btmBlkLdId < BTM_BLKLD_TABLE_SIZE; btmBlkLdId++ ) {
+	if (BTM_BLKLD_TABLE(handle)[btmBlkLdId].isUsed == FALSE) break;
+    }
+    if (btmBlkLdId == BTM_BLKLD_TABLE_SIZE) ERR(handle, eBLKLDTABLEFULL);
+
+    /* set entry for fast access */
+    blkLdEntry = &BTM_BLKLD_TABLE(handle)[btmBlkLdId];
+
+    /* set isUsed flag */
+    blkLdEntry->isUsed = TRUE;
+
+
+
+    /*
+    ** II. Get index information
+    */
+
+    /* 1. get information about B+ tree index to be bulkloaded */
+    e = btm_BlkLdGetInfo(handle, btmBlkLdId, iinfo, root, kdesc, eff, pff);
+    if (e < 0)  ERR(handle, e);
+
+
+
+    /*
+    ** III. Initialize buffer
+    */
+
+    /* 1. initialize internal node buffer which will be used in index bulkload */
+    e = btm_BlkLdInitInternalBuffer(handle, btmBlkLdId);
+    if (e < 0)  ERR(handle, e);
+
+    /* 2. initialize leaf node buffer which will be used in index bulkload */
+    e = btm_BlkLdInitLeafBuffer(handle, btmBlkLdId);
+    if (e < 0)  ERR(handle, e);
+
+    /* 3. initialize overflow node buffer which will be used in index bulkload */
+    e = btm_BlkLdInitOverflowBuffer(handle, btmBlkLdId);
+    if (e < 0)  ERR(handle, e);
+
+    /* 4. initialize write buffer */
+    e = btm_BlkLdInitWriteBuffer(handle, btmBlkLdId);
+    if (e < 0)  ERR(handle, e);
+
+    /* 5. initialize oid array buffer for duplicate key */
+    e = btm_BlkLdInitLeaf(handle, btmBlkLdId, &blkLdEntry->btmBlkLdoidBuffer, blkLdEntry->btmBlkLdblkldInfo.isTmp);
+    if (e < 0)  ERR(handle, e);
+
+    /* 6. initialize overflow flag */
+    blkLdEntry->btmBlkLdoverflow = FALSE;
+
+    /* 7. initialize append flag */
+    blkLdEntry->btmBlkLdisAppend = FALSE;
+
+
+
+    return btmBlkLdId;
+
+}   /* BtM_InitSortedBulkLoad() */

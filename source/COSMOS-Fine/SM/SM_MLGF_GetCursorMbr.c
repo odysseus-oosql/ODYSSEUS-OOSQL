@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,70 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_MLGF_GetCursorKeys.c
+ *
+ * Description:
+ *  Return the key values of the cursor.
+ *
+ * Exports:
+ *  Four SM_MLGF_GetCursorKeys(Four, MLGF_HashValue [])
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "MLGF.h"
+#include "SM_Internal.h"
+#include "SM_SHM.h"
+#include "TM_SHM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_MLGF_GetCursorKeys()
+ *================================*/
+/*
+ * Function: Four SM_MLGF_GetCursorKeys(Four, MLGF_HashValue[])
+ *
+ * Description:
+ *  Return the key values of the cursor.
+ *
+ * Returns:
+ *  error code
+ */
+Four SM_MLGF_GetCursorKeys(
+    Four scanId,		/* IN scan to use */
+    MLGF_HashValue keys[])      /* OUT key values on the cursor */
+{
+    Four e;			/* error code */
+    ObjectID    nextOid;	/* the next object's ObjectID */
+    Cursor nextCursor;		/* the B+ tree cursor of the next object */
+    LockParameter *realLockup;
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_MLGF_GetCursorKeys(scanId=%ld, keys=%P)",
+	      scanId, keys));
+
+
+    /*@ check parameters */
+
+    if (!VALID_SCANID(handle, scanId)) ERR(handle, eBADPARAMETER);
+
+    if (SM_SCANTABLE(handle)[scanId].scanType != MLGFINDEX ||
+        SM_SCANTABLE(handle)[scanId].cursor.any.flag != CURSOR_ON)
+	ERR(handle, eBADCURSOR);
+
+    memcpy(keys, SM_SCANTABLE(handle)[scanId].cursor.mlgf.keys,
+           sizeof(MLGF_HashValue)*SM_SCANTABLE(handle)[scanId].scanInfo.mlgf.kdesc.nKeys);
+
+
+    return(eNOERROR);
+
+} /* SM_MLGF_GetCursorKeys() */

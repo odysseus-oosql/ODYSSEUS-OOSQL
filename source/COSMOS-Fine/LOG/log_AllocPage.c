@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,60 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: log_AllocPage.c
+ *
+ * Description:
+ *  Allocate a page from the log file
+ *
+ * Exports:
+ *  Four log_AllocPage(Four, Four*, Four*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four log_AllocPage(Four, Four*, Four*)
+ *
+ * Description:
+ *  Allocate a page from the log file
+ *
+ * Returns:
+ *  error code
+ */
+Four log_AllocPage(
+    Four handle,
+    Four *pageNo,		/* OUT a page number of the allocated page */
+    Four *wrapCount)		/* OUT a wrap count of the allocated page */
+{
+
+    TR_PRINT(handle, TR_LOG, TR1, ("log_AllocPage(pageNo=%P, wrapCount=%P)", pageNo, wrapCount));
+
+
+    /*
+     *	check input parameter
+     */
+    if (pageNo == NULL || wrapCount == NULL) ERR(handle, eBADPARAMETER);
+
+    assert((LOG_LOGMASTER.headPageNo + 1) < LOG_LOGMASTER.numPages);
+
+    LOG_LOGMASTER.headPageNo ++;
+
+    /*
+     *	assignments for return values
+     */
+    *pageNo = LOG_LOGMASTER.headPageNo;
+    *wrapCount = LOG_LOGMASTER.headWrapCount;
+
+    return(eNOERROR);
+
+} /* log_AllocPage( ) */

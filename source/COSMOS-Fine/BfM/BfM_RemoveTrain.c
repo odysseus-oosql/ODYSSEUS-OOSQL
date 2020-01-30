@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,130 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BfM_RemoveTrain.c
+ *
+ * Description :
+ *  Return a buffer which has the disk content indicated by `trainId'.
+ *
+ * Exports:
+ *  Four BfM_RemoveTrain(Four, TrainID *, Four, Buffer_ACC_CB *, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>  /* for memcpy */
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "SHM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * BfM_RemoveTrain( )
+ *================================*/
+/*
+ * Function: Four BfM_RemoveTrain(Four, TrainID *, Four, Boolean)
+ *
+ * Description :
+ *  Remove a buffer.
+ *  If 'writeFlag' is TRUE, flush out the buffer before removing
+ *
+ * Returns :
+ *  error code
+ *    eBADBUFFER_BFM - Invalid Buffer
+ *    eNOTFOUND_BFM  - The key isn't in the hash table
+ *    some errors caused by function calls
+ *
+ * Side effects:
+ */
+Four BfM_RemoveTrain(
+    Four handle,
+    TrainID     *trainId,	/* IN  train to be used */
+    Four        type,		/* IN  buffer type */
+    Boolean     writeFlag)      /* IN flag which indicates flush-out is needed */
+{
+    Four        status;		/* for returned message */
+    Four        e;		/* for resource release error */
+    BufTBLEntry *anEntry;	/* a buffer Table Entry */
+
+
+    TR_PRINT(handle, TR_BFM, TR1,("BfM_RemoveTrain(trainId=%P, type=%ld, writeFlag=%ld)", trainId, type, writeFlag));
+
+
+    /*@
+     * Check the validity of given parameters
+     */
+
+    /* Is the buffer type valid? */
+    if (IS_BAD_BUFFERTYPE(type)) ERR(handle, eBADBUFFERTYPE_BFM);
+
+
+    /*@
+     * get latch
+     */
+
+    /* Mutex Begin : mutual exclusively fix the trainID page */
+    ERROR_PASS(handle, bfm_lock(handle, trainId, type));
+
+
+    /*
+     * if given train isn't in buffer, skip!!
+     */
+    status = bfm_lookUp(handle, (BfMHashKey *)trainId, type, &anEntry);
+    if (status == NOTFOUND_IN_HTABLE) {
+	ERROR_PASS(handle, bfm_unlock(handle, trainId, type));
+	return eNOERROR;
+    } else if (status  < eNOERROR) {
+	ERROR_PASS(handle, bfm_unlock(handle, trainId, type));
+	ERR(handle,  status );
+    }
+
+
+    /*
+     * If the buffer is dirty, write into the disk
+     */
+    if (writeFlag == TRUE && anEntry->dirtyFlag) {
+        e = bfm_flushBuffer(handle, anEntry, type);
+        if( e < 0 ) {
+            ERROR_PASS(handle, bfm_unlock(handle, trainId, type));
+            ERR(handle,  e );
+        }
+    }
+
+
+    /*
+     * Delete the victim from the hash table
+     */
+    e = bfm_delete(handle, anEntry, type);
+    if( e < 0 ) {
+        ERROR_PASS(handle, bfm_unlock(handle, trainId, type));
+        ERR(handle,  e );
+    }
+
+
+     /* Set anEntry->fixed by 1 not to select as victim
+     during the initializing anEntry->key to NIL*/
+    anEntry->fixed = 1;
+    anEntry->invalidFlag = TRUE; 
+    SET_NILBFMHASHKEY(anEntry->key);
+
+    /* fixed counter is reset to 0. */
+    anEntry->fixed = 0;
+
+
+    /*@
+     * release latch
+     */
+
+    /* Mutex End : mutual exclusively fix the trainID page */
+    ERROR_PASS(handle, bfm_unlock(handle, trainId, type));
+
+
+    return( eNOERROR );   /* No error */
+
+}  /* BfM_RemoveTrain */

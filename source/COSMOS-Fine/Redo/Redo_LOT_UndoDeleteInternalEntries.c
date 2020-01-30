@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,84 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_LOT_UndoDeleteInternalEntries.c
+ *
+ * Description:
+ *  redo undoing deleting internal entries from internal node
+ *
+ * Exports:
+ *  Four Redo_LOT_UndoDeleteInternalEntries(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_LOT_UndoDeleteInternalEntries(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    L_O_T_INodePage *apage = anyPage;
+    L_O_T_INode *anode;
+    LOG_Image_LOT_DeleteInternalEntries_T *deleteInternalEntriesInfo;
+    Four i;
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_LOT_UndoDeleteInternalEntries()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (anyPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    anode = &apage->node;
+    deleteInternalEntriesInfo = (LOG_Image_LOT_DeleteInternalEntries_T*)logRecInfo->imageData[0];
+
+    /*
+     *	redo inserting internal entries into internal node
+     */
+    /* change the count to subtree count instead of accumulated count */
+    for (i = anode->header.nEntries - 1; i > 0; i--)
+	anode->entry[i].count -= anode->entry[i-1].count;
+
+    if (deleteInternalEntriesInfo->nEntries != 0) {
+        /* reserve space */
+        memmove(&anode->entry[deleteInternalEntriesInfo->start + deleteInternalEntriesInfo->nEntries],
+                &anode->entry[deleteInternalEntriesInfo->start],
+                (anode->header.nEntries - deleteInternalEntriesInfo->start) * sizeof(L_O_T_INodeEntry));
+
+        /* copy deleted entries */
+        memcpy(&anode->entry[deleteInternalEntriesInfo->start],
+               logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+
+        anode->header.nEntries += deleteInternalEntriesInfo->nEntries;
+    }
+
+    if (deleteInternalEntriesInfo->nDeletedBytesBefore != 0) {
+        assert(deleteInternalEntriesInfo->start > 0);
+        anode->entry[deleteInternalEntriesInfo->start-1].count += deleteInternalEntriesInfo->nDeletedBytesBefore;
+    }
+
+    if (deleteInternalEntriesInfo->nDeletedBytesAfter != 0) {
+        assert(deleteInternalEntriesInfo->start + deleteInternalEntriesInfo->nEntries + 1 <= anode->header.nEntries); 
+        anode->entry[deleteInternalEntriesInfo->start + deleteInternalEntriesInfo->nEntries + 1].count += deleteInternalEntriesInfo->nDeletedBytesAfter;
+    }
+
+    /* adjust the count */
+    for (i = 1; i < anode->header.nEntries; i++)
+        anode->entry[i].count += anode->entry[i-1].count;
+
+    return(eNOERROR);
+
+} /* Redo_LOT_UndoDeleteInternalEntries( ) */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,76 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_CloseVolume.c
+ *
+ * Description:
+ *  Close the current log volume.
+ *
+ * Exports:
+ *  Four LOG_CloseVolume(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_CloseVolume(void)
+ *
+ * Description:
+ *  Close the current log volume.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_CloseVolume(
+    Four    		handle)
+{
+    Four   		e;		/* error code */
+    PageID 		pid;		/* page id of the log master page */
+    log_LogMasterPage_T masterPage; 	/* log master page */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_CloseVolume()"));
+
+
+    /* No Concurrency Control is needed */
+
+
+    /*
+     * Check if there is a opened log volume.
+     */
+    if (LOG_LOGMASTER.volNo == NIL) ERR(handle, eNOOPENEDLOGVOLUME_LOG);
+
+
+    /*
+     *	reflect all the contents in the log buffer into the log file.
+     */
+    e = log_FlushLogBuffers(handle, LOG_LBI_HEAD, FALSE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    LOG_LBI_HEAD = LOG_LBI_TAIL = 0;
+
+    /*
+     *	reflect the logMaster into the log file.
+     */
+    /* Copy the log master. */
+    masterPage.master = LOG_LOGMASTER;
+
+    pid.volNo = masterPage.master.volNo;
+    pid.pageNo = masterPage.master.logMasterPageNo;
+    e = RDsM_WriteTrain(handle, (char*)&masterPage, &pid, PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LOG_CloseVolume() */

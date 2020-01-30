@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,104 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BfM_RemoveLogPages.c
+ *
+ * Description :
+ *  Remove the log pages from the buffer pool.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * BfM_RemoveLogPages()
+ *================================*/
+/*
+ * Function: Four BfM_RemoveLogPages(void)
+ *
+ * Description :
+ *  Remove log pages from the buffer pool
+ *
+ * Returns:
+ *  error code
+ */
+Four BfM_RemoveLogPages(
+    Four    handle)
+{
+    Four e;			/* error */
+    Four type;			/* buffer type */
+    BufTBLEntry *anEntry;	/* a Buffer Table Entry to be flushed */
+    BfMHashKey localKey;	/*  */
+    Four i;			/* loop index */
+
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_RemoveLogPages()"));
+
+
+    /* For each buffer pool */
+    for (type = 0; type < NUM_BUF_TYPES; type++) {
+
+	/*@ flush dirty buffer */
+	/* Flush out the dirty buffer with same volume number
+	 * in the current buffer pool. */
+	for( anEntry = PHYSICAL_PTR(BI_BUFTABLE(type)), i = 0;
+	     i < BI_NBUFS(type); anEntry++, i++ )  {
+
+	    if (!IS_NILBFMHASHKEY(anEntry->key) && GET_PAGE_TYPE(BI_BUFFER(type, anEntry)) == LOG_PAGE_TYPE) {
+		/* This buffer holds a log page. */
+
+		/* mutex begin :: for update Buffer Table Entry */
+		localKey = anEntry->key;
+		ERROR_PASS(handle, bfm_lock(handle, (TrainID *)&localKey, type));
+
+		if ( !EQUALKEY(&anEntry->key, &localKey) ) {
+		    ERROR_PASS(handle, bfm_unlock(handle, (TrainID *)&localKey, type));
+		    continue;
+		}
+		/* This buffer is an unfixed buffer. */
+		if (anEntry->fixed > 0) {
+#ifdef TRACE
+		    printf("BfM_dismount : There is a buffer of which 'fixed' is not 0. pid=(%ld,%ld)\n", anEntry->key.volNo, anEntry->key.pageNo);
+#endif
+		    ERROR_PASS(handle, bfm_unlock(handle, (TrainID *)&localKey, type)); 
+		    ERR(handle, eFLUSHFIXEDBUF_BFM);
+		}
+
+                assert(anEntry->dirtyFlag == 0);
+
+		/*@ delete the victim */
+		/* Delete the victim from the hash table */
+		e = bfm_delete(handle,  anEntry, type );
+		if (e < eNOERROR) ERR(handle, e);
+
+		/*@ clear the information */
+		/* clear the infomation because a train in the dismounted
+		   volume will not be used near future*/
+                 /* Set anEntry->fixed by 1 not to select as victim
+                 during the initializing anEntry->key to NIL*/
+                anEntry->fixed = 1;
+                anEntry->invalidFlag = TRUE;
+		SET_NILBFMHASHKEY(anEntry->key);
+                anEntry->fixed = 0;
+
+		/*@ release latch */
+		/* mutex begin :: for update Buffer Table Entry */
+		ERROR_PASS(handle, bfm_unlock(handle, (TrainID *)&localKey, type));
+
+	    }
+	}
+    }
+    return( eNOERROR );
+
+}  /* BfM_RemoveLogPages */
+

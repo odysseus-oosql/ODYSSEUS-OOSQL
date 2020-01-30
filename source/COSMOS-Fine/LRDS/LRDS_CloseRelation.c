@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,138 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_CloseRelation.c
+ *
+ * Description:
+ *  Relation close related functions.
+ *
+ * Exports:
+ *  Four LRDS_CloseRelation(Four, Four)
+ *  Four LRDS_CloseAllRelations(Four)  
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Module: Four LRDS_CloseRelation(Four, Four)
+ *
+ * Description:
+ *  Close a relation. The parameter 'orn', which are used to specify
+ *  the closed relation, is an index on the LRDS_USEROPENRELTABLE(handle).
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ */
+
+Four LRDS_CloseRelation(
+    Four handle,
+    Four orn)			/* IN open relation number */
+{
+    Four e;			/* IN error number */
+    Four sysOrn;		/* open relation number; points to relation table entry */
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_CloseRelation()"));
+
+
+    /* check parameter */
+    if (!LRDS_VALID_ORN(handle, orn)) ERR(handle, eBADPARAMETER);
+
+
+    /* Decrement the number of opens of per-process open table. */
+    LRDS_USEROPENRELTABLE(handle)[orn].count--;	/* local counter */
+    if (LRDS_USEROPENRELTABLE(handle)[orn].count != 0) return(eNOERROR);
+
+    /* Get the 'sysOrn': orn of the system table. */
+    sysOrn = LRDS_USEROPENRELTABLE(handle)[orn].sysOrn;
+
+    /* Make this entry unused. */
+    LRDS_SET_TO_UNUSED_ENTRY_OF_USEROPENRELTABLE(handle, orn);
+
+
+    /*
+    ** Decrement the # of opens of the temporary relation table if this is a
+    ** temporary relation. Otherwise, close the temporary system relation table.
+    */
+    if (LRDS_USEROPENRELTABLE(handle)[orn].tmpRelationFlag) {
+	/* this is a temporarty table */
+
+	/* do not change the 'count'. */
+	/* LRDS_RELTABLE_FOR_TMP_RELS(handle)[sysOrn].count --; */ /* decrement the number of opens */
+
+	return(eNOERROR);
+    }
+
+    /* Close the relation in the open relation table in the shared memory. */
+    e = lrds_CloseSharedRelation(handle, sysOrn);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LRDS_CloseRelation( ) */
+
+
+
+/*
+ * Function: Four LRDS_CloseAllRelations(Four)
+ *
+ * Description:
+ *  Close all opened relations.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_CloseAllRelations(
+    Four    handle)
+{
+    Four e;			/* IN error number */
+    Four orn;			/* open relation number */
+    lrds_RelTableEntry *relTableEntry; /* pointer to an entry of relation table */
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_CloseAllRelations()"));
+
+
+    /*
+    ** Look up the per-process open table.
+    ** If there is an open relation, close it.
+    */
+    for (orn = 0; orn < LRDS_NUM_OF_ENTRIES_OF_USEROPENRELTABLE; orn++) {
+	/* skip unused entry */
+	if (LRDS_IS_UNUSED_ENTRY_OF_USEROPENRELTABLE(handle, orn)) continue;
+
+        relTableEntry = LRDS_GET_RELTABLE_ENTRY(handle, orn);
+        if (relTableEntry->isCatalog) {
+            /* Mount operation set the count to 1. */
+            LRDS_USEROPENRELTABLE(handle)[orn].count = 1;
+
+        } else {
+            /* set the count to 1 to close the relation actually */
+            LRDS_USEROPENRELTABLE(handle)[orn].count = 1;
+
+	    e = LRDS_CloseRelation(handle, orn);
+	    if (e < eNOERROR) ERR(handle, e);
+	}
+
+    }
+
+    return(eNOERROR);
+
+} /* LRDS_CloseAllRelations( ) */
+
+
+

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,70 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_GetSizeOfExt.c
+ *
+ * Description:
+ *  Get the extent's size of given volume.
+ *
+ * Exports:
+ *  Four RDsM_GetSizeOfExt(Four, char *)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*@================================
+ * RDsM_GetSizeOfExt()
+ *================================*/
+/*
+ * Function: Four RDsM_GetSizeOfExt(VolID, Four *)
+ *
+ * Description:
+ *  Get the extent's size of given volume.
+ *
+ * Returns:
+ *  error code
+ */
+Four	RDsM_GetSizeOfExt(
+    Four        handle,                 /* IN    handle */
+    VolID       volID,                  /* IN  size of given buffer */
+    Four        *sizeOfExt)             /* OUT names of devices in mounted volume */
+{
+    Four        e;                      /* error code */
+    Four        entryNo;                /* entry no of volume table entry corresponding to the given volume */
+    RDsM_VolumeInfo_T *volInfo;         /* volume information in volume table entry */
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_GetSizeOfExt(volID=%lD, sizeOfExt=%P)", volID, sizeOfExt));
+
+
+    /*
+     *	get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, volID, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     *	set entry to point to the corresponding entry
+     */
+    volInfo = &RDSM_VOLTABLE[entryNo].volInfo;
+
+
+    /*
+	 *  get size of extent
+	 */
+    *sizeOfExt = volInfo->extSize;
+
+
+    return(eNOERROR);
+
+} /* RDsM_GetSizeOfExt() */

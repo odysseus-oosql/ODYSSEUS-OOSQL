@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,118 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_DeleteIndexEntry.c
+ *
+ * Description:
+ *  Delete an entry from the B+ tree.
+ *
+ * Exports:
+ *  Four SM_DeleteIndexEntry(Four, IndexID*, KeyDesc*, KeyValue*, ObjectID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"	
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_DeleteIndexEntry( )
+ *================================*/
+/*
+ * Function: Four SM_DeleteIndexEntry(Four, IndexID*, KeyDesc*, KeyValue*, ObjectID*)
+ *
+ * Description:
+ *  Delete an entry from the B+ tree.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eNOTMOUNTEDVOLUME_SM
+ *    some errors caused by function calls
+ */
+Four SM_DeleteIndexEntry(
+    Four    handle,
+    IndexID *index,		/* IN index where the entry will be inserted */
+    KeyDesc *kdesc,		/* IN key descriptor for B+ tree index */
+    KeyValue *kval,		/* IN key value */
+    ObjectID *oid,		/* IN object identifier with the given key value */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four     e;			/* error number */
+    Four     v;			/* array index on the mount table */
+    LockParameter *realLockup;
+    LogParameter_T logParam;
+    BtreeIndexInfo iinfo;	/* index information */ 
+    FileID         fid;         /* File ID */ 
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_DeleteIndexEntry(handle, index=%P, kdesc=%P, kval=%P, oid=%P, lockup=%P)",
+	      index, kdesc, kval, oid, lockup));
+
+
+    /*@ check parameters */
+
+    if (index == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kdesc == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kval == NULL) ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /* check lockup parameter */
+    realLockup = NULL;
+    if(lockup){
+        if(lockup->mode != L_X) ERR(handle, eEXCLUSIVELOCKREQUIRED_SM);
+        if(lockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+        realLockup = lockup;
+    }
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == index->volNo) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+
+    /*
+     * Get the index information
+     */
+    e = sm_GetIndexInfoFromIndexId(handle, v, index, &iinfo, &fid); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, iinfo.tmpIndexFlag);
+
+    /*@ delete the object */
+    /* Delete the given ObjectID from the B+ tree. */
+    e = BtM_DeleteObject(handle, MY_XACT_TABLE_ENTRY(handle), &iinfo, &fid, kdesc, 
+			 kval, oid, realLockup, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* SM_DeleteIndexEntry() */
+

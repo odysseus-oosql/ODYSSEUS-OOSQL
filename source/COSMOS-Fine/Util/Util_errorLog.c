@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,180 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include <stdio.h>
+#include <stdarg.h>
+#include <time.h>
+#include <string.h>
+#include <sys/types.h> 
+#include <sys/stat.h> 
+#include <unistd.h> 
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#ifndef WIN32
+#include <unistd.h>
+#else
+#include <process.h>
+#endif
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "Util_errorLog.h"
+
+
+/* internal functio prototype */
+void util_ErrorLog_PrintProcessIdAndTime(char* buffer);
+void util_ErrorLog_BackupErrorLogFile(); 
+
+
+void Util_ErrorLog_Printf(char* msg, ...)
+{
+    FileDesc    fd;	
+    char	buffer[1024]; 
+    char	*ptr; 		
+    va_list 	ap;
+    Four    	dummyHandle = -10;
+    struct stat fileStatBuf; 
+
+
+     
+        
+    /*
+     * Backup the Current Error Log File
+     */
+#ifndef WIN32
+    stat(ERRORLOG_FILENAME, &fileStatBuf);
+    if (fileStatBuf.st_size >= MAX_ERRORLOG_FILESIZE) {
+	util_ErrorLog_BackupErrorLogFile();
+    }
+#else
+
+#endif
+
+    /*
+     * Construct Error Message
+     */
+
+    /* Make current time & process ID & thread ID */
+    util_ErrorLog_PrintProcessIdAndTime(buffer);
+
+    /* Attach message */
+    ptr = &buffer[strlen(buffer)];
+
+    va_start(ap, msg);
+    vsprintf(ptr, msg, ap);
+    va_end(ap);
+
+
+    /*
+     * Printe out Error Message
+     */
+
+#ifndef WIN32
+
+    fd = open(ERRORLOG_FILENAME, O_RDWR | O_SYNC | O_CREAT, CREATED_VOLUME_PERM);
+    if (fd == -1) {
+
+        /* print out error message */
+        fprintf(stderr, "Can't open error log file '%s'\n", ERRORLOG_FILENAME);
+        fprintf(stderr, "%s\n", buffer);
+    }
+    else {
+
+        /*
+         * CRITICAL SECTION BEGIN
+         */
+        START_CRITICAL_SECTION_FOR_ERROR_LOG_FILE_ACCESS(dummyHandle, fd);
+
+        /* set file position */
+        lseek(fd, 0, SEEK_END);
+
+        /* write error message */
+        write(fd, buffer, strlen(buffer));
+
+        /*
+         * CRITICAL SECTION END
+         */
+        END_CRITICAL_SECTION_FOR_ERROR_LOG_FILE_ACCESS(dummyHandle, fd);
+
+        /* close file description */
+        close(fd);
+    }
+
+#else
+
+    fd = CreateFile(ERRORLOG_FILENAME, GENERIC_WRITE | GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL,
+                    OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_NO_BUFFERING, NULL);
+    if (fd == INVALID_HANDLE_VALUE) {
+
+        /* print out error message */
+        fprintf(stderr, "Can't open error log file '%s'\n", ERRORLOG_FILENAME);
+        fprintf(stderr, "%s\n", buffer);
+    }
+    else {
+
+        /*
+         * CRITICAL SECTION BEGIN
+         */
+        START_CRITICAL_SECTION_FOR_ERROR_LOG_FILE_ACCESS(dummyHandle, fd);
+
+        /* set file position */
+        SetFilePointer(fd, 0, NULL, FILE_END);
+
+        /* write error message */
+        WriteFile(fd, buffer, strlen(buffer));
+
+        /*
+         * CRITICAL SECTION END
+         */
+        END_CRITICAL_SECTION_FOR_ERROR_LOG_FILE_ACCESS(dummyHandle, fd);
+
+        /* close file description */
+        CloseHandle(fd);
+    }
+
+#endif /* WIN32 */
+
+}
+
+
+void util_ErrorLog_PrintProcessIdAndTime(char* buffer)
+{
+    char   timeString[128]; /* Note!! the size of timeString is larger than 26 */
+    int    timeStringLength;
+    time_t currentTime;
+
+    /* get current time */
+    time(&currentTime);
+
+    /* get time string from current time */
+    strcpy(timeString, ctime(&currentTime));
+    timeStringLength = strlen(timeString);
+
+    /* remove cariage return from time string */
+    if(timeString[timeStringLength - 1] == '\n')
+        timeString[timeStringLength - 1] = '\0';
+
+    /* write process ID and time string into error log file */
+    sprintf(buffer, "[PID=%u][TID=%u][%s] ", getpid(), pthread_self(), timeString); 
+}
+
+
+void util_ErrorLog_BackupErrorLogFile() 
+{
+    char   newErrorFileName[128];
+    time_t currentTime;
+    int    lenFileName;
+
+#ifndef WIN32
+    currentTime = time(NULL);
+    sprintf(newErrorFileName, "%s.%s", ERRORLOG_FILENAME, ctime(&currentTime));
+    lenFileName = strlen(newErrorFileName);
+    newErrorFileName[lenFileName - 1] = '\0';
+
+    rename(ERRORLOG_FILENAME, newErrorFileName);
+#else
+
+#endif
+
+}
+
+

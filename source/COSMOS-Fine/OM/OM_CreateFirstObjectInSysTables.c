@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,121 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"		/* for tracing : TR_PRINT(handle, ) macro */
+#include "latch.h"
+#include "LOG.h"
+#include "RDsM.h"		/* for the raw disk manager call */
+#include "BfM.h"		/* for the buffer manager call */
+#include "OM.h"
+#include "LM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*
+ * Function: createFirstObjectInSysTables(FileID*, Four, char*, ObjectID*)
+ *
+ * Description :
+ *  Create the first catalog entry in the catalog table SM_SYSTABLES. The
+ *  first catalog entry is for the SM_SYSTABLES itself. The OM_CreateObject( )
+ *  function in the object manager(OM) request that the catalog entry for
+ *  the file where the new object will be put should be in the SM_SYSTABLES.
+ *  So we cannot use the OM_CreateObject( ) function for the first catalog entry
+ *  of SM_SYSTABLES becase the catalog entry for SM_SYSTABLES does not exist
+ *  in SM_SYSTABLES.
+ *
+ * Return Values :
+ *  Error Code
+ *    some errors caused by fuction calls
+ *
+ * Notice:
+ *  We assume that the length of the data is less than the half of the page
+ *  size. So we don't modify the links of the available space list.
+ */
+Four OM_CreateFirstObjectInSysTables(
+    Four 	handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    PhysicalFileID *pFid,	/* IN FileID of the catalog table SM_SYSTABLES*/ 
+    ObjectHdr   *objHdr,	/* IN from which tag & properties are set */
+    Four	length,		/* IN amount of data */
+    char	*data,		/* IN the initial data for the object */
+    ObjectID	*oid,		/* OUT the object's ObjectID */
+    LockParameter *lockup,      /* IN request lock or not */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four        e;		/* error number */
+    Four        neededSpace;    /* space needed to put new object [+ header] */ 
+    SlottedPage *apage;		/* pointer to the slotted page buffer */
+    Four        alignedLen;	/* aligned length of initial data */
+    PageID      pid;            /* PageID in which new object to be inserted */
+    Object      *obj;		/* point to the newly created object */
+    Four        i;		/* index variable */
+    Buffer_ACC_CB *aPage_BCBP;	/* buffer access control block for a page */
+    Boolean allocFlag, pageUpdateFlag;
+
+
+    /* FileID is the PageID of the first page of the file. */
+    pid = *pFid; 
+
+    e = BfM_getAndFixBuffer(handle, &pid, M_FREE, &aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    apage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+    /* calculate the length to be needed in the slotted page. */
+    alignedLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(length));
+    neededSpace = sizeof(ObjectHdr) + alignedLen;
+
+#ifdef CCRL
+    e = om_AcquireSpace(handle, &xactEntry->xactId, apage, neededSpace, 0, &allocFlag, &pageUpdateFlag); 
+    assert(allocFlag == TRUE);
+    assert(pageUpdateFlag == TRUE);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+    /*
+     * At this point
+     * pid : PageID of the page into which the new object will be placed
+     * apage : pointer to the slotted page buffer
+     * alignedLen : space for data of the new object
+     */
+    /* where to put the object[header]? */
+    obj = (Object *)&(apage->data[apage->header.free]);
+
+    /* initialize ObjectHdr */
+    obj->header.properties = P_CLEAR;
+    obj->header.tag = (objHdr != NULL) ? objHdr->tag:0;
+    obj->header.length = alignedLen;
+
+    /* copy the data into the object */
+    memcpy(obj->data, data, length);
+
+    assert(apage->header.nSlots == 1);
+
+    apage->slot[0].offset = apage->header.free;
+    e = om_GetUnique(handle, xactEntry, aPage_BCBP, &(apage->slot[0].unique), logParam);
+    if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+
+    /* update the pointer to the start of contiguous free space */
+    apage->header.free += sizeof(ObjectHdr) + alignedLen;
+
+    /* Construct the ObjectID to be returned */
+    if(oid != NULL)
+	MAKE_OBJECTID(*oid, pid.volNo, pid.pageNo, 0, apage->slot[0].unique);
+
+    /* set dirtyFlag */
+    aPage_BCBP->dirtyFlag = 1;
+
+    /* free the buffer page */
+    e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* OM_CreateFirstObjectInSysTables() */

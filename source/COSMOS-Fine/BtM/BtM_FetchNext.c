@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,112 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_FetchNext.c
+ *
+ * Description:
+ *  Find the next ObjectID satisfying the given condition. The current ObjectID
+ *  is specified by the 'current'.
+ *
+ * Exports:
+ *  Four BtM_FetchNext(Four, PageID*, LATCH_TYPE*, KeyDesc*, KeyValue*, Four, LockParameter*, BtreeCursor*, BtreeCursor*)
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER_BTM
+ *    eINVALIDCURSOR_BTM
+ *    some errors caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four BtM_FetchNext(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    BtreeIndexInfo *iinfo,      /* IN B tree index information */ 
+    FileID     *fid,            /* IN FileID */ 
+    KeyDesc  *kdesc,		/* IN key descriptor */
+    KeyValue *kval,		/* IN key value of stop condition */
+    Four     compOp,		/* IN comparison operator of stop condition */
+    BtreeCursor *current,	/* IN current B+ tree cursor */
+    BtreeCursor *next,		/* OUT next B+ tree cursor */
+    LockParameter *lockup)	/* IN request lock or nolock */
+{
+    Four e;			/* error number */
+    Four cmp;			/* comparison result */
+    LATCH_TYPE *treeLatchPtr;
+    PageID root;		
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("BtM_FetchNext(handle, iinfo=%P, kdesc=%P, kval=%P, compOp=%ld, lockup=%P, current=%P, next=%P",
+	      iinfo, kdesc, kval, compOp, lockup, current, next));
+
+    /* check parameter */
+    if (iinfo == NULL || kdesc == NULL || kval == NULL || current == NULL || next == NULL)
+	ERR(handle, eBADPARAMETER);
+
+    /* Is the current cursor valid? */
+    if (current->flag != CURSOR_ON && current->flag != CURSOR_EOS)
+	ERR(handle, eBADCURSOR);
+
+    if (current->flag == CURSOR_EOS) return(eNOERROR);
+
+    /* Get root's page ID of the current index */
+    e = btm_GetRootPid(handle, xactEntry, iinfo, &root, lockup);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Get TreeLatchPtr of the current index */
+    e = BtM_GetTreeLatchPtrFromIndexId(handle, &iinfo->iid, &treeLatchPtr);
+    if (e < eNOERROR) ERR(handle, e);
+
+    for (;;) {
+
+	if (compOp == SM_EQ || compOp == SM_LT || compOp == SM_LE || compOp == SM_EOF)
+	    e = btm_FetchNextFwd(handle, xactEntry, &iinfo->iid, fid, &root, treeLatchPtr, kdesc, current, next, lockup);
+	else			/* compOp == SM_GT || compOp == SM_GE || compOp == SM_BOF */
+	    e = btm_FetchNextBwd(handle, xactEntry, &iinfo->iid, fid, &root, treeLatchPtr, kdesc, current, next, lockup);
+
+	if (e < eNOERROR) ERR(handle, e);
+
+	if (e == eNOERROR) break;
+    }
+
+    /* Check the stop condition. */
+    if (next->flag == CURSOR_ON && compOp != SM_EOF && compOp != SM_BOF) {
+	cmp = btm_KeyCompare(handle, kdesc, &next->key, kval);
+
+	switch(compOp) {
+	  case SM_EQ:
+	    if (cmp != EQUAL) next->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_LT:
+	    if (cmp != LESS) next->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_LE:
+	    if (cmp == GREAT) next->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_GT:
+	    if (cmp != GREAT) next->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_GE:
+	    if (cmp == LESS) next->flag = CURSOR_EOS;
+	    break;
+	}
+    }
+
+    return(eNOERROR);
+
+} /* BtM_FetchNext() */

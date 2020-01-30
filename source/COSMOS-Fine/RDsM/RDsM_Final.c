@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,127 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_Final.c
+ *
+ * Description:
+ *  Clean up the Raw Disk Manager for system shutdown
+ *
+ * Exports:
+ *  Four RDsM_Final(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "Util_heap.h"
+#include "Util_varArray.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four RDsM_finalLocalDS(void)
+ *
+ * Description:
+ *  Clean up the Raw Disk Manager for process shutdown
+ *
+ * Returns:
+ *   Error Code
+ */
+Four RDsM_finalLocalDS(
+    Four handle 		/* handle */
+)
+{
+    Four e;                     /* returned error code */
+    Four i;                     /* loop index */
+
+
+    /* pointer for RDsM Data Structure of perThreadTable */
+    RDsM_PerThreadDS_T *rdsm_perThreadDSptr = RDsM_PER_THREAD_DS_PTR(handle);
+
+
+    /*
+     *	for every nonempty volume entry, Dismount the volume
+     */
+
+    /* All data volumes are dismounted before any log volume is dismounted. */
+    for (i = 0; i < MAXNUMOFVOLS; i++) {
+	if (RDSM_USERVOLTABLE(handle)[i].volNo != NOVOL && RDSM_VOLTABLE[i].volInfo.type == VOLUME_TYPE_DATA) {
+
+	    assert(RDSM_USERVOLTABLE(handle)[i].volNo == RDSM_VOLTABLE[i].volInfo.volNo);
+
+	    e = RDsM_Dismount(handle, RDSM_USERVOLTABLE(handle)[i].volNo, common_shmPtr->recoveryFlag);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+    }
+
+    /* The other mounted volumes are log volumes. Dismout them. */
+    for (i = 0; i < MAXNUMOFVOLS; i++) {
+        if (RDSM_USERVOLTABLE(handle)[i].volNo != NOVOL) {
+
+	    assert(RDSM_USERVOLTABLE(handle)[i].volNo == RDSM_VOLTABLE[i].volInfo.volNo);
+            assert(RDSM_VOLTABLE[i].volInfo.type == VOLUME_TYPE_RAW);
+
+            e = RDsM_Dismount(handle, RDSM_USERVOLTABLE(handle)[i].volNo, FALSE);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+    }
+
+    /*
+     *  Finalize variable array in volume information table
+     */
+    for (i = 0; i < MAXNUMOFVOLS; i++) {
+        e = Util_finalVarArray(handle, &RDSM_USERVOLTABLE(handle)[i].openFileDesc);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    /* finalize aligned system read/write buffer */
+#ifdef READ_WRITE_BUFFER_ALIGN_FOR_LINUX
+    e = rdsm_FinalReadWriteBuffer(handle, &rdsm_perThreadDSptr->rdsm_ReadWriteBuffer);
+#endif
+
+
+    return eNOERROR;
+
+} /* RDsM_finalLocalDS() */
+
+
+
+/*
+ * Function: Four RDsM_finalSharedDS(void)
+ *
+ * Description:
+ *  Clean up the Raw Disk Manager for system shutdown
+ *
+ * Returns:
+ *   Error Code
+ */
+Four RDsM_finalSharedDS(
+    Four handle                 /* handle */
+)
+{
+    Four e;                     /* returned error code */
+
+    /*
+     *  Finalize heaps for devInfoTable & segmentInfoTable
+     */
+
+    e = Util_finalHeap(handle, &RDSM_DEVINFOTABLEHEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_finalHeap(handle, &RDSM_DEVINFOFORDATAVOLTABLEHEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_finalHeap(handle, &RDSM_SEGMENTINFOTABLEHEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* RDsM_finalSharedDS() */

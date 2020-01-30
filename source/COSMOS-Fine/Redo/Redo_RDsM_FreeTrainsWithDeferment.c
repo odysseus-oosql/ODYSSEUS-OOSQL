@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,63 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_RDsM_FreeTrainsWithDeferment.c
+ *
+ * Description:
+ *  redo freeing trains. The trains' allocation is deferred until transaction ends
+ *
+ * Exports:
+ *  Four Redo_RDsM_FreeTrainsWithDeferment(Four, SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RDsM.h"
+#include "TM.h"
+#include "LM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_RDsM_FreeTrainsWithDeferment(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    Four e;
+    BitmapTrain_T *aPage = anyPage;
+    LOG_Image_RDsM_UpdateBitmap_T *updateBitmap; /* bitmap update image */
+    LockReply lockReply;
+    LockMode oldMode;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_RDsM_FreeTrainsWithDeferment(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    e = LM_getFlatPageLock(handle, &logRecInfo->xactId, (TrainID*)logRecInfo->imageData[1], L_X, L_COMMIT, L_UNCONDITIONAL, &lockReply, &oldMode);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if (lockReply == LR_DEADLOCK) ERR(handle, eDEADLOCK);
+
+
+    /*
+     *	redo freeing trains
+     */
+    updateBitmap = (LOG_Image_RDsM_UpdateBitmap_T*)logRecInfo->imageData[0];
+
+    Util_SetBits(handle, aPage->bytes, updateBitmap->start, updateBitmap->nBits);
+
+    return(eNOERROR);
+
+} /* Redo_RDsM_FreeTrainsWithDeferment( ) */

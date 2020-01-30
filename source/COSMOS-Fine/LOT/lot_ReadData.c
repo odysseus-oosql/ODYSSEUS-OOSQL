@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,82 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module :	lot_ReadData.c
+ *
+ * Description :
+ *  Read the data page from the dsik into the user supplied buffer.
+ *  The fuction is called by the lot_ReadObject( ).
+ *
+ * Exports :
+ *  Four lot_ReadData(Four, PageID*, Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <memory.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * lot_ReadData( )
+ *================================*/
+/*
+ * Function: Four lot_ReadObject(Four, PageID *, Four, Four, char *)
+ *
+ * Description :
+ *  Read the large object data from disk into the user supplied buffer.
+ * The function calls itself recursively. The basis is the lot_ReadDataPage()
+ * function call at the leaf node.
+ *
+ * Returns:
+ *	eNOERROR :	No Error
+ *	some errors :	by other calls
+ *
+ * Note :
+ *  The parameters are not checked. The caller should pass the correct
+ *  parameters. For example, root should not be NIL, start & length must be
+ *  less than the object size, and buf may not be NULL.
+ */
+Four lot_ReadData(
+    Four handle,
+    PageID *pid,		/* IN leaf node PageID */
+    Four   start,		/* IN starting offset to read */
+    Four   length,		/* IN amount of data to read */
+    char   *buf)		/* OUT user buffer holding the data */
+{
+    Four e;			/* error number */
+    L_O_T_LNode *apage;		/* Large Object Data Page */
+    Buffer_ACC_CB *aPage_BCBP;
+    LatchMode latchMode;
+
+    TR_PRINT(handle, TR_LOT, TR1, ("lot_ReadData(pid=%p, start=%p, length=%p, buf=%p",
+			 pid, start, length, buf));
+
+    /*set the latch mode of LOT */
+    latchMode = M_FREE; 
+
+    /*@
+     * Read a data page into the buffer page from the disk
+     */
+    e = BfM_getAndFixBuffer(handle, pid, latchMode, &aPage_BCBP, TRAIN_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    apage = (L_O_T_LNode *)aPage_BCBP->bufPagePtr;
+
+    memcpy(buf, (char *)&apage->data[start], length);
+
+    /*@ free the buffer */
+    e = BfM_unfixBuffer(handle, aPage_BCBP, TRAIN_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return (eNOERROR);
+
+} /* lot_ReadData( ) */

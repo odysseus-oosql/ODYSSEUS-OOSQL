@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,61 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_LOT_InsertData.c
+ *
+ * Description:
+ *  redo inserting some data into leaf node
+ *
+ * Exports:
+ *  Four Redo_LOT_InsertData(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_LOT_InsertData(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    L_O_T_LNode *anode = anyPage;
+    LOG_Image_LOT_ModifyLeafData_T *modifyDataInfo;
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_LOT_InsertData()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (anyPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    modifyDataInfo = (LOG_Image_LOT_ModifyLeafData_T*)logRecInfo->imageData[0];
+
+    /*
+     *	redo inserting some data
+     */
+    assert(modifyDataInfo->oldTotalLength + modifyDataInfo->length <= LOT_LNODE_MAXFREE);
+    assert(modifyDataInfo->start <= modifyDataInfo->oldTotalLength);
+
+    /* reserve space */
+    memmove(&anode->data[modifyDataInfo->start],
+            &anode->data[modifyDataInfo->start+modifyDataInfo->length],
+            modifyDataInfo->oldTotalLength - modifyDataInfo->start);
+
+    /* copy inserted data */
+    memcpy(&anode->data[modifyDataInfo->start], logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+
+    return(eNOERROR);
+
+} /* Redo_LOT_InsertData( ) */

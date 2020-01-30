@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,71 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BfM_UpdateDirtyPageTableEntries.c
+ *
+ * Description:
+ *  Update the buffer manager dirty page table using the restart dirty page
+ *  table.
+ *
+ * Exports:
+ *  Four BfM_UpdateDirtyPageTableEntries(DirtyPageTable_T*)
+ *
+ * Note:
+ *  There is no need for the concurrency control because this function is
+ *  called on restart time.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "xactTable.h"
+#include "dirtyPageTable.h"
+#include "SHM.h"
+#include "RM.h"
+#include "BfM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/*
+ * Function: Four BfM_UpdateDirtyPageTableEntries(DirtyPageTable_T*)
+ *
+ * Description:
+ *  Update the buffer manager dirty page table using the restart dirty page
+ *  table.
+ *
+ * Returns:
+ *  error code
+ */
+Four BfM_UpdateDirtyPageTableEntries(
+    Four    handle)
+{
+    Four e;			/* error code */
+    Four type;			/* buffer type */
+    BufTBLEntry *anEntry;	/* a Buffer Table Entry to be flushed */
+    Four i;			/* loop index */
+    Lsn_T recLsn;		/* recovery lsn */
+
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_UpdateDirtyPageTableEntries()"));
+
+    /* For each buffer pool */
+    for (type = 0; type < NUM_BUF_TYPES; type++) {
+
+	for (i = 0, anEntry = &BI_BTENTRY(type, 0); i < BI_NBUFS(type); i++, anEntry++) {
+
+	    /*
+	     * If the page is in the restart dirty page list
+	     * update the buffer manager dirty page table.
+	     */
+	    if (!IS_NILBFMHASHKEY(anEntry->key) && RM_DPT_GetEntry(handle, &RM_DIRTYPAGETABLE(handle), &(anEntry->key), type, &recLsn))
+		anEntry->recLsn = recLsn;
+	}
+    }
+
+    return(eNOERROR);
+
+} /* BfM_UpdateDirtyPageTableEntries() */
+

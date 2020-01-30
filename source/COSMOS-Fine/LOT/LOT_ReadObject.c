@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,94 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : 	LOT_ReadObject.c
+ *
+ * Description :
+ *  Read the large object data from disk into the user supplied buffer.
+ * The function calls itself recursively. The basis is the lot_ReadDataPage()
+ * function call at the leaf node.
+ *
+ * Exports :
+ *  Four LOT_ReadObject(Four, PageID*, Four, Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LOT_ReadObject( )
+ *================================*/
+/*
+ * Function: Four LOT_ReadObject(Four, PageID*, Four, Four, Four, char*)
+ *
+ * Description :
+ *  Read the large object data from disk into the user supplied buffer.
+ * The function calls itself recursively. The basis is the lot_ReadDataPage()
+ * function call at the leaf node.
+ *
+ * Returns:
+ *  Error codes
+ *    eBADPAGEID
+ *    eBADOFFSET_LOT
+ *    eBADLENGTH_LOT
+ *    eBADPARAMETER
+ *    eBADSLOT_LOT
+ *    some errors caused by function calls
+ *
+ * NOTE:
+ *  The parameters are not checked. The caller should pass the correct
+ * parameters. For example, root should not be NIL, start & length must be
+ * less than the object size, and buf may not be NULL.
+ */
+
+Four LOT_ReadObject(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 		/* IN transaction table entry */
+    Four 		volNo,                 	/* IN volume number */
+    char 		*anodeOrRootPageNo,    	/* IN anode or root page no */
+    Boolean 		rootWithHdr_Flag,   	/* IN TRUE if root is with header */
+    Four   		start,			/* IN starting offset of read */
+    Four   		length,			/* IN amount of data to read */
+    char   		*data)			/* OUT user buffer holding the data */
+{
+    Four		e;	        	/* error code */
+    PageID      	root;			/* root page of the large object tree */
+
+
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_ReadObject()"));
+
+    /*@ checking the parameters */
+    if (start < 0)		/* bad starting offset of insert */
+	ERR(handle, eBADPARAMETER);
+
+    if (length < 0)		/* bad length (< 0) of insert */
+	ERR(handle, eBADPARAMETER);
+
+    /* just return */
+    if (length == 0) return(eNOERROR);
+
+    if (data == NULL)		/* data buffer unexpected NULL */
+	ERR(handle, eBADPARAMETER);
+
+    if (!rootWithHdr_Flag) {
+	/*@ get root PageID */
+	MAKE_PAGEID(root, volNo, *((ShortPageID *)anodeOrRootPageNo));
+    }
+
+    e = lot_ReadObject(handle, volNo, ((rootWithHdr_Flag) ? NULL:&root), (L_O_T_INode*)anodeOrRootPageNo, start, length, data);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LOT_ReadObject() */

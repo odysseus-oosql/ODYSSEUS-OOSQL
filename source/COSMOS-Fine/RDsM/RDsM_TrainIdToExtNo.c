@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,76 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_TrainIdToExtNo.c
+ *
+ * Description:
+ *
+ *
+ * Exports:
+ *  RDsM_PageIdToExtNo(PageID*, Four*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*@================================
+ * RDsM_TrainIdToExtNo()
+ *================================*/
+/*
+ * Function: Four RDsM_TrainIdToExtNo(PageID*, Four, Four*)
+ *
+ * Description:
+ *  convert the train identifier into the extent number
+ *
+ * Returns:
+ *  error code
+ *    eNULLPIDPTR_RDSM - null pageid pointer
+ *    eVOLNOTMOUNTED_RDSM - volume not mounted
+ *    eINVALIDPID_RDSM - invalid page identifier
+ */
+
+Four RDsM_TrainIdToExtNo(
+    Four    handle,             /* IN    handle */
+    PageID  *trainId,		/* IN  pointer to train identifier quetioned */
+    Four    trainSize,          /* IN  size of a train : PAGESIZE2 or TRAINSIZE2 */
+    Four    *extNo)		/* OUT returned extent number including the page */
+{
+    Four    e;                  /* error code */
+    Four    entryNo;            /* entry no of volume table entry */
+    RDsM_VolumeInfo_T *volInfo; /* volume information in volume table entry */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_PageIdToExtNo(trainId=%P, trainSize=%lD, extNo=%P)", trainId, trainSize, extNo));
+
+
+    /*@ check input parameters */
+    if (trainId == NULL) ERR(handle, eBADPARAMETER);
+    if (trainSize != PAGESIZE2 && trainSize != TRAINSIZE2) ERR(handle, eINVALIDTRAINSIZE_RDSM);
+
+    /* get the corresponding volume table entry via searching the volTable */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, trainId->volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* set a pointer to the corresponding entry */
+    volInfo = &(RDSM_VOLTABLE[entryNo].volInfo);
+
+    /* validate the PageId */
+    if (trainId->volNo < 0 || trainId->pageNo < 0 || trainId->pageNo >= volInfo->numExts*volInfo->extSize)
+	ERR(handle, eBADPAGEID);
+
+    /* calculate the number of the extent including given page */
+    *extNo = trainId->pageNo / volInfo->extSize;
+
+    return(eNOERROR);
+
+} /* RDsM_TrainIdToExtNo() */

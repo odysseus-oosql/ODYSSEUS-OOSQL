@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,103 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_GetMaxRegion.c
+ *
+ * Description:
+ *  Initially 'regionVector' contains a point. We increase the region as big
+ *  as possible. The region cannot be bigger than the directory page region
+ *  and cannot overlap other regions in the same directory page..
+ *
+ * Exports:
+ *  void mlgf_GetMaxRegion(Four, Four, mlgf_DirectoryPage*, mlgf_DirectoryEntry*,
+ *                         MLGF_HashValue[], mlgf_DirectoryEntry*)
+ *
+ * Returns:
+ *  None
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+void mlgf_GetMaxRegion(
+    Four 		handle,
+    MLGF_KeyDesc 	*kdesc,        	/* IN key descriptor of MLGF */
+    mlgf_DirectoryPage 	*dirPage, 	/* IN a directory page */
+    mlgf_DirectoryEntry *parentEntry,  	/* IN entry for directory page */
+    MLGF_HashValue 	*keys,	       	/* IN keys of a point */
+    mlgf_DirectoryEntry *childEntry)   	/* OUT entry for the given point */
+{
+    Four 		i, j;		/* index variables */
+    Four 		entryLen;	/* length of a directory entry */
+    MLGF_HashValue 	*hx;		/* pointer to array of hash values */
+    Boolean 		changeFlag;	/* TRUE if a change occurs */
+    mlgf_DirectoryEntry *otherEntry; 	/* temporary directory entries */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_GetMaxRegion(handle, kdesc=%P, dirPage=%P, parentEntry=%P, keys=%P, childEntry=%P)",
+	      kdesc, dirPage, parentEntry, keys, childEntry));
+
+
+    /* Calculate the length of a directory entry. */
+    entryLen = MLGF_DIRENTRY_LENGTH(kdesc->nKeys);
+
+    /* 'hx' points to array of hash values of the given region vector. */
+    hx = MLGF_DIRENTRY_HASHVALUEPTR(childEntry, kdesc->nKeys);
+
+    /* Initialize 'childEntry'. */
+    for (i = 0; i < kdesc->nKeys; i++) {
+	childEntry->nValidBits[i] = parentEntry->nValidBits[i];
+	hx[i] = keys[i];
+    }
+
+    /* find the split starting point; this method is valid when using cyclic split policy */
+    for (i = 1; i < kdesc->nKeys; i++)
+	if (childEntry->nValidBits[i-1] != childEntry->nValidBits[i]) break;
+    if (i == kdesc->nKeys) i = 0;
+
+    for ( ; ; ) {
+	/* test if the entry has common region */
+	/* with other regions in directory page or not */
+	for (j = 0; j < dirPage->hdr.nEntries; j++) {
+	    otherEntry = (mlgf_DirectoryEntry*)&dirPage->data[entryLen*j];
+	    if (mlgf_CommonRegionTest(handle, kdesc->nKeys, childEntry, otherEntry) == TRUE) break;
+	}
+
+	/* If there is no region conflict, then the region is maximized. */
+	if (j == dirPage->hdr.nEntries) break;
+
+	/* There is a region conflict. */
+	/* increase the number of valid bits by 1. */
+	childEntry->nValidBits[i] ++;
+	i = (i+1) % kdesc->nKeys;
+    }
+
+    /*
+     * Set MBR.
+     */
+    for (i = 0; i < kdesc->nKeys; i++) {
+        if (MLGF_KEYDESC_IS_MINTYPE(*kdesc, i))
+            hx[i] &= MLGF_HASHVALUE_ALL_BITS_SET; /* set maximum value */
+        else
+            hx[i] &= MLGF_HASHVALUE_UPPER_N_BITS_SET(childEntry->nValidBits[i]); /* set minimum value */
+    }
+
+} /* mlgf_GetMaxRegion() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,154 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: rdsm_BitMapInfo.c
+ *
+ * Description:
+ *  Manipulation bitmap page
+ *
+ * Exports:
+ *  Four  rdsm_GetBitMapInfo(AllocAndFreeExtentInfo_T*, Four, Four, Four*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four rdsm_GetBitMapInfo(AllocAndFreeExtentInfo_T*, Four, Four, Four*)
+ *
+ * Description:
+ *  Get information of bitmap in bitmap page
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_GetBitMapInfo(
+    Four                        handle,                 /* IN    handle */
+    AllocAndFreeExtentInfo_T   	*extent, 		/* IN  extent information data structure */
+    Four			offset, 		/* IN  offset in a extent */
+    Four			size,			/* IN  # of trains to inspect */
+    Four			*midExtent_eff		/* OUT # of empty trains */
+)
+{
+    BitmapTrain_T               *bitmapTrain;		/* bitmap train */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_GetBitMapInfo(extent=%P, offset=%lD, size=%lD, midExtent_eff=%P)", extent, offset, size, midExtent_eff));
+
+
+    /* get the bit map train */
+    bitmapTrain = (BitmapTrain_T*)RDSM_BITMAP_BUFFER_ACC_CB(extent)->bufPagePtr;
+
+    /* count the bit map */
+    Util_CountBitsSet(handle, bitmapTrain->bytes, RDSM_BITMAP_OFFSET(extent) + offset, size, midExtent_eff);
+
+
+    return (eNOERROR);
+}
+
+/*
+ * Function: Four rdsm_SetBitMapInfo(XactTableEntry_T*, AllocAndFreeExtentInfo_T*, Four, Four, Four, Four*)
+ *
+ * Description:
+ *  Update bitmap info in bitmap page
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_SetBitMapInfo(
+    Four                        handle,                 /* IN    handle */
+    XactTableEntry_T            *xactEntry, 		/* IN  transaction table entry */
+    AllocAndFreeExtentInfo_T    *extent, 		/* IN  extent information data structure */
+    Four                        offset, 		/* IN  offset in a extent */
+    Four                        number,			/* IN  # of trains to update */
+    Four                        operation,		/* IN  operation */
+    LogParameter_T		*logParam		/* IN  log parameter */
+)
+{
+
+    BitmapTrain_T		*bitmapTrain;		/* bitmap train */
+    Lsn_T             		lsn,_lsn1,_lsn2;        /* LSN of the newly written log record */
+    Four              		logRecLen;              /* log record length */
+    LOG_LogRecInfo_T  		logRecInfo;             /* log record information */
+    LOG_Image_RDsM_UpdateBitmap_T updateBitmap; 	/* bitmap update image */
+    Four			e;			/* returned error value */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_SetBitMapInfo(xactEntry=%P, extent=%P, offset=%lD, number=%lD, operation=%lD, logParam=%P)", xactEntry, extent, offset, number, operation, logParam));
+
+
+    /* get the bit map train */
+    bitmapTrain = (BitmapTrain_T*)RDSM_BITMAP_BUFFER_ACC_CB(extent)->bufPagePtr;
+
+    if (operation == SET_BITS) {
+
+        /*
+         * Write log record.
+         */
+        if (logParam->logFlag & LOG_FLAG_VOLUME_SPACE_LOGGING) {
+
+            updateBitmap.start = RDSM_BITMAP_OFFSET(extent) + offset;
+            updateBitmap.nBits = number;
+
+            LOG_FILL_LOGRECINFO_1(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                                  LOG_ACTION_RDSM_FREE_TRAINS, LOG_REDO_ONLY,
+                                  bitmapTrain->hdr.pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                                  sizeof(updateBitmap), &updateBitmap);
+
+            e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+            if (e < eNOERROR) ERR(handle, e);
+
+            bitmapTrain->hdr.lsn = lsn;
+            bitmapTrain->hdr.logRecLen = logRecLen;
+        }
+
+    	/* set the bit map */
+    	Util_SetBits(handle, bitmapTrain->bytes, RDSM_BITMAP_OFFSET(extent) + offset, number);
+    }
+    else {
+
+        /*
+         *  Write log record.
+         */
+        if (logParam->logFlag & LOG_FLAG_VOLUME_SPACE_LOGGING) {
+            updateBitmap.start = RDSM_BITMAP_OFFSET(extent) + offset;
+            updateBitmap.nBits = number;
+
+            LOG_FILL_LOGRECINFO_1(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                                  LOG_ACTION_RDSM_ALLOC_TRAINS, LOG_REDO_UNDO,
+                                  bitmapTrain->hdr.pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                                  sizeof(updateBitmap), &updateBitmap);
+
+            e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+            if (e < eNOERROR) ERR(handle, e);
+
+            bitmapTrain->hdr.lsn = lsn;
+            bitmapTrain->hdr.logRecLen = logRecLen;
+        }
+
+    	/* clear the bit map */
+    	Util_ClearBits(handle, bitmapTrain->bytes, RDSM_BITMAP_OFFSET(extent) + offset, number);
+    }
+
+    /* set dirty bit if needed */
+    RDSM_SETDIRTYBIT_BITMAP_BUFFER(extent);
+
+
+    return (eNOERROR);
+}
+

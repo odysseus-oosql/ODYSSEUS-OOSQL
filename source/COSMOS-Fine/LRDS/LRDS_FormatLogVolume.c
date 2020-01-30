@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,55 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_FormatLogVolume.c
+ *
+ * Description:
+ *  format a log volume.
+ *
+ * Exports:
+ *  Four LRDS_FormatLogVolume(Four, Four, char*, char*, Four, Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Four LRDS_FormatLogVolume(
+    Four handle,
+    Four numDevices,            /* IN number of devices in formated volume */
+    char **devNames,            /* IN array of device name */
+    char *title,                /* IN volume title */
+    Four volId,                 /* IN volume number */
+    Four extSize,               /* IN number of pages in an extent */
+    Four *numPagesInDevice)     /* IN array of extents' number */
+{
+    Four e;                     /* error code */
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("LRDS_FormatLogVolume(numDevices=%lD, devNames=%P, title=%P, volId=%ld, extSize=%ld, numPagesInDevice=%P)",
+                          numDevices, devNames, title, volId, extSize, numPagesInDevice));
+
+
+    /*
+     * Check parameters
+     */
+    if (numDevices <= 0 || devNames == NULL || title == NULL || volId < 0 || extSize < 0) ERR(handle, eBADPARAMETER);
+
+
+    /* Format the log volume. */
+    e = SM_FormatLogVolume(handle, numDevices, devNames, title, volId, extSize, numPagesInDevice);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LRDS_FormatLogVolume() */
+
+

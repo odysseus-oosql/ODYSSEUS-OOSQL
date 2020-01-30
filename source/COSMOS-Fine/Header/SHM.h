@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,197 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __SHM_H__
+#define __SHM_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#ifndef WIN32
+#include <sys/ipc.h>
+#else
+typedef int     key_t;
+#endif
+#include "common.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "Util.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#ifdef LRDS_INCLUDED
+#include "LRDS.h"
+#endif
+
+#ifdef DEMON_PROCESS
+#define NUM_DEMONS      1
+#else /* DEMON_PROCESS */
+#define NUM_DEMONS      0
+#endif /* DEMON_PROCESS */
+
+#define	CONFIRMED  	999
+#define	NOTCONFIRMED  	444
+
+#define MAXFREESPACE 536870912
+
+
+#define PERMS   0666            /* shared mememory/semaphore permissions */
+
+
+typedef struct shm_ArgForInitFn_T_tag {
+    CfgParams_T 	*cfgParams;
+    ComponentInfo_T 	*componentInfos;
+    Four 		nComponents;
+} shm_ArgForInitFn_T;
+
+typedef struct shm_ArgForFinalFn_T_tag {
+    CfgParams_T 	*cfgParams;
+    ComponentInfo_T 	*componentInfos;
+    Four nComponents;
+} shm_ArgForFinalFn_T;
+
+
+typedef struct SemStruct_tag {
+
+#ifdef TRACE
+Four  sequence;
+#endif
+
+/* Common Data Structure -------------------------------------------------------- */
+
+    COMMON_SHM	commonDS;
+
+/* LOG Data Structure -------------------------------------------------------- */
+
+    LOG_SHM	logDS;
+
+/* Process/Transaction Control Informations ------------------------------------- */
+
+    TM_SHM	tmDS;
+
+/* Lock Table Data Structures ------------------------------------------------- */
+
+    LM_SHM	lmDS;
+
+/* RDsM :: Volume Table Data Structure ----------------------------------------- */
+
+    RDsM_SHM	rdsmDS;
+
+/* BfM :: Buffer Table Data Structure ------------------------------------------ */
+
+    BfM_SHM	bfmDS;
+
+/* Btree Manager Data Structure ------------------------------------------------ */
+
+    BtM_SHM	btmDS;
+
+/* Scan Manager Data Structure ------------------------------------------------ */
+
+    SM_SHM	smDS;
+
+/* Low Relational Data System ------------------------------------------------- */
+
+#ifdef LRDS_INCLUDED
+    LRDS_SHM	lrdsDS;
+#endif
+
+/* Demon Process -------------------------------------------------------------- */
+    Four 	demonPId;
+
+    Four 	nTotalThread;
+
+    Four 	nTotalProcess;
+
+/* --------------------------------------------------------------------------- */
+    LOGICAL_PTR_TYPE(HeapWord *) sharedHeap;	/* Heap for dynamic allocation */
+    LATCH_TYPE  latch_sharedHeap; 		/* latch for alloc/free variable size elements */
+    HeapWord	freeSpaceBase[1]; 		/* strings for free space  */
+
+    /* Any data structure can not be located here */
+    /* This is free space for dynamic allocation */
+
+/* --------------------------------------------------------------------------- */
+
+} SemStruct;
+
+/* macros for num of threads & num of processes in system */
+#define NUM_OF_THREADS_IN_SYSTEM	(shmPtr->nTotalThread)
+#define NUM_OF_PROCESS_IN_SYSTEM	(shmPtr->nTotalProcess)
+
+#define LATCH_SHAREDHEAP shmPtr->latch_sharedHeap
+#define SHAREDHEAP	 shmPtr->sharedHeap
+
+/* macros for processTable information */
+extern Four	procIndex;
+extern SemStruct *shmPtr; 
+
+/* This macros is definded at Util_heap.c & Util_localHeap.c */
+/* Note: We have casted the (x) with 'Four' which is the alignment type. */
+#define USED           CONSTANT_ONE
+#define SET_USED(x)    (HeapWord*)((MEMORY_ALIGN_TYPE)(x) | USED)
+#define RESET_USED(x)  (HeapWord*)((MEMORY_ALIGN_TYPE)(x) & ~USED)
+#define IS_USED(x)     ((MEMORY_ALIGN_TYPE)(x) & USED)
+
+
+/*
+ * Global Variables
+ */
+extern VarArray shm_grantedLatchStruct[MAXTHREADS];
+/* EARLY 위의 변수는 나중에 perThreadTable로 들어가야 한다. 잊지 말것 */
+/* EARLY - DON'T FORGET put the above variable into the perThreadTable Data Structure later. */
+
+/* ----------------- BEGIN of per Process Section --------------------- */
+
+/* per Thread Data Structures */
+
+typedef struct SHM_PerProcessDS_T_tag {
+
+	Four demonPId;  /* Demon Process ID */
+
+} SHM_PerProcessDS_T;
+
+/* ----------------- END of per Process Section --------------------- */
+
+
+
+
+/*
+ * Internal Function Prototypes
+ */
+Four shm_dumpMemory(Four, Four);
+Four shm_dumpMyLatches(Four);
+void shm_assignSharedPtr(Four);
+Four shm_initLocalLatchList(Four);
+Four shm_initProcessTable(Four);
+Four shm_allocAndInitProcessTableEntry(Four, Four*);
+Four shm_freeProcessTableEntry(Four, Four);
+Four shm_initSharedHeap(Four, Four);
+
+
+/*
+ * Interface Function Prototypes
+ */
+Four SHM_alloc(Four, Four, Four, char **);
+Four SHM_free(Four, char *, Four);
+Four SHM_semCreateOrOpen(Four, key_t, Four (*)(Four, void*), void*);
+Four SHM_semClose(Four, Four, Four (*)(Four, void*, Boolean), void*);
+Four SHM_semInit(Four, Four, Four);
+Four SHM_semSignal(Four, cosmos_thread_sem_t*);
+Four SHM_semWait(Four, cosmos_thread_sem_t*);
+void testandset_init(char*);
+int  testandset(char*, int);
+void testandset_release(char*);
+Four SHM_beginProcess(Four, CfgParams_T*, ComponentInfo_T[], Four);
+Four SHM_endProcess(Four, CfgParams_T*, ComponentInfo_T[], Four);
+Four SHM_initDemon(Four);
+Four SHM_finalDemon(Four);
+Four SHM_initSharedDS(Four);
+Four SHM_initLocalDS(Four);
+Four SHM_finalSharedDS(Four);
+Four SHM_finalLocalDS(Four);
+Four SHM_InstallSignalHandler(void); 
+Four SHM_UninstallSignalHandler(void); 
+
+#endif /* __SHM_H__ */

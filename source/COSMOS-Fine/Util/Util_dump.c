@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,46 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util_pool.h"
+#include "Util.h"
+#include "trace.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+Four Util_checkPool(
+    Four handle,
+    Pool *aPool)
+{
+    SubpoolHdr *subpool;
+    char *elemPtr;
+    char *afterElemPtr;
+    Four i;
+    Four count=0;
+    Four e;
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+    e = SHM_getLatch(handle, &aPool->latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    subpool = PHYSICAL_PTR(aPool->subpoolPtr); 
+
+    while(subpool != NULL){
+	if(subpool->count > 0) {
+	    afterElemPtr = PHYSICAL_PTR(subpool->firstElem); 
+	    for(i=0; i<subpool->count -1; i++){
+		afterElemPtr = *((char **)afterElemPtr);
+	    }
+	}
+	subpool = PHYSICAL_PTR(subpool->nextSubpool); 
+	count++;
+    }
+
+    e = SHM_releaseLatch(handle, &aPool->latch, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+}
+
+
+

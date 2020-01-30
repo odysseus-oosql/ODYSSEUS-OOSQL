@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,116 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BfM_dismount.c
+ *
+ * Description :
+ *  Flush dirty buffers holding trains in the dismounted volume.
+ *
+ * Exports:
+ *  Four BfM_dismount(Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * BfM_dismount( )
+ *================================*/
+/*
+ * Function: Four BfM_dismount(Four, Four)
+ *
+ * Description :
+ *  Flush dirty buffers holding trains in the dismounted volume.
+ *  The dismounted volume is specified by the volume number 'volNo'.
+ *  A dirty buffer is one with the dirty bit set.
+ *
+ * Returns:
+ *  error code
+ *    eFLUSHFIXEDBUF_BFM
+ *    some errors caused by function calls
+ */
+Four BfM_dismount(
+    Four handle,
+    Four volNo )		/* IN volume to dismount */
+{
+    Four e;			/* error */
+    Four type;			/* buffer type */
+    BufTBLEntry *anEntry;	/* a Buffer Table Entry to be flushed */
+    BfMHashKey localKey;	
+    Four i;			/* loop index */
+
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_dismount( volNo = %ld )", volNo));
+
+
+    /* For each buffer pool */
+    for (type = 0; type < NUM_BUF_TYPES; type++) {
+
+	/*@ flush dirty buffer */
+	/* Flush out the dirty buffer with same volume number
+	 * in the current buffer pool. */
+	for( anEntry = PHYSICAL_PTR(BI_BUFTABLE(type)), i = 0;
+	     i < BI_NBUFS(type); anEntry++, i++ )  { 
+
+	    if (!IS_NILBFMHASHKEY(anEntry->key) && (anEntry->key.volNo == volNo || volNo == -1)) {
+		/* This buffer hold a train in the dismounted volume */
+
+		/* mutex begin :: for update Buffer Table Entry */
+		localKey = anEntry->key;
+		ERROR_PASS(handle, bfm_lock(handle, (TrainID *)&localKey, type));
+
+		if ( !EQUALKEY(&anEntry->key, &localKey) ) {
+		    ERROR_PASS(handle, bfm_unlock(handle, (TrainID *)&localKey, type));
+		    continue;
+		}
+		/* This buffer is an unfixed buffer. */
+		if (anEntry->fixed > 0) {
+#ifdef TRACE
+		    printf("BfM_dismount : There is a buffer of which 'fixed' is not 0. pid=(%ld,%ld)\n", anEntry->key.volNo, anEntry->key.pageNo);
+#endif
+		    ERROR_PASS(handle, bfm_unlock(handle, (TrainID *)&localKey, type));
+		    ERR(handle, eFLUSHFIXEDBUF_BFM);
+		}
+
+		/* flush out this buffer if it was modified */
+		if (anEntry->dirtyFlag && !anEntry->invalidFlag) {
+		    e = bfm_flushBuffer(handle,  anEntry, type );
+		    if (e < eNOERROR) ERR(handle,  e );
+		}
+
+		/*@ delete the victim */
+		/* Delete the victim from the hash table */
+		e = bfm_delete(handle,  anEntry, type );
+		if (e < eNOERROR) ERR(handle, e);
+
+		/*@ clear the information */
+		/* clear the infomation because a train in the dismounted
+		   volume will not be used near future*/
+		anEntry->invalidFlag = TRUE;
+
+                 /* Set anEntry->fixed by 1 not to select as victim
+                 during the initializing anEntry->key to NIL */
+                anEntry->fixed = 1;
+		SET_NILBFMHASHKEY(anEntry->key);
+                anEntry->fixed = 0;
+
+		/*@ release latch */
+		/* mutex begin :: for update Buffer Table Entry */
+		ERROR_PASS(handle, bfm_unlock(handle, (TrainID *)&localKey, type));
+
+	    }
+	}
+    }
+    return( eNOERROR );
+
+}  /* BfM_dismount */
+

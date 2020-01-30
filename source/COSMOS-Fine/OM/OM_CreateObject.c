@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,89 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : OM_CreateObject.c
+ *
+ * Description :
+ * om_CreateObject( ) creates a new object near the specified object.
+ * If there is no room in the page holding the specified object,
+ * it trys to insert into the page in the available space list. If fail, then
+ * the new object will be put into the newly allocated page.
+ *
+ * Exports:
+ *  Four OM_CreateObject(Four, DataFileInfo*, ObjectID*, ObjectHdr*, Four, char*, ObjectID*, LockParameter*)
+ *
+ * Return Values :
+ *  Error Code
+ *    eBADCATOBJ_OM
+ *    eBADLENGTH_OM
+ *    eBADUSERBUF_OM
+ *    some error codes from the lower level
+ *
+ * Side Effects :
+ *  0) A new object is created.
+ *  1) parameter oid
+ *     'oid' is set to the ObjectID of the newly created object.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"		/* for tracing : TR_PRINT(handle, ) macro */
+#include "latch.h"
+#include "LOG.h"
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+Four OM_CreateObject(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, /* IN transaction table entry */
+    DataFileInfo 	*finfo,	/* IN file information */
+    ObjectID  		*nearObj,		/* IN create the new object near this object */
+    ObjectHdr 		*objHdr,		/* IN from which tag is to be set */
+    Four      		length,		/* IN amount of data */
+    char      		*data,		/* IN the initial data for the object */
+    ObjectID  		*oid,		/* OUT the object's ObjectID */
+    LockParameter 	*lockup,      /* IN request lock or not */
+    LogParameter_T 	*logParam) /* IN log parameter */
+{
+    Four        	e;		/* error number */
+    ObjectHdr   	objectHdr;	/* ObjectHdr with tag set from parameter */
+
+
+    TR_PRINT(handle, TR_OM, TR1,
+	     ("OM_CreateObject(handle, finfo=%P, nearObj=%P, objHdr=%P, length=%ld, data=%P, oid=%P",
+	      finfo, nearObj, objHdr, length, data, oid));
+
+
+    /* parameter checking */
+
+    if (finfo == NULL) ERR(handle, eBADCATOBJ);
+
+    if (length < 0) ERR(handle, eBADLENGTH_OM);
+
+    if (length > 0 && data == NULL) return(eBADUSERBUF_OM);
+
+
+    /* initialize ObjectHdr */
+    objectHdr.properties = P_CLEAR;
+    objectHdr.tag = 0;
+    objectHdr.length = 0;
+    if (objHdr != NULL)
+	objectHdr.tag = objHdr->tag;
+
+    if (ALIGNED_LENGTH(length) > LRGOBJ_THRESHOLD) {
+	e = om_CreateObject(handle, xactEntry, finfo, nearObj, &objectHdr, 0, NULL, lockup, oid, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+
+	e = OM_AppendToObject(handle, xactEntry, finfo, oid, length, data, lockup, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+
+    } else {
+	e = om_CreateObject(handle, xactEntry, finfo, nearObj, &objectHdr, length, data, lockup, oid, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* OM_CreateObject() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,129 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_CopyExtent.c
+ *
+ * Description:
+ *  Copy extent
+ *
+ * Exports:
+ *  Four RDsM_CopyExtent(XactTableEntry_T*, Four, Four, Four, LogParamter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#ifndef WIN32
+#include <unistd.h>
+#else
+#include <windows.h>
+#endif /* WIN32 */
+#include <assert.h> 
+#include <stdlib.h>  /* for malloc */
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*
+ * Function: Four RDsM_CopyExtent(XactTableEntry_T*, Four, Four, Four, LogParamter_T*)
+ *
+ * Description:
+ *  Copy extent
+ *
+ * Returns:
+ *  Error code
+ *    eNOERROR
+ */
+Four	RDsM_CopyExtent(
+    Four              handle,              /* IN handle */
+    XactTableEntry_T  *xactEntry,          /* IN transaction table entry */
+    Four              volNo,               /* IN volume number */
+    Four              dstExtNo,            /* IN number of extent to be written */
+    Four              srcExtNo,	           /* IN number of extent to be read */
+    LogParameter_T    *logParam)           /* IN log parameter */
+{
+    Four              e;                   /* returned error code */
+    Four              entryNo;             /* entry no of volume table entry corresponding to the given volume */
+    Four              devNo;               /* device number in the volume */
+    Four              pageOffset;          /* offset of extent's first page in the device (unit = # of pages) */
+    char              *buf;                /* buffer which temporarily contains extent's contents */
+    RDsM_VolumeInfo_T *volInfo;            /* volume information in volume table entry */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_CopyExtent(xactEntry=%P, volNo=%ld, dstExtNo=%ld, srcExtNo=%ld, logParam=%P)",
+                            xactEntry, volNo, dstExtNo, srcExtNo, logParam));
+
+
+    /*
+     *	get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * points to the volume information
+     */
+    volInfo = &RDSM_VOLTABLE[entryNo].volInfo;
+    assert(volInfo->type == VOLUME_TYPE_DATA); 
+
+
+    /*
+     *	validate the extNo
+     */
+    if (dstExtNo < 0 || dstExtNo >= volInfo->numExts ||
+        srcExtNo < 0 || srcExtNo >= volInfo->numExts)   ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	allocate memory
+     */
+    buf = malloc(PAGESIZE*volInfo->extSize);
+    if (buf == NULL) ERR(handle, eMEMORYALLOCERR);
+
+
+    /*
+     *  Read Source Extent
+     */
+
+    /* get physical location */
+    e = rdsm_GetPhysicalInfo(handle, volInfo, srcExtNo*volInfo->extSize, &devNo, &pageOffset);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* locate position on the given train */
+    if (lseek(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[devNo], pageOffset*PAGESIZE, SEEK_SET) == -1)
+        ERR(handle, eLSEEKFAIL_RDSM);
+
+    /* read the train into the buffer */
+    if (read(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[devNo], buf, PAGESIZE*volInfo->extSize) != PAGESIZE*volInfo->extSize)
+	ERR(handle, eREADFAIL_RDSM);
+
+
+    /*
+     *  Write into Destination Extent
+     */
+
+    /* get physical location */
+    e = rdsm_GetPhysicalInfo(handle, volInfo, dstExtNo*volInfo->extSize, &devNo, &pageOffset);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*	locate position on the given train */
+    if (lseek(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[devNo], pageOffset*PAGESIZE, SEEK_SET) == -1)
+        ERR(handle, eLSEEKFAIL_RDSM);
+
+    /* read the train into the buffer */
+    if (write(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[devNo], buf, PAGESIZE*volInfo->extSize) != PAGESIZE*volInfo->extSize)
+	ERR(handle, eWRITEFAIL_RDSM);
+
+    /*
+     *	free allocated memory
+     */
+    free(buf);
+
+
+    return(eNOERROR);
+
+} /* RDsM_CopyExtent() */

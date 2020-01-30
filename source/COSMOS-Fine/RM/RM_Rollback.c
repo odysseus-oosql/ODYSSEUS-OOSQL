@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,165 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RM_Rollback.c
+ *
+ * Description:
+ *  the individual rollback of a transaction is performed
+ *
+ * Exports:
+ *  Four RM_Rollback(Four, XactTableEntry_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "dirtyPageTable.h"
+#include "xactTable.h"
+#include "LOG.h"
+#include "TM.h"
+#include "BfM.h"
+#include "RM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four RM_Rollback(Four, XactTableEntry_T*)
+ *
+ * Description:
+ *  the individual rollback of a transaction is performed
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ *    eNULLPTR_RM - pointer has a null value
+ */
+Four RM_Rollback(
+    Four 		handle,
+    XactTableEntry_T	*xactEntry, 		/* INOUT transaction table entry */
+    Lsn_T 		*saveLsn)             	/* IN savepoint to rollback */
+{
+    Four 		e;			/* error code */
+    LOG_LogRecInfo_T 	logRecInfo; 		/* information for a log record */
+    Lsn_T 		undoNextLsn;		/* log record to undo next time */
+    Buffer_ACC_CB 	*aPage_BCBP;		/* buffer access control block */
+    PageHdr_T 		*pageHdr;         	/* page header */
+    Four 		logRecLen;             	/* log record length */
+    Four 		i;			/* temporary variable */
+    Four 		image[LOG_MAX_NUM_IMAGES][LOG_MAX_IMAGE_SIZE/sizeof(Four)]; /* space for images */
+
+    /* pointer for LOG Data Structure of perThreadTable */
+    LOG_PerThreadDS_T *log_perThreadDSptr = LOG_PER_THREAD_DS_PTR(handle);
+
+
+    /*
+     * allocate enough memory for log record images
+     */
+    for (i = 0; i < LOG_MAX_NUM_IMAGES; i++)
+	logRecInfo.imageData[i] = (char *) image[i];
+
+
+    /*
+     * get the lsn of the log record from the transaction table
+     */
+    undoNextLsn = xactEntry->undoNextLsn;
+
+
+    /*
+     * do the following sequence until the first log record of the transaction
+     * is encountered
+     */
+    while (LSN_CMP_LT(*saveLsn, undoNextLsn)) { 
+
+	/*
+	 * read the log record pointed by lsn into logRecInfo
+	 */
+	e = LOG_ReadLogRecord(handle, &undoNextLsn, &logRecInfo, &logRecLen);
+        if (e == eENDOFLOG_LOG) return(eNOERROR);
+	if (e < eNOERROR) ERR(handle, e);
+
+
+	switch (logRecInfo.type) {
+
+	  case LOG_TYPE_UPDATE:
+	    /*
+	     * if log reocrd is undoable then record needs undoing
+	     * (not redo-only record)
+	     */
+	    if (logRecInfo.redoUndo == LOG_UNDO_ONLY || logRecInfo.redoUndo == LOG_REDO_UNDO) {
+#ifdef CCPL
+                /* We have the lock on the page. */
+		e = BfM_getAndFixBuffer(handle, &logRecInfo.pid, M_FREE, &aPage_BCBP,
+                                        log_perThreadDSptr->LOG_logRecTbl[logRecInfo.action].bufType); 
+#endif /* CCPL */
+#ifdef CCRL
+		e = BfM_getAndFixBuffer(handle, &logRecInfo.pid, M_EXCLUSIVE, &aPage_BCBP,
+                                        log_perThreadDSptr->LOG_logRecTbl[logRecInfo.action].bufType); 
+#endif /* CCRL */
+		if (e < eNOERROR) ERR(handle, e);
+
+		pageHdr = (PageHdr_T*)aPage_BCBP->bufPagePtr;
+
+		/* if the update is present, then undo it. */
+		if (LSN_CMP_GE(pageHdr->lsn, undoNextLsn)) {
+		    /* undo update */
+                    e = (*(log_perThreadDSptr->LOG_logRecTbl[logRecInfo.action].undoFnPtr))(handle, xactEntry, aPage_BCBP, &undoNextLsn, &logRecInfo);
+                    if (e < eNOERROR) ERR(handle, e);
+
+		    /* set the dirty flag */
+		    /* we set the dirty flag in the undo functions */
+		}
+
+#ifdef CCRL
+		if (aPage_BCBP->latchPtr != NULL) { 
+		    e = SHM_releaseLatch(handle, aPage_BCBP->latchPtr, procIndex);
+		    if (e < eNOERROR) ERR(handle, e);
+		}
+#endif /* CCRL */
+
+		e = BfM_unfixBuffer(handle, aPage_BCBP, log_perThreadDSptr->LOG_logRecTbl[logRecInfo.action].bufType);
+		if (e < eNOERROR) ERR(handle, e);
+
+	    }
+
+	    /*
+	     * get next record to process
+	     */
+	    undoNextLsn = logRecInfo.prevLsn;
+
+	    break;
+
+	  case LOG_TYPE_COMPENSATION:
+	    /*
+	     * pick up address of the next record to examine
+	     */
+	    undoNextLsn = logRecInfo.undoNextLsn;
+	    break;
+
+	  default:
+	    /*
+	     * pick up address of the next record to examine
+	     */
+	    undoNextLsn = logRecInfo.prevLsn;
+	    break;
+	}
+
+	/*
+	 * Update the undo next lsn of the transaction table.
+	 */
+	e = SHM_getLatch(handle, &xactEntry->latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+	if (e < eNOERROR) ERR(handle, e);
+
+	MY_UNDO_NEXT_LSN(handle) = undoNextLsn;
+
+	e = SHM_releaseLatch(handle, &xactEntry->latch, procIndex);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* RM_Rollback( ) */

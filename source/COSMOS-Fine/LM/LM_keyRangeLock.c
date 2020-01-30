@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,113 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LM_keyRangeLock.c
+ *
+ * Description:
+ *   lock request/release operation
+ *
+ * Exports: LM_getKeyRangeLock(handle, xactID, pid, fileID, mode, duration, conditional)
+ *          LM_releaseKeyRangeLock(handle, xactID, pid, duration)
+ *
+*/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+/*@================================
+ * LM_getKeyRangeLock( )
+ *================================*/
+/* ------------------------------------------------------------ */
+/*								*/
+/* LM_getKeyRangeLock ::	 				*/
+/*  	request lock of the Obj for this transaction 		*/
+/*								*/
+/* paprameters 							*/
+/*    xactID	IN transaction identifier 			*/
+/*    objectID	IN object identifier to be locked 		*/
+/*    fileID	IN file identifier to be locked 		*/
+/*    mode	IN lock mode 					*/
+/*    duration	IN lock duration 				*/
+/*    conditional  IN conditional or unconditional lock 	*/
+/*    lockReply OUT (L_OK, LR_NOTOK, LR_DEADLOCK)		*/
+/*								*/
+/* return value							*/
+/*    result messages 						*/
+/*								*/
+/* ------------------------------------------------------------ */
+
+Four LM_getKeyRangeLock(
+    Four    		handle,
+    XactID 		*xactID,        /* IN transaction identifier */
+    PageID 		*pid,           /* IN obj id. to be locked */
+    LockMode 		mode,           /* IN lock mode */
+    LockDuration 	duration,       /* IN lock duration */
+    LockConditional 	conditional,  	/* IN conditional or unconditional ? */
+    LockReply 		*lockReply)     /* OUT L_OK/L_NOT_OK/LR_DEADLOCK */
+{
+    XactBucket_Type 	*xBucket;
+    LockBucket_Type 	*flBucket;
+    LockMode        	oldMode;
+
+    Four 		e;
+
+    e = lm_getLock(handle, xactID, (TargetID*)pid, L_KEYVALUE, NULL, mode, duration, conditional, FALSE, lockReply,
+                   &xBucket, &flBucket, &oldMode);
+    if(e < eNOERROR) ERR(handle, e);
+
+#ifdef LOCK_ESCALATION
+	e = lm_lockEscalation(handle, xBucket);
+	if(e < eNOERROR) ERR(handle, e);
+#endif
+
+    return(e);
+}
+
+/*@================================
+ * LM_releaseKeyRangeLock( )
+ *================================*/
+/* ------------------------------------------------------------ */
+/*                                                              */
+/* LM_releaseKeyRangeLock ::                                    */
+/*      unlock the object by locked this transaction            */
+/*                                                              */
+/* paprameters                                                  */
+/*    xactID    IN transaction identifier                       */
+/*    oid       IN oid identifier to be unlocked                */
+/*    duration  IN lock duration                                */
+/*                                                              */
+/* return value                                                 */
+/*              error number if error occurs                    */
+/*                                                              */
+/* ------------------------------------------------------------ */
+Four LM_releaseKeyRangeLock(
+    Four    		handle,
+    XactID 		*xactID,
+    PageID 		*pid,
+    LockDuration 	duration)
+{
+    Four		e;	/* function return value */
+
+    e = lm_releaseLock(handle, xactID, (TargetID*)pid, L_KEYVALUE, duration);
+    if(e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+}
+
+
+
+

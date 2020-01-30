@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,173 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LM_initXact.c
+ *
+ * Description:
+ *   Allocate xactBucket for given xactID in Transaction Hash Table.
+ *
+ * Exports: Four LM_initXactBucket(Four, xactID*)
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "SHM.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LM_initXact()
+ *================================*/
+/* ------------------------------------------------------------ */
+/*								*/
+/* LM_initXact ::	 					*/
+/*  	request lock of the file for this transaction 		*/
+/*								*/
+/* paprameters 							*/
+/*    xactID	IN transaction identifier 			*/
+/*								*/
+/* return value							*/
+/*    result messages 						*/
+/*								*/
+/* ------------------------------------------------------------ */
+Four LM_initXactBucket (
+    Four		handle,
+    XactID 		*xactID,	      	/* IN transaction identifier */
+    ConcurrencyLevel 	ccLevel) 		/* IN concurrency level of this transaction */ 
+{
+    XactBucket_Type	*xBucket;
+    XactHashEntry	*xactHashEntryPtr;
+    Four		e;			/* function return value */
+    Four		i;			/* loop index */
+
+    /* find xactBucket in lock table */
+
+    xactHashEntryPtr = &LM_XACTHASHTABLE[XACTTABLE_HASH(xactID)];
+
+    e = SHM_getLatch(handle, &xactHashEntryPtr->latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    xBucket = PHYSICAL_PTR(xactHashEntryPtr->bucketPtr);
+
+    while(xBucket){
+	if ( EQUAL_XACTID(*xactID, xBucket->xactID) ) {
+	    e = SHM_releaseLatch(handle, &xactHashEntryPtr->latch, procIndex);
+	    if (e < eNOERROR) ERR(handle, e);
+
+	    return(eDUPXACTID_LM);	/* FATAL ERROR */
+	}
+	xBucket = PHYSICAL_PTR(xBucket->next);
+    }
+
+    /* if no xactbucket of this xactID is exist, insert new one */
+    if (!xBucket) {
+
+	/* allocate and initialize the content */
+	GET_NEWXACTBUCKET(handle, xBucket, *xactID, ccLevel);
+
+	/* add new LockBucket as first entry of doubly linked list */
+	ADD_INTO_XACTBUCKET_DLIST(xactHashEntryPtr->bucketPtr, xBucket);
+
+	/* getLatch call was in find_xactBucket */
+	e = SHM_releaseLatch(handle, &xactHashEntryPtr->latch, procIndex);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+}
+
+
+
+/*@================================
+ * LM_dropXactBucket( )
+ *================================*/
+Four LM_dropXactBucket (
+    Four		handle,
+    XactID 		*xactID)		/* IN transaction identifier */
+{
+    XactBucket_Type	*xBucket;
+    XactHashEntry	*xactHashEntryPtr;
+    Four		e;			/* function return value */
+    Four		i;			/* loop index */
+
+    /* find xactBucket in lock table */
+
+    xactHashEntryPtr = &LM_XACTHASHTABLE[XACTTABLE_HASH(xactID)];
+
+    e = SHM_getLatch(handle, &xactHashEntryPtr->latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    xBucket = PHYSICAL_PTR(xactHashEntryPtr->bucketPtr);
+
+    while(xBucket){
+	if ( EQUAL_XACTID(*xactID, xBucket->xactID) ) {
+
+	    DELETE_FROM_XACTBUCKET_DLIST(xactHashEntryPtr->bucketPtr, xBucket);
+
+	    e = SHM_releaseLatch(handle, &xactHashEntryPtr->latch, procIndex);
+	    if (e < eNOERROR) ERR(handle, e);
+
+	    FREE_XACTBUCKET(handle, xBucket);
+
+	    return(eNOERROR);
+	}
+	xBucket = PHYSICAL_PTR(xBucket->next);
+    }
+
+    return(eBADXACTID_LM);
+}
+
+
+
+/*@================================
+ * find_xactBucket( )
+ *================================*/
+/* find_xactBucket ::
+
+   	if it is already in the locktable  return the found xactBucket
+	else without releasing xactHashTable entry latch return NULL
+*/
+Four find_xactBucket(
+    Four 		handle,
+    XactID 		*xactID,		/* IN search target */
+    XactBucket_Type	**aBucket)   		/* OUT result bucket */
+{
+
+    Four 		e;			/* error returned */
+    XactHashEntry 	*xactHashEntryPtr; 	/* starting point */
+
+    xactHashEntryPtr = &LM_XACTHASHTABLE[XACTTABLE_HASH(xactID)];
+
+    e = SHM_getLatch(handle, &xactHashEntryPtr->latch, procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    (*aBucket) = PHYSICAL_PTR(xactHashEntryPtr->bucketPtr);
+
+    while(*aBucket){
+	if ( EQUAL_XACTID(*xactID, (*aBucket)->xactID) ) {
+
+	    e = SHM_releaseLatch(handle, &xactHashEntryPtr->latch, procIndex);
+	    if (e < eNOERROR) ERR(handle, e);
+	    return(eNOERROR);
+	}
+	(*aBucket) = PHYSICAL_PTR((*aBucket)->next);
+    }
+
+    e = SHM_releaseLatch(handle, &xactHashEntryPtr->latch, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eBADXACTID_LM);
+}
+

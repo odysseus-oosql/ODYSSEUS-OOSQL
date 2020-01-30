@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,137 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: log_WriteLogRecord.c
+ *
+ * Description:
+ *  Write a log record into the log file.
+ *
+ * Exports:
+ *  Four log_WriteLogRecord(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four log_WriteLogRecord(Four, LOG_LogRecHdr_T*)
+ *
+ * Description:
+ *  Write a log record into the log file. The log record consists of a few
+ *  images. The first image should be a log record header.
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ *
+ * Assumption:
+ *  The caller is holding the latch LOG_LATCH4HEAD.
+ */
+Four log_WriteLogRecord(
+    Four 		handle,
+    LOG_LogRecInfo_T 	*logRecInfo)    /* IN log record infomation */
+{
+    Four 		e;              /* returned error code */
+    log_LogPage_T 	*logPage;	/* pointer to a log page */
+    Four 		nBytes;         /* size of an image in bytes */
+    Four 		subWritten;     /* sub-written size of a part in a log record */
+    Four 		offsetInPage;   /* offset of a log record in a log page */
+    Four 		spaceLeft;      /* left space in a log page */
+    char 		*basePtrFrom;   /* base pointer from which something is copied */
+    char 		*basePtrTo;     /* base pointer to which something is copied */
+    Four 		wrapCount;      /* wrap count of the newly allocated log page */
+    Four 		pageNo;		/* page no of the newly allocated log page */
+    PageID 		pid;
+    Four 		i;              /* loop variable */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("log_WriteLogRecords(logRecInfo=%P)", logRecInfo));
+
+
+    /* calculate the position of this log record in the log page */
+    offsetInPage = LOG_GET_PAGE_OFFSET_IN_PAGE_FROM_LSN_OFFSET(LOG_LOGMASTER.nextLsn.offset);
+
+    /* calculate the space left in the log page */
+    spaceLeft = LOG_GET_SPACE_SIZE_FROM_OFFSET_IN_PAGE(offsetInPage);
+
+    /* Get a pointer to destination. */
+    logPage = &LOG_LOGBUFFERPAGE[LOG_LBI_HEAD];
+    basePtrTo = &(logPage->data[offsetInPage]);
+
+
+    assert(logRecInfo->nImages <= LOG_MAX_NUM_IMAGES);
+
+
+    /*
+     * Write log record.
+     */
+    for (i = 0; i < logRecInfo->nImages + 1; i++) {
+	/*
+	 * get a starting address and the number of bytes of the data to
+	 * be written in this loop
+	 */
+	if (i == 0) {
+	    basePtrFrom = (char*)logRecInfo;
+	    nBytes = OFFSET_OF(LOG_LogRecInfo_T, imageData[0]);
+	} else {
+            assert(logRecInfo->imageSize[i-1] <= LOG_MAX_IMAGE_SIZE);
+
+	    basePtrFrom = (char*)logRecInfo->imageData[i-1];
+	    nBytes = logRecInfo->imageSize[i-1];
+	}
+
+	for ( ; nBytes > 0; ) {
+
+	    /* calculate the amount of bytes that can be stored in this log page */
+	    subWritten = MIN(nBytes, spaceLeft);
+	    memcpy(basePtrTo, basePtrFrom, subWritten);
+
+	    /* adjust variables */
+	    nBytes -= subWritten;
+	    basePtrFrom += subWritten;
+	    basePtrTo += subWritten;
+	    spaceLeft -= subWritten;
+
+            logPage->hdr.lsn.offset += subWritten;
+
+	    /*
+	     *	if the current log page becomes full,
+	     *	a new log page should be allocated for the next logging
+	     */
+	    if (spaceLeft == 0) {
+
+		/* get the next log buffer page */
+		e = log_AllocPage(handle, &pageNo, &wrapCount);
+		if (e < eNOERROR) ERR(handle, e);
+
+		e = log_AllocLogBuffer(handle, pageNo, wrapCount);
+		if (e < eNOERROR) ERR(handle, e);
+
+		logPage = &LOG_LOGBUFFERPAGE[LOG_LBI_HEAD];
+
+		/* Initialize the log buffer page */
+                pid.volNo = LOG_LOGMASTER.volNo;
+                pid.pageNo = LOG_GET_PHYSICAL_PAGENO(LOG_LOGMASTER, wrapCount, pageNo); 
+		LOG_INIT_LOG_PAGE(logPage, pid, LOG_GET_LSN_OFFSET_FROM_PAGE_NO(pageNo), wrapCount);
+
+		/* adjust variables */
+		basePtrTo = logPage->data;
+		spaceLeft = LOG_GET_SPACE_SIZE_FROM_OFFSET_IN_PAGE(0);
+
+	    }	/* end if */
+	}
+    }
+
+    return(eNOERROR);
+
+} /* log_WriteLogRecord() */

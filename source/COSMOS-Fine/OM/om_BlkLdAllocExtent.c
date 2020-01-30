@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,126 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: om_BlkLdAllocExtent.c
+ *
+ * Description:
+ *  Allocate number of contiguous pages from disk.
+ *
+ * Exports:
+ *  Four om_BlkLdAllocExtent(FileID, PageID*, Four*, Four, PageID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <string.h>
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "param.h"
+#include "RDsM.h"
+#include "BfM.h" /* TTT */
+#include "OM.h"
+#include "BL_OM.h"
+
+#include "error.h"
+#include "latch.h"
+#include "LOG.h"
+
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+/*@========================================
+ *  om_BlkLdAllocExtent()
+ * =======================================*/
+/*
+ * Function : Four om_BlkLdAllocExtent()
+ *
+ * Description :
+ *  Allocate number of contiguous pages from disk.
+ *
+ * Return Values :
+ *  error code.
+ *
+ * Side Effects :
+ *  0)
+ *  1)
+ *
+ */
+
+Four om_BlkLdAllocExtent(
+    Four	       handle,
+    XactTableEntry_T*  xactEntry,    /* IN    entry of transaction table */
+    DataFileInfo       *finfo,       /* IN    data file info of 'pFid' */
+    PhysicalFileID     pFid,         /* IN    physical file ID which allocate extent */ 
+    PageID             *pid,         /* IN    page ID for allocate extent in which contains that page */
+    Four               *numOfAllocTrains,       /* INOUT number of allocated trains */
+    Four               eff,          /* IN    extent fill factor */
+    PageID             *pageIdAry,   /* OUT   page ID array which contain allocated page ID */
+    PageNo             *startPageNo, /* INOUT start pageNo for searching free extent */ 
+    Direction          *direction,   /* INOUT direction for searching free extent */ 
+    LogParameter_T*    logParam)     /* IN    log parameter */
+{
+
+    Four    e;                 /* error code */
+    Four    firstExtNo;        /* first extent number of the file */
+    Four    pagesNoInExtent;   /* pages in extent by eff (numOfAllocTrains / BLKLD_WRITEBUFFERSIZE) */
+    Four    totalAllocated=0;  /* number of total pages which allocated */
+    Four    sizeOfExt;         /* extent size of this volume by page */ 
+    Four    i;                 /* index variable */
+    SegmentID_T pageSegmentID; /* page segment ID */
+
+    /* parameter check */
+    if(*numOfAllocTrains < 0) ERR(handle, eBADPARAMETER);
+    if(pageIdAry == NULL) ERR(handle, eBADPARAMETER);
+
+    /* get 'pageSegmentID' from data file info */
+    e = om_GetSegmentIDFromDataFileInfo(handle, xactEntry, finfo, &pageSegmentID, PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Case 1 : no object exist in data file
+                allocate extent which contains the page of 'pid' */
+    if (pid != NULL) {
+
+        /* calculate number of pages in extent by eff */
+        pagesNoInExtent = *numOfAllocTrains;
+
+        /* allocate first extent */
+        e = RDsM_GetSizeOfExt(handle, pFid.volNo, &sizeOfExt);
+        if (e < eNOERROR) ERR(handle, e);
+
+        sizeOfExt -= 1;
+        e = RDsM_AllocContigTrainsInExt(handle, xactEntry, pFid.volNo, &pageSegmentID,
+					pid, &sizeOfExt, PAGESIZE2, eff, &pageIdAry[1], logParam);
+        if (e < eNOERROR) ERR(handle, e);
+        sizeOfExt++;
+
+        /* allocate rest extent */
+        pagesNoInExtent = pagesNoInExtent - sizeOfExt;
+        if (pagesNoInExtent > 0) {
+
+            e = RDsM_AllocContigTrainsInExt(handle, xactEntry, pFid.volNo, &pageSegmentID,
+					    NULL, &pagesNoInExtent, PAGESIZE2, eff, &pageIdAry[sizeOfExt], logParam);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+        pagesNoInExtent = pagesNoInExtent + sizeOfExt;
+
+        /* set the first page of buffer 'pid' */
+        pageIdAry[0] = *pid;
+
+
+    /* Case 2 : object already exist in data file
+                allocate new extent */
+    } else {
+
+        /* calculate number of pages in extent by eff */
+        pagesNoInExtent = *numOfAllocTrains;
+
+        e = RDsM_AllocContigTrainsInExt(handle, xactEntry, pFid.volNo, &pageSegmentID,
+					NULL, &pagesNoInExtent, PAGESIZE2, eff, &pageIdAry[0], logParam);
+        if (e < eNOERROR) ERR(handle, e);
+
+    }
+
+    *numOfAllocTrains = pagesNoInExtent;
+
+    return(eNOERROR);
+
+} /* om_BlkLdAllocExtent() */

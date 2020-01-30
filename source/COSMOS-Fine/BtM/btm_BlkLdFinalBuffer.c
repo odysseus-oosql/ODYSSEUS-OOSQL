@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,107 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_BlkLdFinalBuffer.c
+ *
+ * Description :
+ *  Finalize various kind of buffer
+ *
+ * Exports:
+ *  Four btm_BlkLdFinalInternalBuffer()
+ *  Four btm_BlkLdFinalWriteBuffer()
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <stdlib.h>                     /* for using malloc() function */
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "BtM.h"
+#include "BL_BtM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*@================================
+ * btm_BlkLdFinalInternalBuffer()
+ *================================*/
+/*
+ * Function: Four btm_BlkLdFinalInternalBuffer()
+ *
+ * Description:
+ *  Finalize B+ tree internal buffer which was used in index bulkloading.
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *
+ */
+Four btm_BlkLdFinalInternalBuffer (
+    Four		    handle,
+    Four                    btmBlkLdId)             /* IN  BtM bulkload ID */
+{
+    Four                    e;                      /* error number */
+
+
+    TR_PRINT(handle, TR_BTM, TR1, ("btm_BlkLdFinalInternalBuffer(btmBlkLdId=%ld)", btmBlkLdId));
+
+
+    /* finalize internal VarArray buffer */
+    e = Util_finalVarArray(handle, &BTM_BLKLD_TABLE(handle)[btmBlkLdId].btmBlkLdiBuffers.iArray);
+    if (e < 0)  ERR(handle, e);
+
+    return eNOERROR;
+
+}  /* btm_BlkLdFinalInternalBuffer() */
+
+
+
+/*@================================
+ * btm_BlkLdFinalWriteBuffer()
+ *================================*/
+/*
+ * Function: Four btm_BlkLdFinalWriteBuffer()
+ *
+ * Description:
+ *  Finalize bulkload write buffer which was used in index bulkloading.
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *
+ */
+Four btm_BlkLdFinalWriteBuffer (
+    Four		    handle,
+    Four                    btmBlkLdId)             /* IN  BtM bulkload ID */
+{
+    Four                    e;                      /* error number */
+    Four                    i;                      /* a loop index */
+    BtM_BlkLdTableEntry*    blkLdEntry;             /* entry in which information about BtM bulkload is saved */
+
+
+    TR_PRINT(handle, TR_BTM, TR1, ("btm_BlkLdFinalWriteBuffer(btmBlkLdId=%P)", btmBlkLdId));
+
+
+    /* set entry for fast access */
+    blkLdEntry = &BTM_BLKLD_TABLE(handle)[btmBlkLdId];
+
+    /* free bulkload write buffer */
+    free(blkLdEntry->btmBlkLdwBuffer.allocPageIdArray);
+    /*
+    free(blkLdEntry->btmBlkLdwBuffer.allocPageIdArrayPool);
+    */
+
+    for (i = 0; i < NUMOFWRITEBUFFER; i++) {
+        free(blkLdEntry->btmBlkLdwBuffer.bufArray[i]);
+        free(blkLdEntry->btmBlkLdwBuffer.flushPageIdArray[i]);
+    }
+
+    return eNOERROR;
+
+}  /* btm_BlkLdFinalWriteBuffer() */

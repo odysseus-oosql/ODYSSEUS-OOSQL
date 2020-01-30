@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,66 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lm_requestNode.c
+ *
+ * Description:
+ *   allocate and manage requestNode
+ *
+ * Exports: lm_allocAndInsertIntoQueue(handle, xactID, fileID, mode, duration, conditional)
+ *
+*/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+/*----------------------------------------------------------------- */
+/*                                                                  */
+/* lm_allocAndInsertIntoQueue ::                                    */
+/*         allocate a requestNode and insert it into the queue      */
+/*                                                                  */
+/* parameters                                                       */
+/*    LockLevel       IN lock level                                 */
+/*    TargetID        IN target lock identifier                     */
+/*    LockHashEntry   IN allocated lBucket will be added into       */
+/*    LockBucket_Type OUT allocated lBucket                         */
+/*                                                                  */
+/* return value                                                     */
+/*    result messages                                               */
+/*                                                                  */
+/*----------------------------------------------------------------- */
+Four lm_allocAndInsertIntoQueue(
+    Four		handle,
+    XactID            	*xactID,
+    XactBucket_Type   	*xBucket,
+    LockBucket_Type   	*lBucket,
+    LockMode          	mode,
+    LockDuration      	duration,
+    LockStatus        	status,
+    RequestNode_Type  	**aRequest)
+{
+    Four 		e;
+
+    /* allocate and fill the new RequestNode  */
+    GET_NEWREQUESTNODE(handle, *aRequest, xactID, mode, duration, status, xBucket, e); 
+    if(e < eNOERROR) ERR(handle, e);
+
+    /* make connection with lockBucket */
+    (*aRequest)->lockHDR = LOGICAL_PTR(lBucket);
+    APPEND_TO_REQUESTNODE_DLIST(lBucket->queue, *aRequest);
+
+    return(e);
+}
+

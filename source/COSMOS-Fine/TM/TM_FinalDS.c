@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,82 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: TM_FinalDS.c
+ *
+ * Description :
+ *  Finalize data structures used in transaction manager.
+ *
+ * Exports:
+ *  Four TM_FinalSharedDS(Four)
+ *  Four TM_FinalLocalDS(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "Util.h"
+#include "trace.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+
+/*@================================
+ * Four TM_FinalSharedDS( )
+ *================================*/
+/*
+ * Function: Four TM_FinalSharedDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four TM_FinalSharedDS(
+    Four	handle)
+{
+    Four 	e;                     /* error code */
+
+
+    TR_PRINT(handle, TR_TM, TR1, ("TM_FinalSharedDS()"));
+
+    e = Util_finalPool(handle, &TM_GLOBALXACTIDPOOL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* TM_FinalSharedDS() */
+
+
+
+/*@================================
+ * Four TM_FinalLocalDS( )
+ *================================*/
+/*
+ * Function: Four TM_FinalLocalDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four TM_FinalLocalDS(
+    Four	handle)
+{
+    Four 	e;             /* error number */
+
+    /* pointer for TM Data Structure of perThreadTable */
+    TM_PerThreadDS_T *tm_perThreadDSptr = TM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_TM, TR1, ("TM_FinalLocalDS()"));
+
+
+    /* Finalize the dealloctedList Pool. */
+    e = Util_finalLocalPool(handle, &(tm_perThreadDSptr->tm_dlPool));
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* TM_FinalLocalDS() */

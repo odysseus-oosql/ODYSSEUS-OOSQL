@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,73 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ *
+ * Description:
+ *   set/reset LM_MAX_LOCKS_ON_FILE.
+ *
+ * Exports:
+ *  lm_getMaxLocksOnFile(handle, Four*)
+ *  lm_resetMaxLocksOnFile( )
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four lm_getMaxLocksOnFile(
+    Four    	handle,
+    Four 	*maxFileLock)
+{
+    Four 	e;
+
+    e = SHM_getLatch(handle, &LM_MAX_LOCKS_ON_FILE_LATCH,
+                     procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+    if(e < eNOERROR) ERR(handle, e);
+
+    *maxFileLock = LM_MAX_LOCKS_ON_FILE;
+
+    e = SHM_releaseLatch(handle, &LM_MAX_LOCKS_ON_FILE_LATCH, procIndex);
+    if(e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* lm_getMaxFileLock() */
+
+Four lm_resetMaxLocksOnFile(
+    Four    	handle)
+{
+    Four 	e;
+    Four 	usedLocks;
+
+    e = SHM_getLatch(handle, &LM_MAX_LOCKS_ON_FILE_LATCH,
+                     procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+    if(e < eNOERROR) ERR(handle, e);
+
+    e = Util_getElemInPool(handle, &LM_LOCKBUCKETPOOL, &usedLocks);
+    if(e < eNOERROR) ERRL1(handle, e, &LM_MAX_LOCKS_ON_FILE_LATCH);
+
+    LM_MAX_LOCKS_ON_FILE = LM_INIT_MAX_LOCKS_ON_FILE * 10;
+	
+    e = SHM_releaseLatch(handle, &LM_MAX_LOCKS_ON_FILE_LATCH, procIndex);
+    if(e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* lm_resetMaxFileLock() */
+
+
+

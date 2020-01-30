@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,104 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_CfgParams.c
+ *
+ * Description:
+ *  Manages the configuration parameters.
+ *
+ * Exports:
+ *  Four SM_SetCfgParam(Four, char*, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+extern CfgParams_T sm_cfgParams;
+
+
+/*@================================
+ * SM_SetCfgParam( )
+ *================================*/
+Four SM_SetCfgParam(
+    Four handle,
+    char *name,                 /* IN configuration parameter name */
+    char *value)                /* IN configuration parameter value */
+{
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_SetCfgParam(name=%P, value=%P)", name, value));
+
+
+    /*@
+     * Check parameters
+     */
+    if (name == NULL || value == NULL) ERR(handle, eBADPARAMETER);
+
+    if (strcmp(name, "LOG_VOLUME_DEVICE_LIST") == 0) {
+
+        strcpy(sm_cfgParams.logVolumeDeviceList, value);
+
+    } else if (strcmp(name, "COHERENCY_VOLUME_DEVICE") == 0) {
+
+        /* needless in multi-user version */
+        printf("COHERENCY_VOLUME_DEVICE option is needless in multi-user version.\n");
+
+    } else if (strcmp(name, "USE_DEADLOCK_AVOIDANCE") == 0) {
+
+        /* needless in multi-user version */
+        printf("USE_DEADLOCK_AVOIDANCE option is needless in multi-user version.\n");
+
+    } else if (strcmp(name, "USE_BULKFLUSH") == 0) {
+
+        /* needless in multi-user version */
+        printf("USE_BULKFLUSH option is needless in multi-user version.\n");
+
+    } else {
+
+        ERR(handle, eINVALIDCFGPARAM_SM);
+    }
+
+    return(eNOERROR);
+
+} /* SM_SetCfgParam() */
+
+
+/*@================================
+ * SM_GetCfgParam()
+ *================================*/
+char* SM_GetCfgParam(
+    Four handle,
+    char *name)                 /* IN configuration parameter name */
+{
+    char* value;
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_GetCfgParam(name=%P)", name));
+
+    /*@
+     * Check parameters
+     */
+    if (name == (char*)NULL) ERR(handle, eBADPARAMETER);
+
+    if (strcmp(name, "LOG_VOLUME_DEVICE_LIST") == 0) {
+
+        value = sm_cfgParams.logVolumeDeviceList;
+
+    }
+    else {
+
+        value = NULL;
+    }
+
+    return value;
+
+} /* SM_GetCfgParam() */
+

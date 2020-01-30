@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,74 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LM_xactLock.c
+ *
+ * Description:
+ *   release all locks of the given transaction.
+ *
+ * Exports: LM_releaseXactLock
+ *          LM_releaseXactManualFlatLock
+ *
+*/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+/*@================================
+ * LM_releaseXactLock( )
+ *================================*/
+/* ------------------------------------------------------------ */
+/*								*/
+/* LM_releaseXactLock :: 					*/
+/*  	unlock all the lock locked by this transaction 		*/
+/*								*/
+/* paprameters 							*/
+/*    xactID	IN transaction identifier 			*/
+/*								*/
+/* return value							*/
+/*		error number if error occurs			*/
+/*								*/
+/* ------------------------------------------------------------ */
+Four LM_releaseXactLock(
+    Four 		handle,
+    XactID 		*xactID)
+{
+    return(eNOERROR);
+}
+
+/*@================================
+ * LM_releaseXactManualFlatLock( )
+ *================================*/
+/* ------------------------------------------------------------ */
+/*								*/
+/* LM_releaseXactManualFlatLock :: 				*/
+/*  	unlock all the manual duration lock locked              */
+/*	by this transaction 		                        */
+/*								*/
+/* paprameters 							*/
+/*    xactID	IN transaction identifier 			*/
+/*								*/
+/* return value							*/
+/*		error number if error occurs			*/
+/*								*/
+/* ------------------------------------------------------------ */
+
+Four LM_releaseXactManualFlatLock(
+    Four 		handle,
+    XactID 		*xactID)
+{
+    return(eNOERROR);
+}

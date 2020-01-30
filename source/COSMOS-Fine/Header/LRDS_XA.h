@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,107 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _LRDS_XA_H_
+#define _LRDS_XA_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <string.h>  /* for memcpy */
+#include <stdlib.h>  /* for malloc, free */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*
+ * Type Definition
+ */
+
+typedef enum { LRDS_XA_SCANSTARTED, LRDS_XA_SCANENDED } LRDSXAscanStatus;
+
+
+/*
+ * Transaction branch identification: XID and NULLXID:
+ */
+#ifndef LRDS_XA_XIDDATASIZE                   /* guard against redefinition in tx.h */
+
+#define LRDS_XA_XIDDATASIZE   128         /* size in bytes */
+#define LRDS_XA_MAXGTRIDSIZE  64              /* maximum size in bytes of gtrid */
+#define LRDS_XA_MAXBQUALSIZE  64              /* maximum size in bytes of bqual */
+typedef struct {
+    long formatID;                      /* format identifier */
+    long gtrid_length;                  /* value from 1 through 64 */
+    long bqual_length;                  /* value from 1 through 64 */
+    char data[LRDS_XA_XIDDATASIZE];
+} LRDS_XA_XID;
+
+#endif /* LRDS_XA_XIDDATASIZE */
+
+
+/*
+ * Constant Variable Definition
+ */
+
+/* Flag definitions for the RM switch */
+
+#define LRDS_XA_TMASYNC      0x80000000L        /* perform routine asynchronously */
+#define LRDS_XA_TMONEPHASE   0x40000000L        /* caller is using on-phase commit
+                                                   optimisation */
+#define LRDS_XA_TMFAIL       0x20000000L        /* dissociates caller and marks
+                                                   transaction branch rollback-only */
+#define LRDS_XA_TMNOWAIT     0x10000000L        /* return if blocking condition exists */
+#define LRDS_XA_TMRESUME     0x08000000L        /* caller is resuming association
+                                                   with suspended transaction branch */
+#define LRDS_XA_TMSUCCESS    0x04000000L        /* dissociate caller from transaction branch*/
+#define LRDS_XA_TMSUSPEND    0x02000000L        /* caller is suspending, not ending, association */
+#define LRDS_XA_TMSTARTRSCAN 0x01000000L        /* start a recovery scan */
+#define LRDS_XA_TMENDRSCAN   0x00800000L        /* end a recovery scan */
+#define LRDS_XA_TMMULTIPLE   0x00400000L        /* wait for any asynchronous operation */
+#define LRDS_XA_TMJOIN       0x00200000L        /* caller is joining existing transaction branch */
+#define LRDS_XA_TMMIGRATE    0x00100000L        /* caller intends to perfrom migration */
+
+
+/*
+ *Flag definitions for the RM switch
+ */
+#define LRDS_XA_TMNOFLAGS    0x00000000L        /* no resource manager features selected */
+#define LRDS_XA_TMREGISTER   0x00000001L        /* resource manager dynamically registers */
+#define LRDS_XA_TMNOMIGRATE  0x00000002L        /* resource manager does not support association migration */
+#define LRDS_XA_TMUSEASYNC   0x00000004L        /* resource manager supports asynchronous operations */
+
+
+/*
+ * Macro Definitions
+ */
+
+#define LRDS_XA_OPENSTRINGHEADER      "COSMOS_XA"
+#define LRDS_XA_MAXOPENSTRINGLEN      1024
+
+#define LRDS_XA_SCANSTATUS(_handle)            (perThreadTable[_handle].lrdsDS.lrds_xa_scanStatus)
+#define LRDS_XA_PREPAREDNUM(_handle)           (perThreadTable[_handle].lrdsDS.lrds_xa_preparedNum)
+#define LRDS_XA_CURRENTPOS(_handle)            (perThreadTable[_handle].lrdsDS.lrds_xa_currentPos)
+#define LRDS_XA_PREPAREDLIST(_handle)          (perThreadTable[_handle].lrdsDS.lrds_xa_preparedList)
+
+#define LRDS_XA_VOLID(_handle)                 (perThreadTable[_handle].lrdsDS.lrds_xa_volId)
+
+
+/*
+** Noninterface Function Prototypes of LRDS_XA
+*/
+
+Four lrds_XA_GetInitInfo(Four, char*, Four* , char***);
+
+
+/*
+** Interface Function Prototypes of LRDS
+*/
+
+Four LRDS_XA_Commit(Four, LRDS_XA_XID *, int, long);
+Four LRDS_XA_Forget(Four, LRDS_XA_XID *, int, long);
+Four LRDS_XA_Prepare(Four, LRDS_XA_XID *, int, long);
+Four LRDS_XA_Start(Four, LRDS_XA_XID *, int, long);
+Four LRDS_XA_Complete(Four, int *, int *, int, long);
+Four LRDS_XA_Open(Four, Four, char**, Four*, int, long);
+Four LRDS_XA_Recover(Four, LRDS_XA_XID *, long, int, long);
+Four LRDS_XA_Close(Four, char *, int, long);
+Four LRDS_XA_End(Four, LRDS_XA_XID *, int, long);
+Four LRDS_XA_Rollback(Four, LRDS_XA_XID *, int, long);
+Four LRDS_XA_AxReg(Four, int, LRDS_XA_XID * , long); 
+Four LRDS_XA_AxUnreg(Four, int, long); 
+
+
+#endif /* _LRDS_H_ */

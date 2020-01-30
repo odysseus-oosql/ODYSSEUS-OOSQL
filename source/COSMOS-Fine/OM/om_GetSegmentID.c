@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,122 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: om_GetSegmentID.c
+ *
+ * Description:
+ *  Get the Segment ID from the catalog entry of the given data file.
+ *
+ * Exports:
+ *  Four om_GetSegmentIDFromDataFileInfo(Four, DataFileInfo*, SegmentID_T*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+
+
+
+/*@================================
+ * om_GetSegmentIDFromDataFileId()
+ *================================*/
+/*
+ * Function: Four om_GetSegmentIDFromDataFileInfo(Four, DataFileInfo*, SegmentID_T*, Four)
+ *
+ * Description:
+ *  Get the SegmentID from the catalog entry of the given data file.
+ *  The data file is specified by 'fid', the FileID of the data file.
+ *
+ * Returns:
+ *  Error code : ePARAMETER
+ */
+Four om_GetSegmentIDFromDataFileInfo(
+    Four                        handle,                 /* IN  handle */
+    XactTableEntry_T            *xactEntry,             /* IN  transaction table entry */
+    DataFileInfo		*finfo,			/* IN  data file info */
+    SegmentID_T			*segmentID,		/* OUT segment ID of data file which indicated by fInfo */
+    Four			type			/* IN  segment ID's type */
+)
+{
+    Four			e;			/* error code */
+    Buffer_ACC_CB 		*catPage_BCBP;  	/* buffer access control block holding catalog data */
+    SlottedPage 		*catPage;       	/* pointer to buffer containing the catalog */
+    sm_CatOverlayForData 	*catEntry;		/* pointer to data file catalog information */
+
+
+    /* get 'catEntry' that is sm_CatOverlayForData */
+    if (finfo->tmpFileFlag != TRUE) {	/* it is normal file */
+
+#ifdef CCPL
+        /* Request X lock on the page where the catalog entry resides. */
+        e = LM_getFlatPageLock(handle, &xactEntry->xactId, (PageID*)&finfo->catalog.oid,
+                               L_X, L_MANUAL, L_UNCONDITIONAL, &lockReply, &oldMode);
+        if (e < 0) ERR(handle, e);
+
+        if (lockReply == LR_DEADLOCK) {
+            ERR(handle, eDEADLOCK); /* deadlock */
+        }
+
+        /* get and fix the catalog page */
+        e = BfM_getAndFixBuffer(handle, (TrainID*)&finfo->catalog.oid, M_FREE, &catPage_BCBP, PAGE_BUF);
+        if(e < 0) ERR(handle, e);
+#endif
+
+#ifdef CCRL
+        /* get and fix the catalog page */
+    	e = BfM_getAndFixBuffer(handle, (TrainID*)&finfo->catalog.oid, M_SHARED, &catPage_BCBP, PAGE_BUF);
+    	if (e < eNOERROR) ERR(handle, e);
+#endif
+
+    	catPage = (SlottedPage *)catPage_BCBP->bufPagePtr;
+    	GET_PTR_TO_CATENTRY_FOR_DATA(finfo->catalog.oid.slotNo, catPage, catEntry);
+    }
+    else {				/* it is temporary file */
+
+	catEntry = &(finfo->catalog.entry->data);
+    }
+
+    /* get the segment ID */
+    if (type == PAGESIZE2) {
+
+        *segmentID = catEntry->pageSegmentID;
+    }
+    else if (type == TRAINSIZE2) {
+
+        *segmentID = catEntry->trainSegmentID;
+    }
+    else {
+        return (eBADPARAMETER);
+    }
+
+    if (finfo->tmpFileFlag != TRUE) {	/* it is normal file */
+
+#ifdef CCPL
+        e = BfM_unfixBuffer(handle, catPage_BCBP, PAGE_BUF);
+        if(e < eNOERROR) ERR(handle, e);
+
+        /* Release the lock on the catalog page. */
+        e = LM_releaseFlatPageLock(handle, &xactEntry->xactId, (PageID*)&finfo->catalog.oid, L_MANUAL);
+        if (e < 0) ERR(handle, e);
+#endif
+
+#ifdef CCRL
+        /* free the catalog page */
+	BFM_FREEBUFFER(handle, catPage_BCBP, PAGE_BUF, e);
+        if(e < eNOERROR) ERR(handle, e);
+#endif
+    }
+
+
+    return (eNOERROR);
+}
+

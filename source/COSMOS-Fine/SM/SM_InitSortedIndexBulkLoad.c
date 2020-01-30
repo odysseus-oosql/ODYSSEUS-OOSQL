@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,162 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_InitSortedIndexBulkLoad.c
+ *
+ * Description :
+ *  Initialize B+ tree index bulkload.
+ *
+ * Exports:
+ *  Four SM_InitSortedIndexBulkLoad(IndexID*, KeyDesc*, Two, Two)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "BtM.h"
+#include "SM.h"
+#include "BL_BtM.h"
+#include "BL_SM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+
+/*@=============================
+ * SM_InitSortedIndexBulkLoad()
+ *=============================*/
+/*
+ * Function: Four SM_InitSortedIndexBulkLoad(IndexID*, KeyDesc*, Two, Two)
+ *
+ * Description:
+ *  Initialize B+ tree index bulkload.
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calss
+ *
+ * Side Effects:
+ *  parameter indexBlkLdId is filled with index bulkload ID
+ */
+Four SM_InitSortedIndexBulkLoad (
+    Four		    handle,
+    IndexID                 *iid,                   /* IN B+ tree where the given ObjectID is inserted */
+    KeyDesc                 *kdesc,                 /* IN key descriptor of the given B+ tree */
+    Two                     eff,                    /* IN Extent fill factor */
+    Two                     pff,                    /* IN Page fill factor */
+    LockParameter           *lockup)                /* IN lockup parameter for data volume */
+{
+    Four                    e;                      /* error number */
+    Four                    i;                      /* a loop index */
+    Four                    v;                      /* index for the used volume on the mount table */
+    Four                    blkLdId;                /* OM bulkload ID */
+    SM_IdxBlkLdTableEntry*  blkLdEntry;             /* entry in which information about bulkload is saved */
+    BtreeIndexInfo          iinfo;                  /* index information */
+    PhysicalIndexID         pIid;
+    ObjectID                catObjForIdx;           /* catalog object of B+ tree file */
+    LogParameter_T          logParam;
+
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+            ("SM_InitSortedIndexBulkLoad(iid=%P, kdesc=%P, eff=%ld, pff=%ld)",
+            iid, kdesc, eff, pff));
+
+
+    /*
+    **  O. Check parameters
+    */
+
+    if (iid == NULL)                    ERR(handle, eBADPARAMETER);
+
+    if (kdesc == NULL)                  ERR(handle, eBADPARAMETER);
+
+    if (eff < 0 || eff > 100)           ERR(handle, eBADPARAMETER);
+
+    if (pff < MINPFF || pff > MAXPFF)   ERR(handle, eBADPARAMETER);
+
+
+
+    /*
+    **  I. Find empty entry from SM index bulkload table
+    */
+
+    for (blkLdId = 0; blkLdId < SM_IDXBLKLD_TABLE_SIZE; blkLdId++ ) {
+	if (SM_IDXBLKLD_TABLE(handle)[blkLdId].isUsed == FALSE) break;
+    }
+    if (blkLdId == SM_IDXBLKLD_TABLE_SIZE) ERR(handle, eBLKLDTABLEFULL);
+
+    /* This login don't check boundary condition. So this is incorrect.
+     * for (blkLdId = 0; SM_IDXBLKLD_TABLE(handle)[blkLdId].isUsed != FALSE; blkLdId++ ) {
+     * if (blkLdId >= SM_IDXBLKLD_TABLE_SIZE) ERR(handle, eBLKLDTABLEFULL);
+     * }
+     */
+
+    /* set entry for fast access */
+    blkLdEntry = &SM_IDXBLKLD_TABLE(handle)[blkLdId];
+
+    /* set isUsed flag */
+    blkLdEntry->isUsed = TRUE;
+
+
+
+    /*
+    **  II. Get catalog entry for the given B+ tree file
+    */
+
+    /* 1. find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+        if (SM_MOUNTTABLE[v].volId == iid->volNo) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+
+    /* 2. set smBlkLdVolume with v */
+    blkLdEntry->smBlkLdVolume = v;
+
+
+    /* 3. get the catalog object for the given B+ tree index. */
+    e = sm_GetCatalogEntryFromIndexId(handle, v, iid, &catObjForIdx, &pIid);
+    if (e < 0)  ERR(handle, e);
+
+
+    /* 4. get the index-info for the given B+ tree index. */
+    e = sm_GetIndexInfoFromIndexId(handle, v, iid, &iinfo, &blkLdEntry->fid); 
+    if (e < 0)  ERR(handle, e);
+
+
+
+    /*
+    **  III. Find which to do append bulkload or normal bulkload
+    */
+
+    e = BtM_IsAppendBulkLoad(handle, (PageID*)&pIid, &blkLdEntry->smBlkLdisAppend);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+
+    /*
+    **  IV. Bulkload B+ tree index given sort <key, oid> list
+    */
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, iinfo.tmpIndexFlag);
+
+    if (blkLdEntry->smBlkLdisAppend == TRUE) {
+        blkLdEntry->btmBlkLdId = BtM_InitSortedAppendBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), &iinfo, &blkLdEntry->fid, (PageID*)&pIid, kdesc, eff, pff, &logParam); 
+        if (blkLdEntry->btmBlkLdId < 0) ERR(handle, blkLdEntry->btmBlkLdId);
+    }
+    else {
+        blkLdEntry->btmBlkLdId = BtM_InitSortedBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), &iinfo, (PageID*)&pIid, kdesc, eff, pff,
+							&logParam);
+        if (blkLdEntry->btmBlkLdId < 0) ERR(handle, blkLdEntry->btmBlkLdId);
+    }
+
+
+    return blkLdId;
+
+}   /* SM_InitSortedIndexBulkLoad() */
+

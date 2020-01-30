@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,96 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: TM_PrepareTransaction.c
+ *
+ * Description:
+ *  Prepare the given transaction's work.
+ *
+ * Exports:
+ *  Four TM_PrepareTransaction(XactID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "TM.h"
+#include "LM.h"
+/* #incldue "perProcessDS.h" */
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four TM_PrepareTransaction(XactID*)
+ *
+ * Description:
+ *  Prepare the transaction's work.
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ */
+Four TM_PrepareTransaction(
+    Four   		handle,
+    XactID 		*xactId)             	/* IN transaction to prepare */
+{
+    Four 		e;			/* error code */
+    XactTableEntry_T 	*xactEntry;
+    Four 		i;
+    Lsn_T 		lsn;                  	/* lsn of the newly written log record */
+    Four 		logRecLen;             	/* log record length */
+    LOG_LogRecInfo_T 	logRecInfo; 		/* log record information */
+    LogParameter_T 	logParam;
+
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_TM, TR1, ("TM_PrepareTransaction(xactId=%P)", xactId));
+
+
+    /* check parameters */
+    if (!EQUAL_XACTID(*xactId, MY_XACTID(handle))) ERR(handle, eWRONGXACTID_TM);
+
+    xactEntry = MY_XACT_TABLE_ENTRY(handle);
+
+    if (xactEntry->globalXactId == NULL) ERR(handle, eNO2PCTRANSACTION_TM); 
+
+    if (xactEntry->globalXactId != NULL) ERR(handle, eNO2PCTRANSACTION_TM);
+
+    e = tm_DL_ConvertIntoSmallUnits(handle, xactEntry);
+    if (e < eNOERROR) ERR(handle, e);
+
+    assert(xactEntry->nestedTopActionStackIdx == 0);
+
+    if (common_shmPtr->recoveryFlag) {
+        e = tm_DL_Log(handle, xactEntry);
+
+        e = LM_logLocksOfPreparedXact(handle, xactId);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /*
+         * Write the Prepare log reocrd.
+         */
+        LOG_FILL_LOGRECINFO_0(logRecInfo, xactEntry->xactId, LOG_TYPE_TRANSACTION,
+                              LOG_ACTION_XACT_PREPARE_TRANSACTION, LOG_NO_REDO_UNDO,
+                              common_perThreadDSptr->nilPid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERR(handle, e);
+
+        e = LOG_FlushLogRecords(handle, &lsn, logRecLen);
+        if (e < eNOERROR) ERR(handle, e);
+
+    }
+
+    xactEntry->status = X_PREPARE; 
+
+
+    return(eNOERROR);
+    
+} /* TM_PrepareTransaction() */

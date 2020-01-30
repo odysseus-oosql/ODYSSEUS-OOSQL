@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,58 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_MLGF_DeleteObjectFromOverflowPage.c
+ *
+ * Description:
+ *  redo deleting an object from an overflow page
+ *
+ * Exports:
+ *  Four Redo_MLGF_DeleteObjectFromOverflowPage(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_MLGF_DeleteObjectFromOverflowPage(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing the small object */
+{
+    mlgf_OverflowPage *aPage = anyPage;
+    Four objectItemLen;
+    Four objArrayElemNo;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_MLGF_DeleteObjectFromOverflowPage()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+    /* Get the length of an object item. */
+    objectItemLen = MLGF_LEAFENTRY_OBJECTITEM_LEN(aPage->hdr.extraDataLen);
+
+    objArrayElemNo = *((Two*)logRecInfo->imageData[0]);
+
+    /* reserve space for the inserted objects */
+    MLGF_DELETE_OBJECTS_SPACE_FROM_OBJECT_ARRAY(
+        MLGF_OVERFLOW_ITH_OBJECTITEM(objectItemLen, aPage, 0),
+        aPage->hdr.nObjects, objArrayElemNo, 1, objectItemLen);
+
+    /* decrease the # of objects */
+    aPage->hdr.nObjects --;
+
+    return(eNOERROR);
+
+} /* Redo_MLGF_DeleteObjectFromOverflowPage( ) */

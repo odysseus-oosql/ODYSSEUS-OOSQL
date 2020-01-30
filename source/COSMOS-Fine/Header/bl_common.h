@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,48 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _COMMON_BL_H_
+#define _COMMON_BL_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <limits.h>             		/* for CHAR_BIT */
+#include "param.h"      			
+#include "basictypes.h"    			
+#include "primitivetypes.h"			
+#include "error.h"
+#include "Util_varArray.h" 			/* for VarArray */
+#include "latch.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/***** FROM LRDS.h *****/
+typedef struct {
+    Two flag;        /* UNIQUE, ... */
+    Two nColumns;    /* # of key parts */
+    struct {
+        Four colNo;
+        Four flag;   /* ascending/descendig */
+    } columns[MAXNUMKEYPARTS];
+} KeyInfo;
+
+/***** FROM LRDS.h *****/
+/*
+** Typedefs for TupleHdr
+*/
+#define TUPLE_HEADER_FIXED (sizeof(Two)*2 + sizeof(Four))
+
+typedef struct {
+    Two nFixedCols;     /* # of fixed-length columns stored */
+    Two nVarCols;    /* # of variable-length columns stored */
+    Four firstVarColOffset;   /* starting offset of the first variable-length column */
+
+    Four varColOffset[MAXNUMOFCOLS]; /* starting offset of next variable column */
+    /* The nullVector may be placed in the 'varColOffset' array. */
+    /* So the 'nullVector' field doesn't used explicitly. */
+    /* Rather than it reserves some space. */
+    unsigned char nullVector[(MAXNUMOFCOLS+(CHAR_BIT-1))/CHAR_BIT]; /* bit array of null flags */
+
+} TupleHdr;
+
+
+#endif /* _COMMON_BL_H_ */
+
+

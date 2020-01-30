@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,46 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _UTIL_H_
+#define _UTIL_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <limits.h>		/* for CHAR_BIT */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "Util_pool.h"		/* to get pool */
+#include "Util_heap.h"		/* to get heap */
+#include "Util_varArray.h"	/* the variable size array */
+#include "Util_Sort.h"
+
+/* Useful Macros */
+#define BITMASK(bit) ((unsigned)0x80 >> ((bit) % CHAR_BIT))
+#define BITSLOT(bit) ((bit) / CHAR_BIT)
+#define BITSET(ary, bit) ((ary)[BITSLOT(bit)] |= BITMASK(bit))
+#define BITRESET(ary, bit) ((ary)[BITSLOT(bit)] &= ~BITMASK(bit))
+#define BITTEST(ary, bit) ((ary)[BITSLOT(bit)] & BITMASK(bit))
+
+
+
+#define SORT_STREAM_TABLE(_handle)      (perThreadTable[_handle].utilDS.sortStreamTable)
+
+
+/*
+ * Utility Interface Function Prototypes
+ */
+void stTwo(Four, Two, char*);
+void stFour(Four, Four, char*);
+char *Util_Err(Four);
+void Util_ClearBits(Four, unsigned char *, Four, Four);
+void Util_CountBitsSet(Four, unsigned char *, Four, Four, Four *);
+void Util_FindBits(Four, unsigned char *, Four, Four, Four, Four *);
+Four Util_PrintBits(Four, unsigned char *, Four, Four);
+void Util_SetBits(Four, unsigned char *, Four, Four);
+void Util_TestBitSet(Four, unsigned char*, Four, Boolean*);
+void Util_TestBitsSet(Four, unsigned char *, Four, Four, Boolean*);
+
+/*
+ * Utility Interface to sleep calling thread
+ */
+Four Util_Sleep(Four, double);
+
+/* void Util_traceInit(Four, int*, char**); --> see trace.h */
+#endif /* _UTIL_H_ */

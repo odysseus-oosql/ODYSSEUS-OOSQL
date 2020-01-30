@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,110 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_InitDS.c
+ *
+ * Description :
+ *  Initialize data structures used in btree manager.
+ *
+ * Exports:
+ *  Four BtM_InitSharedDS(Four)
+ *  Four BtM_InitLocalDS(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "Util.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+
+/*@================================
+ * Four BtM_InitSharedDS( )
+ *================================*/
+/*
+ * Function: Four BtM_InitSharedDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four BtM_InitSharedDS(
+    Four    	handle
+)
+{
+    Four 	e;
+    Four 	i;
+
+
+    TR_PRINT(handle, TR_BTM, TR1, ("BtM_InitSharedDS()"));
+
+    /*
+    ** Initailze the main memory data structure used in Scan Manager.
+    */
+    /* Initialize the allocated entries in btm_treelatchPtrTable */
+    for (i = 0; i < BTM_TREELATCH_HASHSIZE; i++)
+	BTM_TREELATCHPTRTABLE[i] = LOGICAL_PTR(NULL); 
+
+    e = SHM_initLatch(handle, &BTM_LATCH4TREELATCHTABLE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Initialize the treeLatchCell Pool. */
+    e = Util_initPool(handle, &BTM_TREELATCHPOOL, sizeof(btmTreeLatchCell), BTM_TREELATCH_INITPOOLSIZE);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* BtM_InitSharedDS() */
+
+
+
+/*@================================
+ * Four BtM_InitLocalDS( )
+ *================================*/
+/*
+ * Function: Four BtM_InitLocalDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four BtM_InitLocalDS(
+    Four			handle
+)
+{
+    Four 			e;                     /* error number */
+    Four 			i;                     /* temporary index */
+
+    /* pointer for BtM Data Structure of perThreadTable */
+    BtM_PerThreadDS_T *btm_perThreadDSptr = BtM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_BTM, TR1, ("BtM_InitLocalDS()"));
+
+    /* Allocate some entries in the btmCache4TreeLatch */
+    e = Util_initVarArray(handle, &(btm_perThreadDSptr->btmCache4TreeLatch), sizeof(btmCache4TreeLatchCell), BTM_TREELATCH_INITCACHESIZE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Initialize the allocated entries in the cache for tree latch */
+    for (i = 0; i < btm_perThreadDSptr->btmCache4TreeLatch.nEntries; i++) {
+        SET_NILINDEXID(BTM_CACHE4TREELATCH(handle)[i].iid);
+        BTM_CACHE4TREELATCH(handle)[i].tLatchCellPtr = NULL;
+    }
+
+    /* Initialize the LogicalID Mapping Table for BtM */
+    e = btm_IdMapping_InitTable(handle); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* BtM_InitLocalDS() */
+

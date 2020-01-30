@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,93 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_FindEntry.c
+ *
+ * Description:
+ *  Find an entry corresponding to the region which contains the given point.
+ *
+ * Exports:
+ *  Boolean mlgf_FindEntry(Four, Four, mlgf_DirectroyPage*, MLGF_HashValue[], Four*)
+ *
+ * Returns:
+ *  TRUE : if there is an entry associated with a region conaining the given point.
+ *  FALSE : otherwise.
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Boolean mlgf_FindEntry(
+    Four 		handle,
+    mlgf_DirectoryPage 	*dirPage, 		/* IN a directory page */
+    Four 		nKeys,			/* IN # of keys of MLGF */
+    MLGF_HashValue 	*keys,	 		/* IN hash values of keys */
+    Four 		*entryNo)		/* OUT entry which includes the keys */
+{
+    Four 		i;			/* index variable */
+    Four 		j;			/* index variable */
+    Four 		entryLen;		/* length of a directroy entry */
+    MLGF_HashValue 	xor;			/* XOR value of two hash values */
+    One  		*entryNumValidBits;	/* points to nValidBits[] field in an entry */
+    MLGF_HashValue 	*entryHashValues; 	/* points to array of hash values in an entry */
+    mlgf_DirectoryEntry *entry;	     		/* a directory entry of MLGF */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_FindEntry(handle, dirPage=%P, nKeys=%ld, keys=%P, entryNo=%P)",
+	      nKeys, dirPage, keys, entryNo));
+
+
+    /* Calculate the directory entry length. */
+    entryLen = MLGF_DIRENTRY_LENGTH(nKeys);
+
+    /*
+    ** Find an entry containing the given point.
+    */
+    /* first entry */
+    entry = (mlgf_DirectoryEntry*)&dirPage->data[0];
+    entryNumValidBits = entry->nValidBits;
+    entryHashValues = MLGF_DIRENTRY_HASHVALUEPTR(entry, nKeys);
+
+    for (i = 0; i < dirPage->hdr.nEntries; i++) {
+
+	for (j = 0; j < nKeys; j++) {
+	    if (entryNumValidBits[j] == 0) continue;
+
+	    xor = entryHashValues[j] ^ keys[j];
+
+	    if ((xor >> (MLGF_MAXNUM_VALIDBITS - entryNumValidBits[j])) != 0) break;
+	}
+
+	if (j == nKeys) {	/* found */
+	    *entryNo = i;
+	    return(TRUE);
+	}
+
+	/* Points to the nValidBits field in the next entry. */
+	entryNumValidBits = entryNumValidBits + entryLen;
+
+	/* Points to the field, hashValues[] in the next entry. */
+	entryHashValues = (MLGF_HashValue*)((char*)entryHashValues + entryLen);
+    }
+
+    return(FALSE);
+
+} /* mlgf_FindEntry() */

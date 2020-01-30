@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,105 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_RDsM_Modify_Extent_Link.c
+ *
+ * Description:
+ *  Undo update extent link
+ *
+ * Exports:
+ *  Four Undo_RDsM_Modify_Extent_Link(XactTableEntry_T*, Buffer_ACC_CB*, Lsn_T*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "RDsM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Four Undo_RDsM_Modify_Extent_Link(
+    Four                                        handle,                 /* IN handle */
+    XactTableEntry_T 				*xactEntry, 		/* IN transaction table entry */
+    Buffer_ACC_CB 				*aPage_BCBP,  		/* INOUT buffer access control block holding data */
+    Lsn_T 					*logRecLsn,           	/* IN log record to undo */
+    LOG_LogRecInfo_T 				*logRecInfo) 		/* IN operation information for writing a small object */
+{
+    Four 					e;			/* error code */
+    ExtentMapPage_T 				*aPage;
+    Four					index;                  /* index of extent map entry array */
+    LOG_Image_RDsM_Modify_ExtentLink_T 		*updateExtentLink;      /* bitmap update image */
+    Lsn_T 					lsn;                  	/* lsn of the newly written log record */
+    Lsn_T 					lastLsn;		/* last lsn of the current transaction */
+    Four 					logRecLen;             	/* log record length */
+    LOG_LogRecInfo_T 				localLogRecInfo; 	/* log record information */
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_RDsM_Modify_Extent_Link(xactEntry=%P, aPage_BCBP=%P, logRecLsn=%P, logRecInfo=%P)",
+             xactEntry, aPage_BCBP, logRecLsn, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	set pointers pointing to respective images
+     *
+     *  logRecInfo->imageData[0] : offset of the extent map entry in the page
+     *  logRecInfo->imageData[1] : new extent map entry info
+     *  logRecInfo->imageData[2] : old extent map entry info
+     */
+    index       	= *(Four*)logRecInfo->imageData[0];
+    updateExtentLink 	= (LOG_Image_RDsM_Modify_ExtentLink_T*)logRecInfo->imageData[2];
+
+    aPage = (ExtentMapPage_T*) aPage_BCBP->bufPagePtr;
+
+
+
+
+
+    /*
+     *  undo update extent fill factor
+     */
+    if (updateExtentLink->prevExt != NO_OP)
+    	aPage->entry[index].prevExt = updateExtentLink->prevExt;
+    if (updateExtentLink->nextExt != NO_OP)
+        aPage->entry[index].nextExt = updateExtentLink->nextExt;
+
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_RDSM_MODIFY_EXTENT_LINK, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          logRecInfo->imageSize[2], logRecInfo->imageData[2]);
+
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->hdr.lsn = lsn;
+    aPage->hdr.logRecLen = logRecLen;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_RDsM_Modify_Extent_Link() */

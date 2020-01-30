@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,85 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_NextSortedBulkLoad.c
+ *
+ * Description:
+ *  Next phase of B+ tree index bulkload.
+ *
+ * Exports:
+ *  Four BtM_NextSortedBulkLoad(KeyValue*, ObjectID*)
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "BtM.h"
+#include "BL_BtM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+
+/*@===========================
+ * BtM_NextSortedBulkLoad()
+ *===========================*/
+/*
+ * Function: Four BtM_NextSortedBulkLoad(KeyValue*, ObjectID*)
+ *
+ * Description:
+ *  Put given <key, oid> into B+ tree index.
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *
+ */
+Four BtM_NextSortedBulkLoad (
+    Four		    handle,
+    XactTableEntry_T        *xactEntry,             /* IN transaction table entry */
+    Four                    btmBlkLdId,             /* IN BtM bulkload ID */
+    KeyValue                *key,                   /* IN key value of the inseted ObjectID */
+    ObjectID                *oid,                   /* IN ObjectID to insert */
+    LogParameter_T          *logParam)              /* IN log parameter */
+{
+    Four                    e;                      /* error number */
+
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+             ("BtM_NextSortedBulkLoad(xactEntry=%P, btmBlkLdId=%ld, key=%P, oid=%P, logParam=%P)",
+             xactEntry, btmBlkLdId, key, oid, logParam));
+
+
+    /*
+    ** I. Check parameters
+    */
+
+    if (xactEntry == NULL)              ERR(handle, eBADPARAMETER);
+
+    if (key == NULL)                    ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL)                    ERR(handle, eBADPARAMETER);
+
+    if (logParam == NULL)               ERR(handle, eBADPARAMETER);
+
+
+
+    /*
+    ** II. Insert <key,oid> into leaf node of index */
+    e = btm_BlkLdInsertLeaf(handle, xactEntry, btmBlkLdId, key, oid, logParam);
+    if (e < 0)  ERR(handle, e);
+
+
+
+    return eNOERROR;
+
+}   /* BtM_NextSortedBulkLoad() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,56 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: rdsm_GetVolTableEntryNoByVolNo.c
+ *
+ * Description:
+ *  Get volumte table entry no with a given volume no.
+ *
+ * Exports:
+ *  Four rdsm_GetVolTableEntryNoByVolNo(Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+Four	rdsm_GetVolTableEntryNoByVolNo(
+    Four        handle,                /* IN    handle */
+    Four        volNo,                 /* IN volume number */
+    Four        *entryNo)              /* OUT corresponding volume table entry no */
+{
+    Four	e;                     /* returned error code */
+    Four	i;                     /* loop index */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_GetVolTableEntryNoByVolNo(volNo=%ld, entryNo=%ld)", volNo, entryNo));
+
+
+    /*
+     *	get the corresponding volume table entry via searching the volTable
+     */
+    for (i = 0; i < MAXNUMOFVOLS; i++)
+        if (RDSM_USERVOLTABLE(handle)[i].volNo == volNo) break;
+
+    if (i >= MAXNUMOFVOLS) ERR(handle, eVOLNOTMOUNTED_RDSM);
+   
+	
+
+
+    /*
+     *	set a pointer to the corresponding entry
+     */
+    *entryNo = i;
+
+    return(eNOERROR);
+
+} /* rdsm_GetVolTableEntryNoByVolNo() */

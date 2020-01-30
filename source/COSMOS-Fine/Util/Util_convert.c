@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,69 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Util_convert.c
+ *
+ * Description:
+ *  Store/Load the numbers to/from an array of char's.
+ *
+ * Exports:
+ *  void stTwo(Four, Two, char*)
+ *  void stFour(Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ *  These functions are machine-dependent.
+ */
+
+
+/*
+ * Function: void stTwo(Four, Two, char*)
+ *
+ * Description:
+ *  Store type 'Two' number into an array of 'char'.
+ *
+ * Returns:
+ *  None
+ */
+void stTwo(
+    Four 	handle,
+    Two 	i,			/* IN type 'Two' number to store */
+    char 	*p)			/* OUT place to put the number */
+{
+    memcpy(p, &i, sizeof(Two));
+
+}  /* stTwo() */
+
+
+/*
+ * Function: void stFour(Four, Four, char*)
+ *
+ * Description:
+ *  Store type 'Four' number into an array of 'char'.
+ *
+ * Returns:
+ *  None
+ */
+void stFour(
+    Four 	handle,
+    Four 	l,			/* IN type 'Four' number to store */
+    char 	*p)			/* OUT place to put the number */
+{
+
+    memcpy(p, &l, sizeof(Four));
+
+}  /* stFour() */
+
+
+

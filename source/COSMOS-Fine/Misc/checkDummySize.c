@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,53 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <errno.h>
+#include "perThreadDS.h"
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+extern errno;
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+Four main(void)
+{
+    Four                size_PerThreadTableEntry_T;
+    Four                size_LRDS_PerThreadDS_T;
+    Four                size_LRDS_BlkLDTableEntry;
+    Four                size_SharedMemory;
+    char                string[1024];
+    FILE                *fp;
+    Four                e;
+
+    size_PerThreadTableEntry_T  = sizeof(PerThreadTableEntry_T);
+    size_LRDS_PerThreadDS_T     = sizeof(LRDS_PerThreadDS_T);
+    size_LRDS_BlkLDTableEntry   = sizeof(LRDS_BlkLdTableEntry);
+
+    size_SharedMemory           = sizeof(SemStruct);
+
+    fp = fopen("sedForCheckDummySize.dat", "w");
+    if (fp == NULL) {
+        fprintf(stderr, "[%s:%ld] error=%ld, message=%s\n", __FILE__, __LINE__, errno, strerror(errno));
+        exit(1);
+    }
+
+    fprintf(fp, "s/dummy_Bulkload\\[[0-9]*\\]/dummy_Bulkload\\[%ld\\]/g\n",
+            size_LRDS_BlkLDTableEntry * MAX_LRDS_BLKLD_TABLE_SIZE);
+
+    fprintf(fp, "s/dummy_Thread\\[[0-9]*\\]/dummy_Thread\\[%ld\\]/g\n",
+            size_PerThreadTableEntry_T - size_LRDS_PerThreadDS_T);
+
+    e = fclose(fp);
+    if (e != 0) {
+        fprintf(stderr, "[%s:%ld] error=%ld, message=%s\n", __FILE__, __LINE__, errno, strerror(errno));
+        exit(1);
+    }
+
+    strcpy(string, "sed -f sedForCheckDummySize.dat ../Header/cosmos_r.h > _cosmos_r.h");
+    system(string);
+
+    strcpy(string, "\\mv _cosmos_r.h ../Header/cosmos_r.h");
+    system(string);
+
+    return eNOERROR;
+}

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,73 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_GetRootPid.c
+ *
+ * Description:
+ *  Get the root page of MLGF index from MLGF index info
+ *
+ * Exports:
+ *  Four mlgf_GetRootPid(Four, IndexID *, ObjectID *)
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "MLGF.h"
+#include "SM.h"
+#include "SHM.h"
+
+
+
+/*@================================
+ * mlgf_GetRootPid()
+ *================================*/
+/*
+ * Function: Four mlgf_GetRootPid(Four, IndexID *, ObjectID *)
+ *
+ * Description:
+ *  Get the root page of MLGF index from MLGF index info
+ *
+ * Returns:
+ *  Error code
+ *
+ */
+Four mlgf_GetRootPid(
+    Four                        handle,                 /* IN  handle */
+    XactTableEntry_T		*xactEntry,		/* IN  transaction table entry */
+    MLGFIndexInfo		*iinfo,			/* IN  index information */
+    PageID			*rootPid,		/* OUT root page ID */
+    LockParameter		*lockup			/* IN  lockup parameter */
+)
+{
+    Four               		e;               	/* error code */
+
+    /* get root page ID */
+    if (iinfo->tmpIndexFlag) {
+
+        /* temporary file */
+        MAKE_PAGEID(*rootPid, iinfo->iid.volNo, iinfo->catalog.entry->rootPage);
+
+    } else {
+        e = mlgf_IdMapping_GetPhysicalId(handle, xactEntry, iinfo, rootPid, lockup);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+
+    return(eNOERROR);
+}

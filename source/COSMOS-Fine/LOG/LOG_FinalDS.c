@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,77 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_Final.c
+ *
+ * Description:
+ *  Finalize the log manager.
+ *
+ * Exports:
+ *  Four LOG_Final(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_FinalLocalDS(Four)
+ *
+ * Description:
+ *  Finalize the local data structure of the log manager.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_FinalLocalDS(
+    Four    handle)
+{
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_FinalLocalDS()"));
+
+    return(eNOERROR);
+
+} /* LOG_FinalSharedDS( ) */
+
+
+
+/*
+ * Function: Four LOG_FinalSharedDS(Four)
+ *
+ * Description:
+ *  Finalize the shared data structure of the log manager.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_FinalSharedDS(
+    Four    		handle)
+{
+    Four   		e;		/* error code */
+    PageID 		pid;		/* page id of the log master page */
+    log_LogMasterPage_T masterPage; 	/* log master page */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_FinalSharedDS()"));
+
+
+    /* No Concurrency Control is needed */
+
+    if (common_shmPtr->recoveryFlag == FALSE) return(eNOERROR);
+
+    /*
+     *	reflect all the contents in the log buffer into the log file.
+     */
+    e = log_BufFinal(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LOG_FinalSharedDS( ) */

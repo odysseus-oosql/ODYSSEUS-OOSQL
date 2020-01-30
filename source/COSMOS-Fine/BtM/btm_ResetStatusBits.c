@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,142 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_ResetStatusBit.c
+ *
+ * Description:
+ *  Reset the status bits of the given page.
+ *
+ *  CAUTION :: Calling routine must acquire the latch(es) of child_BCB
+ *            (and parentLatchPtr, if exists). This routine keeps the
+ *            latch of child_BCB and if parentLatchPtr is not NULL,
+ *            release this latch.
+ *
+ * Exports:
+ *  Four btm_ResetStatusBitsLeaf(Four, btm_TraversePath*, KeyDesc*,
+ *                               KeyValue*, Buffer_ACC_CB*, LATCH_TYPE*)
+ *
+ * Returns:
+ *  BTM_RELATCHED
+ *  BTM_RETRAVERSE
+ *  Error code
+ *    some errors caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four btm_ResetStatusBitsLeaf(
+    Four handle,
+    btm_TraversePath *path,	/* IN Btree traverse path stack */
+    KeyDesc *kdesc,		/* IN key descriptor */
+    KeyValue *kval,		/* IN key value */
+    Buffer_ACC_CB *leaf_BCB,	/* INOUT buffer control block for leaf page */
+    LATCH_TYPE *parentLatchPtr)	/* IN pointer to parent latch */
+{
+    Four e;			/* error code */
+    BtreeLeaf *apage;		/* pointer to buffer holding a leaf page */
+    Lsn_T oldLsn;               /* remember the lsn of the leaf */
+    IndexID iid;		/* IndexID of the leaf */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("btm_ResetStatusBitsLeaf(handle, path=%P, kdesc=%P, kval=%P, leaf_BCB=%P, parentLatchPtr=%P)",
+	      path, kdesc, kval, leaf_BCB, parentLatchPtr));
+
+
+    apage = (BtreeLeaf*)leaf_BCB->bufPagePtr;
+
+    /* Request a conditional, instant duration S latch on the tree. */
+    e = btm_GetTreeLatchInPath(handle, path, M_SHARED, M_CONDITIONAL|M_INSTANT);
+    if (e < 0) {
+        if (parentLatchPtr != NULL)
+            ERRL2(handle, e, leaf_BCB->latchPtr, parentLatchPtr);
+        else
+            ERRL1(handle, e, leaf_BCB->latchPtr);
+    }
+
+    if (e == eNOERROR) {   /* if e != SHM_BUSYLATCH */
+
+        /* release the parent latch. */
+        if (parentLatchPtr != NULL) {
+            e = SHM_releaseLatch(handle, parentLatchPtr, procIndex);
+            if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+        }
+
+	/* Reset the smBit and deleteBit to 0 on the leaf. */
+	apage->hdr.statusBits = 0;
+
+	leaf_BCB->dirtyFlag = 1;
+
+	return(eNOERROR);
+
+    }
+
+    /* Release latches and acqiure tree latch. */
+    if (parentLatchPtr != NULL) {
+        e = SHM_releaseLatch(handle, parentLatchPtr, procIndex);
+        if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+    }
+
+    /* Remember the LSN of the leaf. */
+    oldLsn = apage->hdr.lsn;
+    iid = apage->hdr.iid;
+
+    e = SHM_releaseLatch(handle, leaf_BCB->latchPtr, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* Request an unconditional, manual duration S latch on the tree. */
+    e = btm_GetTreeLatchInPath(handle, path, M_SHARED, M_UNCONDITIONAL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Relatch the leaf with X mode. */
+    e = SHM_getLatch(handle, leaf_BCB->latchPtr, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERRTL(handle, e, path);
+
+    /* Release the tree latch. */
+    e = btm_ReleaseTreeLatchInPath(handle, path);
+    if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+
+    if (!LSN_CMP_EQ(apage->hdr.lsn, oldLsn) &&
+	(apage->hdr.iid.serial != iid.serial || !(apage->hdr.type & LEAF))) { 
+
+	/* Possible starvation: We may hold the tree latch which */
+	/* is released above after acquiring a latch for the correct leaf. */
+        e = SHM_releaseLatch(handle, leaf_BCB->latchPtr, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+	return(BTM_RETRAVERSE);
+    }
+
+    /* Reset the smBit and deleteBit to 0 on the leaf. */
+    apage->hdr.statusBits = 0;
+
+    leaf_BCB->dirtyFlag = 1;
+
+    /* Check the boundary condition. */
+    if (!btm_IsCorrectLeaf(handle, apage, kdesc, kval, &iid, NULL)) { 
+
+	/* Possible starvation: We may hold the tree latch which */
+	/* is released above after acquiring a latch for the correct leaf. */
+	e = SHM_releaseLatch(handle, leaf_BCB->latchPtr, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+	return(BTM_RETRAVERSE);
+    }
+
+
+    return(BTM_RELATCHED);
+
+
+
+} /* btm_ResetStatusBitsLeaf() */

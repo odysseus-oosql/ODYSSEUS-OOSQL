@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,112 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_LOT_ReplaceInternalEntries.c
+ *
+ * Description:
+ *  Undo replacing entries into internal node
+ *
+ * Exports:
+ *  Four Undo_LOT_ReplaceInternalEntries(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_LOT_ReplaceInternalEntries(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing a small object */
+{
+    Four e;			/* error code */
+    L_O_T_INodePage *apage;     /* pointer to an internal node page */
+    L_O_T_INode *anode;         /* pointer to an internal node */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Lsn_T lastLsn;		/* last lsn of the current transaction */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_LOT_ReplaceInternalEntries_T *replaceInternalEntriesInfo;
+    Four nNewEntries_backup;
+    Four i;
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_LOT_ReplaceInternalEntries()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    apage = (L_O_T_INodePage*)aPage_BCBP->bufPagePtr;
+    anode = &apage->node;
+    replaceInternalEntriesInfo = (LOG_Image_LOT_ReplaceInternalEntries_T*)logRecInfo->imageData[0];
+
+
+    /*
+     * undo replacing entries
+     */
+    /* change the count to subtree count instead of accumulated count */
+    for (i = anode->header.nEntries - 1; i > 0; i--)
+	anode->entry[i].count -= anode->entry[i-1].count;
+
+    /* reserve space: we should consider the replaced entries */
+    memmove(&anode->entry[replaceInternalEntriesInfo->start + replaceInternalEntriesInfo->nOldEntries],
+            &anode->entry[replaceInternalEntriesInfo->start + replaceInternalEntriesInfo->nNewEntries],
+            (anode->header.nEntries - replaceInternalEntriesInfo->start - replaceInternalEntriesInfo->nNewEntries) * sizeof(L_O_T_INodeEntry));
+
+    /* copy old entries */
+    memcpy(&anode->entry[replaceInternalEntriesInfo->start],
+           logRecInfo->imageData[2], logRecInfo->imageSize[2]);
+
+    /* change # of entries */
+    anode->header.nEntries -= replaceInternalEntriesInfo->nNewEntries - replaceInternalEntriesInfo->nOldEntries;
+
+    /* adjust the count */
+    for (i = 1; i < anode->header.nEntries; i++)
+        anode->entry[i].count += anode->entry[i-1].count;
+
+
+    /*
+     *  make the compensation log record
+     */
+    nNewEntries_backup = replaceInternalEntriesInfo->nNewEntries;
+    replaceInternalEntriesInfo->nNewEntries = replaceInternalEntriesInfo->nOldEntries;
+    replaceInternalEntriesInfo->nOldEntries = nNewEntries_backup;
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_LOT_REPLACE_INTERNAL_ENTRIES, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          logRecInfo->imageSize[2], logRecInfo->imageData[2]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    apage->header.lsn = lsn;
+    apage->header.logRecLen = logRecLen;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_LOT_ReplaceInternalEntries( ) */

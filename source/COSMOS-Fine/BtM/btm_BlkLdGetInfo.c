@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,84 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_BlkLdGetInfo.c
+ *
+ * Description :
+ *  This function sets information variables to be needed for bulkloading.
+ *
+ * Exports:
+ *  Four btm_BlkLdGetInfo(ObjectID*, PageID*, KeyDesc*, Two, Two)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "BL_BtM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+/*@=====================
+ * btm_BlkLdGetInfo()
+ *=====================*/
+/*
+ * Function: Four btm_BlkLdGetInfo(ObjectID*, PageID*, KeyDesc*, Two, Two)
+ *
+ * Description:
+ *  This function sets information variables to be needed for bulkloading.
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *  parameter blkldInfo is filled with given input parameter and other information
+ */
+Four btm_BlkLdGetInfo (
+    Four		    handle,
+    Four                    btmBlkLdId,         /* IN BtM bulkload ID */
+    BtreeIndexInfo          *iinfo,             /* IN B tree information */
+    PageID                  *root,              /* IN Index ID of index to be created */
+    KeyDesc                 *kdesc,             /* IN key descriptor of B+ tree index */
+    Two                     eff,                /* IN extent fill factor */
+    Two                     pff)                /* IN page fill factor */
+{
+    Four                    e;                  /* error number */
+    Four                    sizeOfExt;          /* size of extent for given volume */
+    BtM_BlkLdTableEntry*    blkLdEntry;         /* entry in which information about BtM bulkload is saved */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+            ("btm_BlkLdGetInfo(btmBlkLdId=%ld, iinfo=%P, root=%P, kdesc=%P, eff=%ld, pff=%ld)",
+            btmBlkLdId, iinfo, root, kdesc, eff, pff));
+
+
+    /* 0. set entry for fast access */
+    blkLdEntry = &BTM_BLKLD_TABLE(handle)[btmBlkLdId];
+
+
+    /* 2. get the extent size of this volume to allocate buffer */
+    e = RDsM_GetSizeOfExt(handle, iinfo->iid.volNo, &sizeOfExt);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* 4. Set bulkload information variable */
+    blkLdEntry->btmBlkLdblkldInfo.iinfo        = *iinfo;
+    blkLdEntry->btmBlkLdblkldInfo.root         = *root;
+    blkLdEntry->btmBlkLdblkldInfo.sizeOfExt    = sizeOfExt;
+    blkLdEntry->btmBlkLdblkldInfo.eff          = eff;
+    blkLdEntry->btmBlkLdblkldInfo.pff          = pff;
+    blkLdEntry->btmBlkLdblkldInfo.isTmp        = iinfo->tmpIndexFlag;
+    blkLdEntry->btmBlkLdblkldInfo.kdesc        = *kdesc;
+
+
+    return eNOERROR;
+
+}   /* btm_BlkLdGetInfo() */

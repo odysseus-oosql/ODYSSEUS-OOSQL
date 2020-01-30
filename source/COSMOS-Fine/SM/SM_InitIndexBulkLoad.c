@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,127 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_InitIndexBulkLoad.c
+ *
+ * Description :
+ *  Initialize B+ tree index bulkload.
+ *
+ * Exports:
+ *  Four SM_InitIndexBulkLoad(VolID, KeyDesc *)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "SM.h"
+#include "BL_SM.h"
+#include "RDsM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+/*@===========================
+ * SM_InitIndexBulkLoad()
+ *===========================*/
+/*
+ * Function: Four SM_InitIndexBulkLoad(VolID, KeyDesc *)
+ *
+ * Description:
+ *  Initialize B+ tree index bulkload.
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calss
+ *
+ * Side Effects:
+ *  parameter indexBlkLdId is filled with index bulkload ID
+ */
+Four SM_InitIndexBulkLoad (
+    Four		    handle,
+    VolID                   volId,                  /* IN volume ID in which temporary files are allocated */
+    KeyDesc                 *kdesc)                 /* IN key descriptor of the given B+ tree */
+{
+    Four                    e;                      /* error number */
+    Four                    i;                      /* a loop index */
+    Four                    v;                      /* array index on scan manager mount table */
+    SortTupleDesc           sortKeyDesc;            /* sort key descriptor of Btree index */
+    Four                    blkLdId;                /* OM bulkload ID */
+    SM_IdxBlkLdTableEntry*  blkLdEntry;             /* entry in which information about bulkload is saved */
+    LogParameter_T          logParam;
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+            ("SM_InitIndexBulkLoad(volId=%ld, kdesc=%P)", volId, kdesc));
+
+
+    /*
+    **  O. Check parameters
+    */
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+        if (SM_MOUNTTABLE[v].volId == volId) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+    if (kdesc == NULL)          ERR(handle, eBADPARAMETER);
+
+
+    /*
+    **  I. Find empty entry from SM index bulkload table
+    */
+
+    for (blkLdId = 0; blkLdId < SM_IDXBLKLD_TABLE_SIZE; blkLdId++ ) {
+	if (SM_IDXBLKLD_TABLE(handle)[blkLdId].isUsed == FALSE) break;
+    }
+    if (blkLdId == SM_IDXBLKLD_TABLE_SIZE) ERR(handle, eBLKLDTABLEFULL);
+
+    /* This login don't check boundary condition. So this is incorrect.
+     * for (blkLdId = 0; SM_IDXBLKLD_TABLE(handle)[blkLdId].isUsed != FALSE; blkLdId++ ) {
+     *   if (blkLdId >= SM_IDXBLKLD_TABLE_SIZE) ERR(handle, eBLKLDTABLEFULL);
+     * }
+     */
+
+    /* set entry for fast access */
+    blkLdEntry = &SM_IDXBLKLD_TABLE(handle)[blkLdId];
+
+    /* set isUsed flag */
+    blkLdEntry->isUsed = TRUE;
+
+
+    /*
+    **  II. Make sortKeyDesc
+    */
+
+    sortKeyDesc.nparts  = kdesc->nparts;
+    sortKeyDesc.hdrSize = 0;
+    for (i = 0; i < kdesc->nparts; i++) {
+        sortKeyDesc.parts[i].type   = kdesc->kpart[i].type;
+        sortKeyDesc.parts[i].length = kdesc->kpart[i].length;
+        sortKeyDesc.parts[i].flag   = SORTKEYDESC_ATTR_ASC;
+    }
+
+    sortKeyDesc.parts[i].type   = SM_OBJECT_ID;
+    sortKeyDesc.parts[i].length = SM_OBJECT_ID_SIZE;
+    sortKeyDesc.parts[i].flag   = SORTKEYDESC_ATTR_ASC;
+    sortKeyDesc.nparts++;
+
+
+    /*
+    **  III. Open sort stream for bulkload
+    */
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+
+    blkLdEntry->streamId = Util_OpenSortStream(handle, MY_XACT_TABLE_ENTRY(handle), volId, &sortKeyDesc, &logParam);
+    if (blkLdEntry->streamId < 0) ERR(handle, blkLdEntry->streamId);
+
+
+    return blkLdId;
+
+
+}   /* SM_InitIndexBulkLoad() */

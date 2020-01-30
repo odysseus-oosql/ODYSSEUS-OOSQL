@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,130 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: sm_mlgf_GetIndexInfoFromIndexId.c
+ *
+ * Description:
+ *  Get the index information for the given MLGF index
+ *  We look up the catalog object from SM_SYSINDEXES
+ *
+ * Exports:
+ *  Four sm_mlgf_GetIndexInfoFromIndexId(Four, Four, IndexID *, BtreeIndexInfo *)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*@================================
+ * sm_mlgf_GetIndexInfoFromIndexId()
+ *================================*/
+/*
+ * Function: Four sm_mlgf_GetIndexInfoFromIndexId(Four, Four, IndexID *, BtreeIndexInfo *)
+ *
+ * Description:
+ *  Get the index information for the given MLGF index
+ *  We look up the catalog object from SM_SYSINDEXES
+ *
+ * Returns:
+ *  Error code
+ *
+ * Side effects:
+ *  None
+ */
+Four sm_mlgf_GetIndexInfoFromIndexId(
+    Four                        handle,                 /* IN  handle */
+    Four 			v,			/* IN  index for the used volume on the mount table */
+    IndexID 			*index,			/* IN  index identifier of the given index */
+    MLGFIndexInfo 		*iinfo,			/* OUT index information of the given index */
+    FileID 			*fid                 	/* OUT File ID concerned with the index */
+)
+{
+    Four 			e;			/* error number */
+    BtreeCursor 		schBid;			/* a B+ tree cursor */
+    KeyValue 			kval;			/* key value */
+    Four 			i;
+    sm_CatOverlayForSysIndexes 	sysIndexesOverlay; 	/* entry of SM_SYSINDEXES */
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("sm_mlgf_GetIndexInfoFromIndexId(v=%ld, index=%P, iinfo=%P, fid=%P)", v, index, iinfo, fid));
+
+    /*
+    ** Set index ID, i.e. iid
+    */
+
+    iinfo->iid = *index;
+
+
+    /*
+    ** Get the tmpIndexFlag & catalog
+    */
+
+    /*@ Construct kval. */
+    /* Construct a key for the MLGF on IndexID field of SM_SYSINDEXES */
+    kval.len = sizeof(Two) + sizeof(Four);
+    memcpy(&kval.val[0], &(index->volNo), sizeof(Two)); /* volNo is Two */
+    memcpy(&kval.val[sizeof(Two)], &(index->serial), sizeof(Four));
+
+    /* Get the ObjectID of the catalog object for 'index' in SM_SYSINDEXES */
+    e = BtM_Fetch(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_MOUNTTABLE[v].sysIndexesIndexIdIndexInfo),
+		  &(SM_MOUNTTABLE[v].sysIndexesInfo.fid), 
+                  &SM_SYSIDX_INDEXID_KEYDESC, &kval, SM_EQ, &kval, SM_EQ, &schBid, NULL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if (schBid.flag == CURSOR_ON) {
+
+	/* set tmpIndexFlag */
+	iinfo->tmpIndexFlag = FALSE;
+
+	/* set catalog */
+	iinfo->catalog.oid = schBid.oid;
+
+        /* set file id */
+        e = OM_ReadObject(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_MOUNTTABLE[v].sysIndexesInfo.fid),
+                          &schBid.oid, 0, REMAINDER, (char*)&sysIndexesOverlay, NULL);
+        if (e < eNOERROR) ERR(handle, e);
+
+        *fid = sysIndexesOverlay.dataFid; 
+
+    } else {
+	/* Check if the index is one defined on a temporary file. */
+	for (i = 0; i < SM_NUM_OF_ENTRIES_OF_SI_FOR_TMP_FILES(handle); i++)
+	    if (!SM_IS_UNUSED_ENTRY_OF_SI_FOR_TMP_FILES(SM_SI_FOR_TMP_FILES(handle)[i]) &&
+		EQUAL_INDEXID(*index, SM_SI_FOR_TMP_FILES(handle)[i].iid)) {
+
+		/* set tmpIndexFlag */
+		iinfo->tmpIndexFlag = TRUE;
+
+		/* set catalog */
+		iinfo->catalog.entry = &(SM_SI_FOR_TMP_FILES(handle)[i]);
+
+                /* set file id */
+                *fid = SM_SI_FOR_TMP_FILES(handle)[i].dataFid; 
+
+		break;
+	    }
+
+	/* invalid index id */
+	if (i == SM_NUM_OF_ENTRIES_OF_SI_FOR_TMP_FILES(handle)) ERR(handle, eBADINDEXID);
+    }
+
+
+    return(eNOERROR);
+
+} /* sm_mlgf_GetIndexInfoFromIndexId() */
+

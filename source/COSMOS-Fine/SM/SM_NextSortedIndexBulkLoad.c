@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,94 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_NextSortedIndexBulkLoad.c
+ *
+ * Description :
+ *  Next phase of B+ tree index bulkload.
+ *
+ * Exports:
+ *  Four SM_NextSortedIndexBulkLoad(KeyValue*, ObjectID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "BtM.h"
+#include "SM.h"
+#include "BL_BtM.h"
+#include "BL_SM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+
+/*@=============================
+ * SM_NextSortedIndexBulkLoad()
+ *=============================*/
+/*
+ * Function: Four SM_NextSortedIndexBulkLoad(KeyValue*, ObjectID*)
+ *
+ * Description:
+ *  Put given <key, oid> into sort stream for B+ tree index bulkload.
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calss
+ *
+ * Side Effects:
+ *
+ */
+Four SM_NextSortedIndexBulkLoad (
+    Four		    handle,
+    Four                    blkLdId,                /* IN index bulkload id */
+    KeyValue                *key,                   /* IN key value of the inseted ObjectID */
+    ObjectID                *oid)                   /* IN ObjectID to insert */
+{
+    Four                    e;                      /* error number */
+    SM_IdxBlkLdTableEntry*  blkLdEntrySM;           /* entry in which information about bulkload is saved */
+    BtM_BlkLdTableEntry*    blkLdEntryBtM;          /* entry in which information about BtM bulkload */
+    LogParameter_T          logParam;
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+            ("SM_NextSortedIndexBulkLoad(key=%P, oid=%P)", key, oid));
+
+
+    /*
+    **  O. Check parameters
+    */
+
+    if (key == NULL)        ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL)        ERR(handle, eBADPARAMETER);
+
+
+    /*
+    **  I. set entry for fast access
+    */
+    blkLdEntrySM = &SM_IDXBLKLD_TABLE(handle)[blkLdId];
+    blkLdEntryBtM = &BTM_BLKLD_TABLE(handle)[blkLdEntrySM->btmBlkLdId];
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, blkLdEntryBtM->btmBlkLdblkldInfo.iinfo.tmpIndexFlag);
+
+    /*
+    **  II. Put <key,oid> pair into B+ tree index
+    */
+    if (blkLdEntrySM->smBlkLdisAppend == TRUE) {
+        e = BtM_NextSortedAppendBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), blkLdEntrySM->btmBlkLdId, &blkLdEntrySM->fid, key, oid, &logParam); 
+        if (e < eNOERROR) ERR(handle, e);
+    }
+    else {
+        e = BtM_NextSortedBulkLoad (handle, MY_XACT_TABLE_ENTRY(handle), blkLdEntrySM->btmBlkLdId, key, oid, &logParam);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+
+    return eNOERROR;
+
+}   /* SM_NextSortedIndexBulkLoad() */

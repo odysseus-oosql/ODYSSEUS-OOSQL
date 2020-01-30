@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,109 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_NextDataFileBulkLoad.c
+ *
+ * Description:
+ *  Process the data file bulk load.
+ *
+ * Exports:
+ *  Four SM_NextDataFileBulkLoad(char*, Four, Boolean)
+ *  Four SM_NextDataFileBulkLoadWriteLOT(Four, Four, char*, Boolean)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "BL_OM.h"
+#include "BL_SM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/*@========================================
+ *  SM_NextDataFileBulkLoad()
+ * =======================================*/
+
+/*
+ * Function : Four SM_NextDataFileBulkLoad()
+ *
+ * Description :
+ *  Process the data file bulk load.
+ *
+ * Return Values :
+ *  error code.
+ *
+ * Side Effects :
+ *  0)
+ *
+ */
+
+Four SM_NextDataFileBulkLoad(
+    Four      handle,
+    Four      blkLdId,          /* IN  bulkload ID */
+    char      *objectBuffer,    /* IN  buffer containing object data */
+    Four      objectBufferLen,  /* IN  size of data in buffer */
+    Boolean   endOfObject,      /* IN  flag indicating this buffer is end of object or not */
+    ObjectID  *oid)             /* OUT the object's ObjectID */
+{
+
+    Four            e;          /* error number */
+    LogParameter_T  logParam;
+
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+
+    e = OM_NextBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), blkLdId, objectBuffer, objectBufferLen, endOfObject, oid, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+}
+
+
+/*@========================================
+ *  SM_NextDataFileBulkLoadWriteLOT()
+ * =======================================*/
+
+/*
+ * Function : Four SM_NextDataFileBulkLoadWriteLOT()
+ *
+ * Description :
+ *
+ *
+ * Return Values :
+ *  error code.
+ *
+ * Side Effects :
+ *  0)
+ *
+ */
+
+Four SM_NextDataFileBulkLoadWriteLOT(
+    Four	  handle,
+    Four          blkLdId,        /* IN  bulkload ID */ 
+    Four          start,          /* IN  starting offset of read */
+    Four          length,         /* IN  amount of data to read */
+    char*         data,           /* IN  user buffer holding the data */
+    Boolean       endOfObject,    /* IN  flag indicating this buffer is end of object or not */
+    ObjectID*     oid)            /* OUT the object's ObjectID */
+{
+
+    Four            e;            /* error number */
+    LogParameter_T  logParam;
+
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+
+    e = OM_NextBulkLoadWriteLOT(handle, MY_XACT_TABLE_ENTRY(handle), blkLdId, start, length, data, endOfObject, oid, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+}

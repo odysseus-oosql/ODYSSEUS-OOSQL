@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,74 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LM_LogLocksOfPreparedXact.c
+ *
+ * Description:
+ *  	log & recover locks of lock table entries of prepared transaction
+ *
+ * Exports:
+ * 	Four LM_logLocksOfPreparedXact(Four, XactID*)
+ *	Four LM_recoverLocksOfPreparedXact(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "LOG.h"
+
+
+/*================================
+ * LM_logLocksOfPreparedXact()
+ *================================*/
+/*
+ * Function: Four LM_logLocksOfPreparedXact(Four, XactID*)
+ *
+ * Description:
+ *  	log lock images of lock table entries of prepared transaction.
+ *
+ * Returns:
+ *  	error code
+ */
+Four LM_logLocksOfPreparedXact(
+    Four	handle, 		/* handle */
+    XactID 	*xactID			/* IN transaction ID */
+)
+{
+
+
+    return(eNOERROR);
+}
+
+
+
+/*================================
+ * LM_recoverLocksOfPreparedXact()
+ *================================*/
+/*
+ * Function: Four LM_recoverLocksOfPreparedXact(Four, LOG_LogRecInfo_T*)
+ *
+ * Description:
+ *  	recover the locks of lock table entries from log image of locks of prepared transaction.
+ *
+ * Returns:
+ *  	error code
+ */
+Four LM_recoverLocksOfPreparedXact(
+    Four		handle, 	/* handle */
+    LOG_LogRecInfo_T 	*logRecInfo	/* IN log record info */
+)
+{
+
+
+    return (eNOERROR);
+}

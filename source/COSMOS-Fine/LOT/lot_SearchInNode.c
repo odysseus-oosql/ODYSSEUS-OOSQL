@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,85 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module:	lot_SearchInNode.c
+ *
+ * Description:
+ *  Find the slot which points to the subtree with the offset byte.
+ *  The slot is the first slot with count value greater than offset.
+ *
+ * Exports:
+ *  Four lot_SearchInNode(Four, L_O_T_INode*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * lot_SearchInNode( )
+ *================================*/
+/*
+ * Function: Four lot_SearchInNode(Four, L_O_T_INode*, Four)
+ *
+ * Description:
+ *  Find the slot which points to the subtree with the offset byte.
+ *  The slot is the first slot with count value greater than offset.
+ *
+ * Returns:
+ *  1) Natural number
+ *      index to slot with offset byte
+ *  2) Negative value:  error codes
+ *       eTOOLARGELENGTH - too large offset
+ *
+ * Note:
+ *  count value denotes the number of bytes. But offset starts with 0.
+ */
+Four lot_SearchInNode(
+    Four handle,
+    L_O_T_INode	*node,		/* IN pointer to large object tree node */
+    Four        offset)		/* IN byte offset to search */
+{
+    Four low, up, mid;		/* variables used for binary search */
+    L_O_T_INodeEntry *entry;	/* temp variable for entry array access */
+
+    TR_PRINT(handle, TR_LOT, TR1, ("lot_SearchInNode(node=%p, offset=%p)",
+			 node, offset));
+
+    /* Special Handling */
+    /* When offset == 0, node->header.nEntries == 1, node->entry[0].count = 0,
+       this routine return error. We want to get 0. */
+    if (offset == 0) return(0);
+
+    low = 0;
+    up = node->header.nEntries - 1;
+
+    entry = node->entry;
+
+    while (low <= up) {
+	mid = (low+up) / 2;
+
+	if (entry[mid].count <= offset)
+	    low = mid + 1;
+	else {	/* entry[mid].count > offset */
+	    if (mid == 0 || entry[mid-1].count <= offset)
+		return(mid);
+	    else
+		up = mid - 1;
+	}
+    }
+
+    assert(0);
+    ERR(handle, eTOOLARGELENGTH_LOT);
+
+} /* lot_SearchInNode() */
+

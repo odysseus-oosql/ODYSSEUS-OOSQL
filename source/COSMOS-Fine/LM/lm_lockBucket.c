@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,96 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lm_lockBucket.c
+ *
+ * Description:
+ *   allocate/deallocate/initialize lockBucket
+ *
+ * Exports: lm_allocAndInitLockBucket(handle, xactID, fileID, mode, duration, conditional)
+ *          lm_deallocLockBucket(xactID, fileID, duration)
+ *
+*/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+/*----------------------------------------------------------------- */
+/*                                                                  */
+/* lm_allocAndInitLockBucket ::                                     */
+/*         allocate and initialize lockBucket.                      */
+/*                                                                  */
+/* Assumption ::                                                    */
+/*         this function is called with LM_LATCH                    */
+/*                                                                  */
+/* parameters                                                       */
+/*    LockLevel       IN lock level                                 */
+/*    TargetID        IN target lock identifier                     */
+/*    LockHashEntry   IN allocated lBucket will be added into       */
+/*    LockBucket_Type OUT allocated lBucket                         */
+/*                                                                  */
+/* return value                                                     */
+/*    result messages                                               */
+/*                                                                  */
+/*----------------------------------------------------------------- */
+
+Four lm_allocAndInitLockBucket(
+    Four		handle,
+    LockLevel       	level,
+    TargetID        	*lockID,
+    LockHashEntry   	*lockHashEntryPtr,
+    LockBucket_Type 	**lBucket)
+{
+    Four  		e;
+    Four  		howMuchLBucket;
+
+    /* check parameters */
+    if(lockID == NULL) ERR(handle, eBADPARAMETER);
+    if(lockHashEntryPtr == NULL) ERR(handle, eBADPARAMETER);
+
+    /* allocate lBucket */
+    e = Util_getElementFromPool(handle, &LM_LOCKBUCKETPOOL, lBucket);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* initialize lBucket */
+    SHM_initLatch(handle, &(*lBucket)->latch);	  /* initLatch precedes getlatch */
+
+    /*@ update the status */
+    (*lBucket)->level = level;
+    if(level == L_FILE)   (*lBucket)->target.fileID = lockID->fileID;
+    else if(level == L_PAGE) (*lBucket)->target.pageID = lockID->pageID;
+    else if(level == L_OBJECT ) (*lBucket)->target.objectID = lockID->objectID;
+    else if(level == L_KEYVALUE) (*lBucket)->target.keyValue = lockID->keyValue;
+    else if(level == L_FLAT_OBJECT) (*lBucket)->target.objectID = lockID->objectID;
+    else if(level == L_FLAT_PAGE) (*lBucket)->target.pageID = lockID->pageID;
+    else ERR(handle, eBADPARAMETER);
+
+    (*lBucket)->nWaiting    = 0;
+    (*lBucket)->status      = L_GRANTED; 
+    (*lBucket)->queue       = LOGICAL_PTR(NULL);
+    (*lBucket)->groupMode   = L_NL;
+    (*lBucket)->lowerLock   = (*lBucket)->higherLock = LOGICAL_PTR(NULL);
+    (*lBucket)->prevSetLock = (*lBucket)->nextSetLock = LOGICAL_PTR(NULL);
+
+    /* add new LockBucket as first entry of doubly linked list */
+    ADD_INTO_LOCKBUCKET_DLIST(lockHashEntryPtr->bucketPtr, *lBucket);
+
+    return(e);
+}
+
+
+
+
+

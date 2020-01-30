@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,47 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_NumberOfDiskIO
+ *
+ * Description:
+ *  reset/get # of disk io
+ *
+ * Exports:
+ *  Four LRDS_ResetNumberOfDiskIO(Four)
+ *  Four LRDS_GetNumberOfDiskIO(Four, Four*, Four*)
+ *
+ * Returns:
+ *  1) no output if LRDS_ResetNumberOfDiskIO is called and the return value is greater than or equal to 0.
+ *  2) reads & writes of disk io if LRDS_GetNumberOfDiskIO is called and the return value is greater than or equal to 0.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "perThreadDS.h"
+#include "perProcessDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+Four LRDS_ResetNumberOfDiskIO(Four handle)
+{
+
+    /* pointer for RDsM Data Structure of perThreadTable */
+    RDsM_PerThreadDS_T *rdsm_perThreadDSptr = RDsM_PER_THREAD_DS_PTR(handle);
+
+    rdsm_perThreadDSptr->io_num_of_reads = 0;
+    rdsm_perThreadDSptr->io_num_of_writes = 0;
+
+    return eNOERROR;
+}
+
+Four LRDS_GetNumberOfDiskIO(Four handle, Four* read, Four* write)
+{
+
+    /* pointer for RDsM Data Structure of perThreadTable */
+    RDsM_PerThreadDS_T *rdsm_perThreadDSptr = RDsM_PER_THREAD_DS_PTR(handle);
+
+    *read 	= rdsm_perThreadDSptr->io_num_of_reads;
+    *write 	= rdsm_perThreadDSptr->io_num_of_writes;
+
+    return eNOERROR;
+}
+

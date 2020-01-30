@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,53 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_RDsM_InsertMetaDictEntry.c
+ *
+ * Description:
+ *  redo inserting a meta dictionary
+ *
+ * Exports:
+ *  Four Redo_RDsM_InsertMetaDictEntry(Four, handle, SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RDsM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_RDsM_InsertMetaDictEntry(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    MetaDictPage_T *aPage = anyPage; /* meta dictionary page */
+    MetaDictEntry_T *m_entry;	/* pointer to a meta dictionary entry */
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_RDsM_InsertMetaDictEntry(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	redo inserting a meta dictionary entry
+     */
+    m_entry = &aPage->entries[*((Four*)logRecInfo->imageData[0])];
+
+    strcpy(m_entry->name, logRecInfo->imageData[1]);
+    memcpy(m_entry->data, logRecInfo->imageData[2], logRecInfo->imageSize[2]);
+
+    return(eNOERROR);
+
+} /* Redo_RDsM_InsertMetaDictEntry( ) */

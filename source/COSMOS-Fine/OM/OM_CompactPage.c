@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,159 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : OM_CompactPage.c
+ *
+ * Description :
+ *  OM_CompactPage() reorganizes the page to make sure the unused bytes
+ *  in the page are located contiguously "in the middle", between the tuples
+ *  and the slot array. To compress out holes, objects must be moved toward
+ *  the beginning of the page.
+ *  When this function is called, the page must be locked.
+ *
+ * Exports:
+ *  Four OM_CompactPage(Four, SlottedPage*, Four)
+ *  void om_CompactPage(Four, SlottedPage*, Four)
+ *
+ * Return Values :
+ *  Error Code
+ *    eNOERROR
+ *
+ * Side Effects :
+ *  The slotted page is reorganized to compact the space.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"      /* for tracing : TR_PRINT(handle, ) macro */
+#include "latch.h"
+#include "BfM.h"        /* for the buffer manager call */
+#include "LOG.h"
+#include "OM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four OM_CompactPage(Four, SlottedPage*, Four)
+ *
+ * Description:
+ *  This is wrap-around function to provide om_CompactPage( ) as an interface function.
+ *
+ * Returns:
+ *  eNOERROR
+ */
+Four OM_CompactPage(
+    Four 	handle,
+    SlottedPage	*apage,		/* IN slotted page to compact */
+    Four        slotNo)		/* IN slotNo to go to the end */
+{
+    TR_PRINT(handle, TR_OM, TR1, ("OM_CompactPage(apage=%P, slotNo=%ld)", apage, slotNo));
+
+    (void) om_CompactPage(handle, apage, slotNo);
+
+    return(eNOERROR);
+
+} /* OM_CompactPage( ) */
+
+
+
+/*
+ * Module: void om_CompactPage(Four, SlottedPage*, Four)
+ *
+ * Description:
+ *  om_CompactPage( ) reorganizes the page to make sure the unused bytes
+ *  in the page are located contiguously "in the middle", between the tuples
+ *  and the slot array. To compress out holes, objects must be moved toward
+ *  the beginning of the page.
+ *  When this function is called, the page must be locked.
+ *
+ * Returns:
+ *  None
+ */
+void om_CompactPage(
+    Four 	handle,
+    SlottedPage	*apage,			/* IN slotted page to compact */
+    Four        slotNo)			/* IN slotNo to go to the end */
+{
+    SlottedPage	tpage;			/* temporay page used to save the given page */
+    Object 	*obj;			/* pointer to the object in the data area */
+    Four   	apageDataOffset;	/* where the next object is to be moved */
+    Four   	len;			/* length of object + length of ObjectHdr */
+    Four   	lastSlot;		/* last non empty slot */
+    Four   	i;			/* index variable */
+
+
+    TR_PRINT(handle, TR_OM, TR1, ("om_CompactPage(apage=%P, slotNo=%ld)", apage, slotNo));
+
+    /* save the slotted page */
+    tpage = *apage;
+
+    apageDataOffset = 0;	/* start at the beginning of the data area */
+    lastSlot = 0;
+
+    for (i = 0; i < tpage.header.nSlots; i++)
+	if (tpage.slot[-i].offset != EMPTYSLOT && i != slotNo) {
+
+	    lastSlot = i;
+
+	    /* obj points to the currently moved object. */
+	    obj = (Object *)&tpage.data[tpage.slot[-i].offset];
+
+	    /* copy the entire object to the reorganized page */
+	    if (obj->header.properties & P_MOVED) {
+		/* this object has the moved ObjectID instead of data */
+		len = sizeof(ObjectHdr) + sizeof(ObjectID);
+
+	    } else if (obj->header.properties & P_LRGOBJ) {
+
+		len = sizeof(ObjectHdr) + MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(LOT_GetSize(handle, obj->data, IS_LRGOBJ_ROOTWITHHDR(obj->header.properties))));
+
+	    } else {
+		/* This object has data itself */
+		len = sizeof(ObjectHdr) +
+		    MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(obj->header.length));
+	    }
+
+	    memcpy(&apage->data[apageDataOffset], obj, len);
+	    apage->slot[-i].offset = apageDataOffset;
+
+	    apageDataOffset += len; /* make it point the next move position */
+	}
+
+    if (slotNo != NIL) {
+	if (slotNo > lastSlot) lastSlot = slotNo;
+
+	/* move the specified object to the end */
+	obj = (Object *)&tpage.data[tpage.slot[-slotNo].offset];
+
+	if (obj->header.properties & P_MOVED) {
+	    /* this object has the moved ObjectID instead of data */
+	    len = sizeof(ObjectHdr) + sizeof(ObjectID);
+
+	} else if (obj->header.properties & P_LRGOBJ) {
+
+            len = sizeof(ObjectHdr) + MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(LOT_GetSize(handle, obj->data, IS_LRGOBJ_ROOTWITHHDR(obj->header.properties))));
+
+	} else {
+	    /* This object has data itself */
+	    len = sizeof(ObjectHdr) +
+		MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(obj->header.length));
+	}
+
+	memcpy(&apage->data[apageDataOffset], obj, len);
+	apage->slot[-slotNo].offset = apageDataOffset;
+
+	apageDataOffset += len; /* make it point the next move position */
+
+    }
+
+    /* set the control variables */
+    /* apage->header.nSlots = lastSlot+1; */
+    apage->header.free = apageDataOffset; /* start pos. of contiguous space */
+    apage->header.unused = 0;		  /* no fragmented unused space */
+
+} /* om_CompactPage */

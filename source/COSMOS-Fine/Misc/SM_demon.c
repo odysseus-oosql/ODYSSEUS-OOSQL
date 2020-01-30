@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,64 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SHM_demon.c
+ *
+ * Description:
+ *   demon process control
+ *
+ * Exports:
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <signal.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/* shm_initDemon :: initialize Demon Process */
+#define ST_DEADLOCKDETECTION 100
+
+
+void shm_sigHandle(/* Four */);
+
+
+
+Four main()
+{
+
+    signal(SIGTRAP, SIG_IGN);
+
+    /* child process */
+    printf("Demon Process starts ....\n");
+
+    /* detach the shared memory which parent process inherites*/
+    /* all process detach the shared memory */
+    if (shmdt((char *) shmPtr) < 0)
+    ERR(handle, eSHMDTFAILED);
+
+    /*@ signal handling */
+    signal(SIGINT, shm_sigHandle);
+    signal(SIGQUIT, shm_sigHandle);
+    signal(SIGKILL, shm_sigHandle);
+
+
+    sleep(ST_DEADLOCKDETECTION);
+    printf("Begin Deadlock Detection !! \n");
+
+    LM_detectDeadlock( );
+
+    printf("End Deadlock Detection !~!~ \n");
+
+    return(eNOERROR);
+}
+

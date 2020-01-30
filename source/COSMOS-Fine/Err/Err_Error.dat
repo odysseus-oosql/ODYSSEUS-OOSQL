@@ -1,0 +1,492 @@
+#/******************************************************************************/
+#/*                                                                            */
+#/*    Copyright (c) 1990-2016, KAIST                                          */
+#/*    All rights reserved.                                                    */
+#/*                                                                            */
+#/*    Redistribution and use in source and binary forms, with or without      */
+#/*    modification, are permitted provided that the following conditions      */
+#/*    are met:                                                                */
+#/*                                                                            */
+#/*    1. Redistributions of source code must retain the above copyright       */
+#/*       notice, this list of conditions and the following disclaimer.        */
+#/*                                                                            */
+#/*    2. Redistributions in binary form must reproduce the above copyright    */
+#/*       notice, this list of conditions and the following disclaimer in      */
+#/*       the documentation and/or other materials provided with the           */
+#/*       distribution.                                                        */
+#/*                                                                            */
+#/*    3. Neither the name of the copyright holder nor the names of its        */
+#/*       contributors may be used to endorse or promote products derived      */
+#/*       from this software without specific prior written permission.        */
+#/*                                                                            */
+#/*    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS     */
+#/*    "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT       */
+#/*    LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS       */
+#/*    FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE          */
+#/*    COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,    */
+#/*    INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,    */
+#/*    BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;        */
+#/*    LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER        */
+#/*    CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT      */
+#/*    LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN       */
+#/*    ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE         */
+#/*    POSSIBILITY OF SUCH DAMAGE.                                             */
+#/*                                                                            */
+#/******************************************************************************/
+#/******************************************************************************/
+#/*                                                                            */
+#/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+#/*    Fine-Granule Locking Version                                            */
+#/*    Version 3.0                                                             */
+#/*                                                                            */
+#/*    Developed by Professor Kyu-Young Whang et al.                           */
+#/*                                                                            */
+#/*    Advanced Information Technology Research Center (AITrc)                 */
+#/*    Korea Advanced Institute of Science and Technology (KAIST)              */
+#/*                                                                            */
+#/*    e-mail: odysseus.oosql@gmail.com                                        */
+#/*                                                                            */
+#/*    Bibliography:                                                           */
+#/*    [1] Whang, K., Lee, J., Lee, M., Han, W., Kim, M., and Kim, J., "DB-IR  */
+#/*        Integration Using Tight-Coupling in the Odysseus DBMS," World Wide  */
+#/*        Web, Vol. 18, No. 3, pp. 491-520, May 2015.                         */
+#/*    [2] Whang, K., Lee, M., Lee, J., Kim, M., and Han, W., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with IR Features," In Proc. */
+#/*        IEEE 21st Int'l Conf. on Data Engineering (ICDE), pp. 1104-1105     */
+#/*        (demo), Tokyo, Japan, April 5-8, 2005. This paper received the Best */
+#/*        Demonstration Award.                                                */
+#/*    [3] Whang, K., Park, B., Han, W., and Lee, Y., "An Inverted Index       */
+#/*        Storage Structure Using Subindexes and Large Objects for Tight      */
+#/*        Coupling of Information Retrieval with Database Management          */
+#/*        Systems," U.S. Patent No.6,349,308 (2002) (Appl. No. 09/250,487     */
+#/*        (1999)).                                                            */
+#/*    [4] Whang, K., Lee, J., Kim, M., Lee, M., Lee, K., Han, W., and Kim,    */
+#/*        J., "Tightly-Coupled Spatial Database Features in the               */
+#/*        Odysseus/OpenGIS DBMS for High-Performance," GeoInformatica,        */
+#/*        Vol. 14, No. 4, pp. 425-446, Oct. 2010.                             */
+#/*    [5] Whang, K., Lee, J., Kim, M., Lee, M., and Lee, K., "Odysseus: a     */
+#/*        High-Performance ORDBMS Tightly-Coupled with Spatial Database       */
+#/*        Features," In Proc. 23rd IEEE Int'l Conf. on Data Engineering       */
+#/*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
+#/*                                                                            */
+#/******************************************************************************/
+#
+# data file for error codes
+#
+
+#
+# error bases are numbered as 1, 2, 3, 4, ...
+# as according to the order by which the errors are described
+#
+
+# 각 컴포넌트에서 에러를 세 종류로 나누어 그 순서대로 기록한다
+# - 사용자가 알아야 되는 에러 이름
+# - 사용자가 알아야 될지도 모르는 에러 이름
+# - 사용자가 몰라도 되는 에러 이름
+#
+
+GENERAL_ERR_BASE    "general error" {
+	eINVALIDLICENSE			"Invalid License"
+    eINTERNAL               "Internal Error"
+    eBADPARAMETER           "Bad Parameter"
+    eBADVOLUMEID            "Bad Volume ID"
+    eBADFILEID              "Bad File ID"
+    eBADINDEXID             "Bad Index ID"
+    eBADPAGEID              "Bad Page ID"
+#    eBADOBJECTID            "Bad Object ID"
+    eBADCATOBJ              "fileInfo value is NULL"
+#    eBADLOCKPARAMETER       "bad lock parameter"
+#    eBADKEYVALUE            "bad key value"
+#    eBADCATALOGOBJECT       "bad catalog object"
+    eDEADLOCK               "Deadlock"
+    eBADCURSOR              "Invalid Cursor"
+    eNOTFOUND               "Object Not Found"
+#    eNONEXTOBJECT           "No Next Object"
+#    eNOPREVOBJECT           "No Previous Object"
+    eNULLPTR                "Null Pointer"
+    eMEMORYALLOCERR         "Memory Allocation Error"
+#    eMEMORYFREEERR          "Memory Free Error"
+    eTOOMANYVOLUMES         "too many open volumes"
+    eLOCKREQUESTFAIL        "Lock Request Failed (in LRDS)"
+    eSCANOPENATSAVEPOINT    "All scans must be closed when savepoint is set"
+    eBADBUFSIZE             "bad buffer size"
+    eBLKLDTABLEFULL         "bulk load table is full"
+    eVOLUMELOCKBLOCK        "volume lock is already acquired by another process"
+}
+
+
+UTIL_ERR_BASE   "utility function error" {
+    eBADFREEDELEMENT_UTIL           "bad freed element"
+    eBADFREEDARRAY_UTIL             "bad freed array"
+    eSORTSTREAMTABLEFULL_UTIL       "sort stream table full"
+    eNOTENOUGHSORTTUPLEBUF_UTIL     "sort tuple buffer isn't enough"
+    eOVERFLOWQUICKSORTSTACK_UTIL    "stack for quick sort is overflow"
+}
+
+
+RDSM_ERR_BASE       "raw disk manager error" {
+    eVOLNOTMOUNTED_RDSM         "Volume Is Not Mounted"
+#    eVOLIDMISMATCH_RDSM         "Mismatched Volume Identifiers"
+    eUSEDDEVICE_RDSM            "Device Is Used Now"
+    eTOOMANYVOLUMES_RDSM        "Too Many Volumes"
+    eDEVICEOPENFAIL_RDSM        "Device Open Is Failed"
+    eDEVICECLOSEFAIL_RDSM       "Device Close Is Failed"
+    eREADFAIL_RDSM              "Read Operation Is Failed"
+    eWRITEFAIL_RDSM             "Write Operation Is Failed"
+    eLSEEKFAIL_RDSM             "Lseek Operation Is Failed"
+    eINVALIDTRAINSIZE_RDSM      "Invalid Train Size"
+    eINVALIDFIRSTEXT_RDSM       "Invalid First Extent Number"
+#    eNULLPTR_RDSM           	"Null Buffer Pointer"
+    eINVALIDPID_RDSM        	"Invalid Page Identifier"
+    eINVALIDMETAENTRY_RDSM  	"Invalid Meta Entry"
+    eINVALIDEFF_RDSM            "Invalid Extent Fill Factor"
+#    eNOMOREMEMORY_RDSM          "No More Memory For Allocation"
+    eNODISKSPACE_RDSM           "No Disk Space for Page Allocation"
+    eNOEMPTYMETAENTRY_RDSM      "No Empty Meta Entry"
+    eDUPMETADICTENTRY_RDSM      "Duplicated Meta Dictionary Entry"
+    eVOLALREADYMOUNTED_RDSM     "Volume Already Mounted"
+#    eUNFORMATTEDDEVICE_RDSM     "Unformated Device"
+#    eUNKNOWNVOLUMETYPE_RDSM     "Unknown Volume Type"
+    eALREADYSETBIT_RDSM         "Any of Bits Are Already Set"
+#    eMETADICTENTRYNAME_RDSM 	"Bad Meta Dictionary Entry Name"
+#    eMETADICTENTRYDATA_RDSM 	"Bad Meta Dictionary Entry Data"
+    eINVALIDPAGETYPE_RDSM   	"Invalid Page Type"
+    eMETADICTENTRYNOTFOUND_RDSM "Meta Dictionary Entry Not Found"
+}
+
+
+BFM_ERR_BASE        "buffer manager error" {
+    eBADBUFFERTYPE_BFM                  "Bad Buffer Type"
+    eBADLATCHMODE_BFM                   "Bad Latch Mode"
+    eBADBUFFER_BFM                      "Bad Buffer Pointer"
+    eBADHASHKEY_BFM                     "Bad Hash Key"
+    eBADBUFTBLENTRY_BFM                 "Bad Buffer Table Entry"
+    eFLUSHFIXEDBUF_BFM                  "Try flushing fixed page"
+    eNOTFOUND_BFM                       "The key does not exist in buffer pool"
+    eNOUNFIXEDBUF_BFM                   "There is no unfixed buffer"
+#    eNOTEMPTYPAGE_BFM                   "This page is not Empty"
+    eBADBUFINDEX_BFM                    "Bad Buffer Index"
+    eNULLBUFACCESSCB_BFM                "NULL Access Buffer Control Block"
+    eNOSUCHLOCKEXIST_BFM                "No Such Lock Exist"
+    eALREADYMOUNTEDCOHERENCYVOLUME_BFM  "Coherency volume is already mounted"
+    eNOTMOUNTEDCOHERENCYVOLUME_BFM      "Coherency volume is not mounted"
+}
+
+
+LOT_ERR_BASE        "large object manager error" {
+#    eBADROOTPID_LOT     	"Bad Root PageID"
+    eBADOFFSET_LOT      	"Offset is wrong"
+    eTOOLARGELENGTH_LOT 	"Length is too large"
+    eMEMALLOCERR_LOT        	"malloc failure"
+    eBADPARAMETER_LOT       	"parameter value bad"
+    eBADLENGTH_LOT          	"length is less than 0"
+    eBADCATALOGOBJECT_LOT   	"fileInfo value is NULL"
+    eEXCEEDMAXDEPTH_LOT 	"Depth is too deep"
+    eEMPTYPATH_LOT      	"Cut Path has reached bottom already"
+    eBADPAGEID_LOT          	"Bad PageID"
+    eBADSLOTNO_LOT      	"Bad SlotNo"
+    eBADOBJECTID_LOT        	"Bad ObjectID"
+}
+
+
+OM_ERR_BASE     "object manager error" {
+    eBADPARAMETER_OM        "Bad Parameter"
+    eBADOBJECTID_OM         "Invalid ObjectID"
+    eBADCATALOGOBJECT_OM    "Invalid ObjectID of catalog entry for file"
+    eBADLENGTH_OM           "Invalid Length"
+    eBADSTART_OM            "Start Value Wrong"
+    eBADFILEID_OM           "Invalid FileID"
+#    eBADNEAROBJECTID_OM     "BAD Near ObjectID"
+#    eNONEXTOBJECT_OM        "There is no next object"
+#    eNOPREVOBJECT_OM        "There is no previous object"
+    eBADUSERBUF_OM          "User supplied the bad buffer"
+    eBADPAGEID_OM           "Invalid PageID"
+#    eLOCKREQUESTFAIL_OM     "Lock request failed"
+    eTOOLARGESORTKEY_OM     "Too Large Sort Key"
+    eCANTALLOCEXTENT_BL_OM  "Can't allocate extent in bulkload"
+}
+
+
+BTM_ERR_BASE        "btree manager error" {
+    eBADPARAMETER_BTM               "Invalid Btree Page"
+    eBADBTREEPAGE_BTM               "Invalid Btree Page"
+#    eOUTOFPAGE_BTM                  "Out of Page Range"
+#    eBADOBJECTID_BTM                "Invalid Object Identifier"
+#    eBADOBJECTBUF_BTM               "Invalid Pointer to a Object"
+#    eBADKEYDESC_BTM                 "Invalid Key Descriptor"
+    eBADPAGE_BTM                    "Invalid Page Identifier"
+    eNOTFOUND_BTM                   "Not Found"
+    eDUPLICATEDOBJECTID_BTM         "Duplicated Object Identifier"
+#    eBfMERROR_BTM                   "Buffer Manager Error"
+#    eNONEXTOBJECT_BTM               "There is no next object"
+#    eNOPREVOBJECT_BTM               "There is no  previous object"
+    eBADCOMPOP_BTM                  "Bad Comparison Operator"
+#    eLOCKREQUESTFAIL_BTM            "Lock request failed"
+    eDUPLICATEDKEY_BTM              "Duplicated Key"
+    eBADPAGETYPE_BTM                "Invalid Page Type"
+#    eRANGEERROR_BTM                 "Range Error (Key is not in the given page)"
+    eEXCEEDMAXDEPTHOFBTREE_BTM      "Exceed the maximum depth in Btree"
+    eTRAVERSEPATH_BTM               "Some error occured in a traverse path in Btree"
+    eNOSUCHTREELATCH_BTM            "No such tree latch exists in Btree"
+    eDELETEOBJECTFAILED_BTM         "Object deletion operation is failed in Btree"
+#    eIMPOSSIBLEERROR_BTM            "Impossible error in Btree"
+    eBADCACHETREELATCHCELLPTR_BTM   "Bad pointer to cached cell for tree latch"
+}
+
+
+# MLGF_ERR_BASE       "mlgf manager error" {
+#     eMODIFIEDONSEARCH_MLGF   "MLGF is modified during nearest object search (in MLGF)"
+# }
+
+
+SM_ERR_BASE     "scan manager error" {
+    eBADPARAMETER_SM                "Bad Parameter"
+    eNOTMOUNTEDVOLUME_SM            "Not Mounted Volume"
+#    eMETADICTENTRYNAME_SM           "Bad Meta Dictionary Entry Name"
+#    eMETADICTENTRYDATA_SM           "Bad Meta Dictionary Entry Data"
+#    eMETADICTENTRYDATALENGTH_SM     "Bad Meta Dictionary Entry Data Length"
+    eBADINDEXID_SM                  "Bad IndexID"
+    eINDEXIDFULL_SM                 "Free Index ID is not found"
+    eBADFILEID_SM                   "Bad FileID"
+    eFILEIDFULL_SM                  "Free File ID is not found"
+    eNOTFOUNDCATALOGENTRY_SM        "Cannot find the Catalog Entry"
+    eOPENINDEX_SM                   "Some scan is opened using the index"
+    eOPENFILE_SM                    "Some scan is opened on the file"
+    eTOOMANYVOLUMES_SM              "Too Many Volumes Mounted"
+#    eBADDISMOUNT_SM                 "Bad Dismount"
+#    eLOCKREQUESTFAIL_SM             "Lock request failed"
+    eEXCLUSIVELOCKREQUIRED_SM  	    "Exclusive Lock is Required"
+    eINVALIDHIERARCHICALLOCK_SM     "Invalid Hierarchical Lock"
+    eBADLOCKMODE_SM                 "Invalid Lock mode"
+#    eBADDEALLOCTYPE_SM              "Bad Deallocated Type"
+    eCOMMITDURATIONLOCKREQUIRED_SM  "Commit Duration Lock is Required"
+    eINVALIDMOUNTCOUNTER_SM         "The nMount field on the SM_MOUNTTABLE has Invalid Vlaue"
+    eINTERNAL_SM                    "Internal Error"
+    eEXISTACTIVETRANSACTION_SM      "Active Transaction Exist"
+    eNOACTIVETRANSACTION_SM         "No Active Transaction Exist"
+    eINVALIDCFGPARAM_SM             "Invalid Configuration Parameter Name"
+    eXACTNOTSTARTED_SM              "Transaction is not started"
+    eTMPFILEEXISTATSAVEPOINT_SM     "All temporary file must be destroyed when savepoint is set"
+    eVOLUMEDISMOUNTDISALLOWED_SM    "Volume dismount is disallowed"
+    eNOACTIVEPREPAREDTRANSACTION_SM "No Active Prepared Transaction Exist"
+    eACTIVEGLOBALTRANSACTION_SM     "Active Global Transaction Exist"
+    eNOACTIVEGLOBALTRANSACTION_SM   "No Active Global Transaction Exist"
+    eDUPLICATEDGTID_SM              "Duplicated Global Transaction ID"
+}
+
+
+TM_ERR_BASE     "transaction manager error" {
+    e2PCTRANSACTION_TM              "Two Phase Commit Transaction"
+    eNEWXACTNOTALLOWED_TM           "New Transaction is not allowed"
+    eWRONGXACTID_TM                 "Wrong Transaction ID"
+    eBADDEALLOCLISTTYPE_TM          "Bad Deallocated List Type"
+    eWRONGTMSTART_TM                "Wrong Transaction Start"
+    eNOFREEXACTTBLENTRY_TM          "No More Free Transaction Table Entry"
+    eNO2PCTRANSACTION_TM            "No Two Phase Commit Transaction"
+    eNONESTEDTOPACTION_TM           "No Nested Top Action"
+    eNOTFOUNDGLOBALXACTID_TM	    "Global Transaction ID Not Found"
+    eNOTPREPARED_TM		    "Transaction Not Prepared"
+    eTOODEEPNESTEDTOPACTION_TM      "Too Depth Nested Top Action Invoked"
+    eWRONGXACTCOMMIT_TM             "Transaction is not started"
+    eWRONGXACTABORT_TM              "Transaction is not started"
+    eDUPLICATEDGTID_TM              "duplicated global transaction ID"
+}
+
+
+SHM_ERR_BASE        "shared memory manager error" {
+#    eNOELEMINQUEUE_SHM          	"Invalid ObjectID"
+    eNOFREESPACEINGHEAP_SHM     	"No Free Space in Global Heap"
+#    eNOSUCHLATCH_SHM            	"No Such Latch Exists"
+    eSHMGETFAILED_SHM           	"system call (shmget) failed"
+    eSHMATFAILED_SHM            	"system call (shmat) failed"
+#    eUNIXOPENFAILED_SHM         	"system call (open) failed"
+#    eUNIXFILELOCKFAILED_SHM     	"system call (flock) failed"
+    eSEMGETFAILED_SHM           	"system call (semget) failed"
+    eSHMCTLFAILED_SHM           	"system call (shmctl) failed"
+    eSHMDTFAILED_SHM            	"system call (shmdt) failed"
+    eFULLPROCTABLE_SHM          	"Process Table is already Full"
+    eSEMCTLFAILED_SHM           	"system call (semctl) failed"
+    eSEMOPFAILED_SHM            	"system call (semop) failed"
+    eSEMCTLSETVALFAILED_SHM     	"system call (semctl - SETVAL) failed"
+    eSEMCTLGETVALFAILED_SHM     	"system call (semctl - GETVAL) failed"
+    eSEMOPSENDERROR_SHM         	"system call (semop - SEND) failed"
+    eSEMOPWAITERROR_SHM         	"system call (semop - WAIT) failed"
+    eBADLATCHCONVERSION_SHM     	"Bad Latch Conversion"
+#    eBADLATCHCOUNTER_SHM        	"Latch Counter < = 0"
+    eDEMONFORKFAILED_SHM        	"Demon Fork Failed"
+    eHANDLERINSTALLFAILED_SHM 		"Failed Installing Exit/Signal Handler"
+    eHANDLERUNINSTALLFAILED_SHM 	"Failed Uninstalling Exit/Signal Handler"
+}
+
+
+LM_ERR_BASE     "lock manager error" {
+    eBADXACTID_LM               "No such transaction identifier"
+#    eBADOLDLOCKREQUEST_LM       "Missing Old Lock Request"
+    eBADOBJECTLOCK_LM           "Not Existing Object Lock"
+    eBADPAGELOCK_LM             "Not Existing Object Lock"
+    eBADFILELOCK_LM             "Not Existing File Lock"
+    eBADKEYVALUELOCK_LM         "Not Existing File Lock"
+    eLOCKHIERARCHYVIOLATE_LM    "Lock Hierarchy Violation"
+#    eLOCKREQUESTFAILED_LM       "Lock Request is failed"
+    eWRONGLOCKSTATUS_LM         "Wrong Lock Status"
+    eWRONGLOCKMODE_LM           "Wrong Lock Request Mode"
+    eWRONGDURATION_LM           "Wrong Duration in releasing Lock"
+    eDUPXACTID_LM               "Duplicated transaction identifier"
+    eFATALERROR_LM              "Fatal Error"
+    eWRONGACTIONSTART_LM        "Action is already started"
+    eWRONGACTIONEND_LM          "Action is already ended"
+    eNONEEDACTION_LM            "X_RR_RR level need not action operation"
+}
+
+
+LOG_ERR_BASE        "log manager error" {
+#    eINVALIDLSN_LOG                 "LSN Is Invalid (in LOG)"
+#    eINVALIDPAGENO_LOG              "Page Number Is Invalid (in LOG)"
+    eNOLOGSPACE_LOG                 "No Log Space"
+    eENDOFLOG_LOG                   "End of Log Reached"
+    eNOOPENEDLOGVOLUME_LOG          "No Opened Log Volume"
+    eLOGVOLUMEALREADYOPENED_LOG     "Already Opened Log Volume"
+}
+
+
+RM_ERR_BASE     "recovery manager error" {
+    eLOGVOLOPENFAIL_RM          "Failed Opening Log Volume"
+    eLSEEKFAIL_RM               "Lseek Failed"
+#    eFILELOCKFAIL_RM            "File Lock Failed"
+#    eFILEUNLOCKFAIL_RM          "File Unlock Failed"
+    eLOGVOLUMEFULL_RM           "Log Volume Full"
+    eREADFAIL_RM                "Fail Reading From Log"
+    eWRITEFAIL_RM               "Fail Writing To Log"
+    eNOLOGGEDTRANSACTION_RM     "No Logged Transaction"
+    eLOGVOLCLOSEFAIL_RM         "Failed Closing Log Volume"
+    eNOLOGVOLUME_RM             "No Log Volume"
+    eINVALIDTRAINTYPE_RM        "Invalid Train Type"
+    eINVALIDOBJECTID_RM         "Invalid Object Identifier (in Undo)"
+    eACTIVEPREPAREDTRANSACTION_RM "Active Prepared Transaction Exist"
+    eNOACTIVEPREPAREDTRANSACTION_RM "No Active Prepared Transaction Exist"
+}
+
+
+LRDS_ERR_BASE       "Low RDS error" {
+    eRELATIONNOTFOUND_LRDS              "relation not found"
+    eINDEXNOTFOUND_LRDS                 "index not found"
+    eCOUNTERNOTFOUND_LRDS               "counter not found"
+    eTOOMANYOPENRELATIONS_LRDS          "too many open relations"
+    eRELATIONEXIST_LRDS                 "relation exists"
+    eINDEXEXIST_LRDS                    "index exists"
+    eOPENRELATION_LRDS                  "open relation"
+    eTOOMANYTMPRELATIONS_LRDS           "too many temporary relations"
+    eSET_EXIST_LRDS                     "set exists"
+    eSET_NOTEXIST_LRDS                  "set not exist"
+    eSET_OPENSCAN_LRDS                  "open scan on set"
+    eORDEREDSET_EXIST_LRDS              "ordered set exist"
+    eORDEREDSET_NOTEXIST_LRDS           "ordered set not exists"
+    eORDEREDSET_OPENSCAN_LRDS           "open scan on ordered set"
+    eORDEREDSET_ELEMENTNOTFOUND_LRDS    "element not found in ordered set"
+    eCOLLECTION_EXIST_LRDS              "collection exists"
+    eCOLLECTION_NOTEXIST_LRDS           "collection not exist"
+    eCOLLECTION_OPENSCAN_LRDS           "open scan on collection"
+    eCOLLECTIONSET_ELEMENTEXIST_LRDS    "element exists in collection set"
+    eCOLLECTIONSET_ELEMENTNOTFOUND_LRDS "element not found in collection set"
+    eCOLLECTIONSET_NOTCOMPATIBLE_LRDS   "collection set not compatible with the other"
+    eCOLLECTIONBAG_ELEMENTNOTFOUND_LRDS "element not found in collection bag"
+    eCOLLECTIONBAG_NOTCOMPATIBLE_LRDS   "collection bag not compatible with the other"
+    eCOLUMNVALUEEXPECTED_LRDS           "column value expected"
+    eWRONGCOLUMNVALUE_LRDS              "wrong column value"
+    eINVALIDCURRENTTUPLE_LRDS           "invalid current tuple"
+    eTOOLARGELENGTH_LRDS                "length is too large"
+    eCATALOGNOTFOUND_LRDS               "catalog table not found"
+    eRELATIONOPENATSAVEPOINT_LRDS       "All relation must be closed when savepoint is set"
+    eTMPRELEXISTATSAVEPOINT_LRDS        "All temporary relation must be closed when savepoint is set"
+    eXA_RBROLLBACK_LRDS_XA      	"The rollback was caused by an unspecified reason"
+    eXA_RBCOMMFAIL_LRDS_XA      	"The rollback was caused by a communication failure"
+    eXA_RBDEADLOCK_LRDS_XA      	"A deadlock was detected"
+    eXA_RBINTEGRITY_LRDS_XA     	"A condition that violates the integrity of the resources was detected"
+    eXA_RBOTHER_LRDS_XA         	"The resource manager rolled back the transaction branch for a reason not on this list"
+    eXA_RBPROTO_LRDS_XA         	"A protocol error occurred in the resource manager"
+    eXA_RBTIMEOUT_LRDS_XA       	"A transaction branch took too long"
+    eXA_RBTRANSIENT_LRDS_XA     	"May retry the transaction branch"
+    eXA_RBEND_LRDS_XA           	"The inclusive upper bound of the rollback codes"
+    eXA_NOMIGRATE_LRDS_XA       	"resumption must occur where suspension occured"
+    eXA_HEURHAZ_LRDS_XA         	"the transaction branch may have been heuristically completed"
+    eXA_HEURCOM_LRDS_XA         	"the transaction branch has been heuristically committed"
+    eXA_HEURRB_LRDS_XA          	"the transaction branch has been heuristically rolled back"
+    eXA_HEURMIX_LRDS_XA         	"the transaction branch has been heuristically committed and rolled back"
+    eXA_RETRY_LRDS_XA           	"routine returned with no effect and may be re-issued"
+    eXA_RDONLY_LRDS_XA          	"the transaction branch was read- nly and has been committed"
+    eXAER_ASYNC_LRDS_XA         	"asynchronous operation already outstanding"
+    eXAER_RMERR_LRDS_XA         	"a resource manager error occured in the transaction branch"
+    eXAER_NOTA_LRDS_XA         	 	"the XID is not valid"
+    eXAER_INVAL_LRDS_XA         	"invalid arguments were given"
+    eXAER_PROTO_LRDS_XA         	"routine invoked in an improper context"
+    eXAER_RMFAIL_LRDS_XA        	"resource manager unavailable"
+    eXAER_DUPID_LRDS_XA         	"the XID already exits"
+    eXAER_OUTSIDE_LRDS_XA       	"resource manager doing work outside  global transaction"
+    eINVALIDOPENSTRING_LRDS_XA  	"invalid open string"
+    eDUPLICATEDGTID_LRDS_XA     	"duplicated global transaction ID"
+}
+
+
+XA_ERR_BASE       "XA error" {
+    eINVALIDOPENSTRING_COSMOS_XA        "invalid open string"
+    eINVALIDERRORCODE_COSMOS_XA		"invalid error code"
+}
+
+
+THM_ERR_BASE       "Thread Manager error" {
+    eTHREADCREATEAGAIN_THM 		"a system limit is exceeded, such as when too many LWPs have been created"
+    eTHREADCREATEINVAL_THM              "the value of thtread attribute is invalid"
+    eTHREADCREATEUNKNOWN_THM  		"thread create unknown error"
+    eTHREADWAITSRCH_THM      		"tid is not a valid, undetached thread in the current process"
+    eTHREADWAITDEADLK_THM               "tid specifies the calling thread"
+    eTHREADWAITINVAL_THM     		"the value of tid is invalid"
+    eTHREADWAITUNKNOWN_THM   		"thread wait unknown error"
+    eMUTEXCREATEBUSY_THM     		"the mutex cannot be reinitialized or modified because it still exists"
+    eMUTEXCREATEINVAL_THM    		"the attribute value is invalid. the mutex has not been modified"
+    eMUTEXCREATEFAULT_THM    		"the address for the mutex pointed at by mp is invalid"
+    eMUTEXCREATEUNKNOWN_THM  		"mutex create unknown error"
+    eMUTEXDESTROYINVAL_THM   		"the value specified by mp doesn't refer to an initialized mutex object"
+    eMUTEXDESTROYUNKNOWN_THM            "mutex destroy unknown error"
+    eMUTEXLOCKAGAIN_THM      		"the maximum number of recursive locks for mutex has been exceeded"
+    eMUTEXLOCKDEADLK_THM     		"the current thread already owns the mutex"
+    eMUTEXLOCKUNKNOWN_THM    		"mutex lock unknown error"
+    eMUTEXUNLOCKPERM_THM     		"the current thread doesn't own the mutex"
+    eMUTEXUNLOCKUNKNOWN_THM  		"mutex unlock unknown error"
+    eMUTEXINITFAILED_THM		"mutex initialize error"
+    eCONDCREATEINVAL_THM    		"the value specified by cattr is invalid"
+    eCONDCREATEBUSY_THM    		"the condition variable is being used"
+    eCONDCREATEAGAIN_THM  		"the necessary resources are not available"
+    eCONDCREATENOMEM_THM                "there is not enough memory to initialize the condition variable"
+    eCONDCREATEUNKNOWN_THM              "condition variable create unknown error"
+    eCONDDESTROYINVAL_THM               "the value specified by cv is invalid"
+    eCONDDESTROYUNKNOWN_THM             "condition variable destroy unknown error"
+    eCONDWAITINVAL_THM              	"the value specified by cv or mp is invalid"
+    eCONDWAITUNKNOWN_THM                "condition variable wait unknown error"
+    eCONDSIGNALINVAL_THM          	"cv points to an illegal address"
+    eCONDSIGNALUNKNOWN_THM              "condition variable signal unkonwn error"  
+    eSEMCREATEACCES_THM                 "The named semaphore exists and the O_RDWR  permissions  are denied, or the named semaphore does not exist and permission to create the named semaphore is denied"
+    eSEMCREATEEXIST_THM                 "O_CREAT and  O_EXCL are set and  the  named  semaphore already exists"
+    eSEMCREATEINTR_THM                  "The sem_open() function was interrupted by a signal"
+    eSEMCREATEINVAL_THM                 "The sem_open() operation is not supported for the given name, or O_CREAT was set in oflag and value is greater than SEM_VALUE_MAX"
+    eSEMCREATEMFILE_THM              	"The number of open semaphore descriptors  in  this process  exceeds   SEM_NSEMS_MAX, or the number of open file  descriptors  in  this  process  exceeds OPEN_MAX"
+    eSEMCREATENAMETOOLONG_THM       	"The length of name string exceeds PATH_MAX, or a pathname  component  is longer than NAME_MAX while _POSIX_NO_TRUNC is in effect"
+    eSEMCREATENFILE_THM            	"Too many semaphores are currently open in the system"
+    eSEMCREATENOENT_THM           	"O_CREAT is not set and the named semaphore does not exist"
+    eSEMCREATENOSPC_THM          	"There is insufficient space for  the  creation  of the new named semaphore"
+    eSEMCREATENOSYS_THM         	"The sem_open() function is not  supported  by the system"
+    eSEMCREATEUNKNOWN_THM      		"semaphore create unknown error"
+    eSEMCLOSEINVAL_THM        		"The sem argument is not a valid semaphore descriptor"
+    eSEMCLOSENOSYS_THM       		"The sem_close() function is not supported  by  the system"
+    eSEMCLOSEUNKNOWN_THM    		"semaphore close unknown error"
+    eSEMDESTROYACCES_THM                "Permission is denied to  unlink  the  named  semaphore" 
+    eSEMDESTROYNAMETOOLONG_THM          "The length of name string exceeds PATH_MAX, or a pathname component is longer than NAME_MAX"
+    eSEMDESTROYENOENT_THM               "The named semaphore does not exist"
+    eSEMDESTROYNOSYS_THM                "The sem_unlink() function is not supported by the system" 
+    eSEMDESTROYUNKNOWN_THM              "semaphore destroy unkonwn error"
+    eSEMPOSTINVAL_THM                   "sem points to an illegal address" 
+    eSEMPOSTUNKNOWN_THM                 "semaphore post unkonwn error"
+    eSEMWAITINVAL_THM                   "sem points to an illegal address"
+    eSEMWAITINTR_THM                    "A signal interrupted this function"
+    eSEMWAITUNKNOWN_THM                 "semaphore wait unknown error"
+}
+

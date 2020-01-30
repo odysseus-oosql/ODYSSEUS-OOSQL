@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,109 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_GetMetaDictEntry.c
+ *
+ * Description:
+ *  Get 'data' corresponding to 'name'.
+ *  'name' is a name of a meta dictionary enty and 'data' are value of
+ *  the meta dictionary entry.
+ *
+ * Exports:
+ *  Four SM_GetMetaDictEntry(Four, Four, char*, void*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "RDsM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_GetMetaDictEntry( )
+ *================================*/
+/*
+ * Function: Four SM_GetMetaDictEntry(Four, Four, char*, void*, Four)
+ *
+ * Description:
+ *  Get 'data' corresponding to 'name'.
+ *  'name' is a name of a meta dictionary enty and 'data' are value of
+ *  the meta dictionary entry.
+ *
+ * Returns:
+ *  1) The length of 'data' when the return value is not negative number.
+ *  2) Error code when the return value is negative number.
+ *     eBADPARAMETER
+ *     eNOTMOUNTEDVOLUME_SM
+ *     some errors caused by function calls
+ */
+Four SM_GetMetaDictEntry(
+    Four handle,
+    Four volId,			/* IN volume identifier */
+    char *name,			/* IN name of a meta dictionary entry */
+    void *data,			/* OUT value of the meta dictionary entry */
+    Four dataLength)		/* IN size of storage 'data' prepared for returning value */
+{
+    Four e;			/* error number */
+    Four v;			/* index for the used volume on the mount table */
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_GetMetaDictEntry(handle, volId=%ld, name=%P, data=%P, dataLength=%ld)",
+	      volId, name, data, dataLength));
+
+
+    /*@ Check parameters. */
+    if (volId < 0) ERR(handle, eBADPARAMETER);
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == volId) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+
+    /*@ 'name' should contain a string. */
+    if (name == NULL) ERR(handle, eBADPARAMETER);
+
+    /* The length of 'name' cannot be greater than METADICTENTRYNAME_MAX */
+    if (strlen(name) > MAX_METADICTENTRY_NAME_SIZE)
+	ERR(handle, eBADPARAMETER);
+
+    /* Some storage 'data' should be prepared. */
+    if (data == NULL) ERR(handle, eBADPARAMETER);
+
+    /* 'dataLength' should be greater than 0. */
+    if (dataLength <= 0) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+
+    e = RDsM_GetMetaDictEntry(handle, MY_XACT_TABLE_ENTRY(handle), volId, name, data, dataLength);
+    /* avoid printing error message */
+    if (e == eMETADICTENTRYNOTFOUND_RDSM) return(e); 
+    else if (e < eNOERROR) ERR(handle, e);
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* SM_GetMetaDictEntry( ) */

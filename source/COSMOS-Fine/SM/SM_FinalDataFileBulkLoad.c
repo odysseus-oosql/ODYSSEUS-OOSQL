@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,69 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_FinalDatafileBulkLoad.c
+ *
+ * Description:
+ *  Finalize the data file bulk load.
+ *
+ * Exports:
+ *  Four SM_FinalDatafileBulkLoad(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "BL_OM.h"
+#include "BL_SM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/*@========================================
+ *  SM_FinalDataFileBulkLoad()
+ * =======================================*/
+
+/*
+ * Function : Four SM_FinalDataFileBulkLoad()
+ *
+ * Description :
+ *  Finalize the data file bulk load.
+ *
+ * Return Values :
+ *  error code.
+ *
+ * Side Effects :
+ *  0)
+ *
+ */
+
+Four SM_FinalDataFileBulkLoad(
+    Four handle,
+    Four blkLdId)                /* IN  bulkload ID */
+{
+
+    Four e;                      /* error number */
+    LogParameter_T  logParam;
+
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+
+    e = OM_FinalBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), blkLdId, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* forTest : SM_OpenScan의 경우, open에 start와 end가 다 있는데.. 어떻게 된 것인가? */
+    /* forTest : In SM_OpenScan, there are two parameters, start and end in open. Why? */
+    if(ACTION_ON(handle)){
+        e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return (eNOERROR);
+
+}

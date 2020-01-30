@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,133 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : 	lot_WriteObject.c
+ *
+ * Description :
+ *  Write the large object data into disk from the user supplied buffer.
+ *
+ * Exports :
+ *  Four lot_WriteObject(Four, PageID*, Four, Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * lot_WriteObject( )
+ *================================*/
+/*
+ * Function: Four lot_WriteObject(Four, PageID*, Four, Four, Four, char*)
+ *
+ * Description :
+ *  Write the large object data into disk from the user supplied buffer.
+ *  The function calls itself recursively. The basis is the lot_WriteDataPage()
+ * function call at the leaf node.
+ *
+ * Returns:
+ *  Error codes
+ *    some errors caused by function calls
+ *
+ * Note :
+ *  The parameters are not checked. The caller should pass the correct
+ *  parameters. For example, root should not be NIL, start & length must be
+ *  less than the object size, and buf may not be NULL.
+ */
+Four lot_WriteObject(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 	/* IN transaction table entry */
+    Four 		volNo,          /* IN volume number */
+    PageID 		*root,		/* IN PageID of root page of the subtree */
+    L_O_T_INode 	*anode,         /* IN root node */
+    Four   		start,		/* IN starting offset of write */
+    Four   		length,		/* IN amount of data to write */
+    char   		*buf,		/* OUT user buffer to hold the data */
+    LogParameter_T 	*logParam) 	/* IN log parameter */
+{
+    Four		e, e2;		/* error code */
+    L_O_T_INodePage 	*apage;     	/* pointer to buffer holding slotted page */
+    Buffer_ACC_CB 	*apage_BCBP;
+    PageID		childPid;	/* PageID of root of the subtree */
+    Four		newStart;	/* starting offset used in child node */
+    Four		newLength;	/* length used in child node */
+    Four		i;		/* slot index of child node */
+
+
+    TR_PRINT(handle, TR_LOT, TR1, ("lot_WriteObject()"));
+
+
+    apage = NULL;               /* initialize it for error handling */
+
+    if (root != NULL) {
+        /*@ Read a root page into the buffer page from the disk */
+        e = BfM_getAndFixBuffer(handle, root, M_FREE, &apage_BCBP, PAGE_BUF);
+        if (e < eNOERROR) ERR(handle, e);
+
+        apage = (L_O_T_INodePage *)apage_BCBP->bufPagePtr;
+        anode = &apage->node;
+    }
+
+    i = lot_SearchInNode(handle, anode, start);
+
+    /*
+     * Length & Start used in child node for the first loop
+     */
+    newLength = MIN(anode->entry[i].count - start, length);
+    newStart = start - ((i == 0) ? 0:anode->entry[i-1].count);
+
+    while (length > 0) {
+	/* childPid denots the PageID of the child node */
+	MAKE_PAGEID(childPid, volNo, anode->entry[i].spid);
+	if (anode->header.height == 1) {
+	    /*
+	     * This node is a leaf page; recusive basis
+	     * So read the data page into the buffer.
+	     */
+	    e = lot_WriteData(handle, xactEntry, &childPid, newStart, newLength, buf, logParam);
+	} else {
+	    /*
+	     * This node is a internal node; recursive call
+	     */
+	    e = lot_WriteObject(handle, xactEntry, volNo, &childPid, NULL, newStart, newLength, buf, logParam);
+	}
+        if(e < 0) { PRTERR(handle, e); goto LABEL_Error; }
+
+	/*@
+	 * adjust the variables to reflect the above call
+	 */
+	i++;
+	length -= newLength;
+	buf += newLength;
+
+	/* set length & start for next time loop */
+	if (length > 0) {
+	    newLength = MIN(anode->entry[i].count - anode->entry[i-1].count, length);
+	    newStart = 0;
+	}
+    }
+
+    if (root != NULL) {
+        /*@ free the buffer */
+        e = BfM_unfixBuffer(handle, apage_BCBP, PAGE_BUF);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+  LABEL_Error:
+    if (apage != NULL) {
+        (Four)BfM_unfixBuffer(handle, apage_BCBP, PAGE_BUF);
+    }
+    return(e);
+
+} /* lot_WriteObject( ) */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,113 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_InitDataFileBulkLoad.c
+ *
+ * Description:
+ *  Initialize data file bulk load.
+ *
+ * Exports:
+ *  Four SM_InitDataFileBulkLoad(FileID*, SortKeyDesc*, omGetKeyAttrsFuncPtr_T, void*, Boolean, Two, Two)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BL_OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "BL_SM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*@========================================
+ *  SM_InitDataFileBulkLoad()
+ * =======================================*/
+
+/*
+ * Function : Four SM_InitDataFileBulkLoad()
+ *
+ * Description :
+ *  Initialize data file bulk loading.
+ *
+ * Return Values :
+ *  bulkload ID
+ *  error code.
+ *
+ * Side Effects :
+ *    0)
+ */
+Four SM_InitDataFileBulkLoad(
+    Four		    handle,
+    VolID                   tmpVolId,    /* IN  temporary volume in which sort stream is created */ 
+    FileID                  *fid,        /* IN  file that data bulk load is to be processed */
+    SortKeyDesc             *kdesc,      /* IN  sort key description */
+    GetKeyAttrsFuncPtr_T    getKeyAttrs, /* IN  object analysis function */
+    void                    *schema,     /* IN  schema for analysis function */
+    Boolean                 isNeedSort,  /* IN  flag indicating input data must be sorted by clustering index key */
+    Two                     pff,         /* IN  Page fill factor */
+    Two                     eff,         /* IN  Extent fill factor */
+    PageID                  *firstPageID,/* OUT first page ID of this bulkload */
+    LockParameter           *lockup)     /* IN lockup parameter */
+
+{
+    Four                    e;           /* error number */
+    Four                    v;           /* array index on scan manager mount table */
+    Four                    blkLdId;     /* bulkload ID */ 
+    DataFileInfo            finfo;       /* data file info */
+    ObjectID                catObjForDataFile;  /* catalog object id for data file bulk load */
+
+    LockReply               lockReply;
+    LockMode                oldMode;
+    LogParameter_T          logParam;
+
+
+    /* Check parameters */
+    if (fid == NULL) ERR(handle, eBADPARAMETER);
+    if (isNeedSort == TRUE && (kdesc == NULL || getKeyAttrs == NULL)) ERR(handle, eBADPARAMETER);
+
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+        if (SM_MOUNTTABLE[v].volId == fid->volNo) break;  /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /* lock on the data file */
+    if (lockup) {
+
+        e = LM_getFileLock(handle, &MY_XACTID(handle), fid, L_X, L_COMMIT, L_UNCONDITIONAL, &lockReply, &oldMode);
+        if ( e < eNOERROR ) ERR(handle, e);
+        if (lockReply == LR_DEADLOCK) ERR(handle, eDEADLOCK);
+
+	}
+
+    /* set datafile information */
+    finfo.fid = *fid;
+    finfo.tmpFileFlag = FALSE;
+    e = sm_GetCatalogEntryFromDataFileId(handle, v, fid, &(finfo.catalog.oid));
+    if (e < eNOERROR) ERR(handle, e);
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+
+    /* Initialize data file bulkload in OM level */
+    blkLdId = OM_InitBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), tmpVolId, &finfo, kdesc, (omGetKeyAttrsFuncPtr_T) getKeyAttrs, schema,
+			      isNeedSort, pff, eff, firstPageID, &logParam);
+    if(blkLdId < 0) ERR(handle, blkLdId);
+
+
+    return(blkLdId);
+
+}

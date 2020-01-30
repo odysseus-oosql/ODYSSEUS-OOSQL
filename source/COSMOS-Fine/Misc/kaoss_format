@@ -1,0 +1,5 @@
+SM_Format $1 test_database 209 32 20000 19000  30
+#SM_Format $1 test_database 209 8 200 190  7
+#SM_Format $1 test_database 209 8 500 300  7
+#SM_Format $1 test_database 209 12 1000 800  9
+LRDS_Format $1

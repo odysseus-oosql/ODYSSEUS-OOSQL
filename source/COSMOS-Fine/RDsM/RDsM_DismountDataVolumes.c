@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,61 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_DismountDataVolumes.c
+ *
+ * Description:
+ *  Dismount all the data volumes
+ *
+ * Exports:
+ *  Four RDsM_DismountDataVolumes(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*
+ * Function: Four RDsM_DismountDataVolumes(void)
+ *
+ * Description:
+ *  Dismount all the data volumes
+ *
+ * Returns:
+ *  Error code
+ */
+Four	RDsM_DismountDataVolumes(
+    Four		handle 			/* handle */
+)
+{
+    Four e;                     /* error returned */
+    Four i;                     /* loop index */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_DismountDataVolumes()"));
+
+
+    /*
+     *	for every nonempty volume entry, Dismount the volume if it is a data volume
+     */
+    for (i = 0; i < MAXNUMOFVOLS; i++) {
+	if (RDSM_VOLTABLE[i].nMounts > 0 && RDSM_VOLTABLE[i].volInfo.type == VOLUME_TYPE_DATA) {
+	    e = RDsM_Dismount(handle, RDSM_VOLTABLE[i].volInfo.volNo, TRUE);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+    }
+
+    return(eNOERROR);
+
+} /* RDsM_DismountDataVolumes() */

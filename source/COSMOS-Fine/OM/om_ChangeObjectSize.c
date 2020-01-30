@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,120 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: om_ChangeObjectSize.c
+ *
+ * Description:
+ *  Change an object size.
+ *
+ * Exports:
+ *  Four om_ChangeObjectSize(Four, SlottedPage*, Four, Four)
+ *
+ * Returns:
+ *
+ *
+ * Assumption:
+ *  We assume that the page can be accomdate the new length.
+ *  We assume that the given object is not the moved object; that is,
+ *  the object has not P_MOVED property.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four om_ChangeObjectSize(
+    Four 	handle,
+    XactID 	*xactId, 	/* IN transaction table entry */
+    SlottedPage *apage,		/* IN page containing the object */
+    Four        slotNo,		/* IN slot number */
+    Four	oldLength,      /* IN old length */
+    Four	newLength,      /* IN new length */
+    Boolean	calledOnUndoFlag) /* IN called on undo operation if TRUE */
+{
+    Four 	e;              /* error code */
+    Object 	*obj;		/* point to the object in page */
+    Four 	offset;		/* offset in data area of the object */
+    Four 	deltaLength;    /* difference between old length and new length */
+    Boolean 	pageUpdateFlag;
+    Boolean 	allocFlag;
+
+
+    TR_PRINT(handle, TR_OM, TR1, ("om_ChageObjectSize()"));
+
+
+    deltaLength = newLength - oldLength;
+
+    /* Points to the object. */
+    offset = apage->slot[-slotNo].offset;
+    obj = (Object *)&(apage->data[offset]);
+
+    if (deltaLength > 0) {	/* grow the size */
+
+#ifdef CCRL
+        if (calledOnUndoFlag == TRUE) {
+            e = om_UndoRelease(handle, xactId, apage, deltaLength, &pageUpdateFlag);
+        } else {
+            e = om_AcquireSpace(handle, xactId, apage, deltaLength, 0, &allocFlag, &pageUpdateFlag);
+            assert(allocFlag == TRUE);
+        }
+        if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+	if (apage->header.free == offset+sizeof(ObjectHdr)+oldLength &&
+	    deltaLength <= SP_CFREE(apage)) {
+	    /* This object is the last object in the page and
+	     * the added bytes can be appended without movement. */
+
+	    apage->header.free += deltaLength;
+
+	} else if (newLength + sizeof(ObjectHdr) <= SP_CFREE(apage)) {
+	    /* The contiguous free space can accomadate full object */
+
+	    /* copy the original object to the last data space */
+	    memcpy(&(apage->data[apage->header.free]), obj,
+		   sizeof(ObjectHdr) + oldLength);
+
+	    apage->slot[-slotNo].offset = apage->header.free;
+	    apage->header.free += sizeof(ObjectHdr) + newLength;
+	    apage->header.unused += sizeof(ObjectHdr) + oldLength;
+
+	} else {
+	    /* Complex Case: Compact the data page and insert it */
+
+	    (void) om_CompactPage(handle, apage, slotNo);
+
+	    apage->header.free += deltaLength;
+	}
+
+    } else { /* shrink the size */
+#ifdef CCRL
+        if (calledOnUndoFlag == TRUE) {
+            e = om_UndoAcquire(handle, xactId, apage, -deltaLength, &pageUpdateFlag);
+        } else {
+            e = om_ReleaseSpace(handle, xactId, apage, -deltaLength, &pageUpdateFlag);
+        }
+        if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+	if (apage->header.free == offset+sizeof(ObjectHdr)+oldLength) {
+	    /* this is the last object in the page */
+	    /* the space can be reused in the contiguous space */
+	    /* apage->header.free -= -deltaLength */
+	    apage->header.free += deltaLength;
+	} else {
+	    /* free the space: apage->header.unused += -deltaLength */
+	    apage->header.unused -= deltaLength;
+	}
+    }
+
+    return(eNOERROR);
+
+} /* om_ChangeObjectSize() */

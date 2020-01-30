@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,136 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: OM_GetObjectHdr
+ *
+ * Description:
+ *  Return the object header of the given object.
+ *  Object header consists of an object's properties and  data length.
+ *
+ * Exports:
+ *  Four OM_GetObjectHdr(Four, DataFileInfo*, ObjectID *, ObjectHdr *, LockParameter*)
+ *
+ * Return value:
+ *  Error code
+ *    eBADOBJECTID_OM
+ *    eLOCKREQUESTFAIL_OM
+ *    some errors caused by function calls
+ *
+ * Side effect:
+ *  None
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "OM.h"
+#include "LM.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+Four OM_GetObjectHdr(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    DataFileInfo *finfo,	/* IN file information */
+    ObjectID *oid,		/* IN object whose header to get */
+    ObjectHdr *objHdr,		/* OUT object header to return */
+    LockParameter *lockup)
+{
+    Four e;			/* error number */
+    PageID pid;                 /* page identifier */
+    SlottedPage *apage;		/* pointer to buffer holding the slotted page */
+    Buffer_ACC_CB *aPage_BCBP;	/* buffer access control block containing data */
+    Object *obj;		/* pointer to the object in the slotted page */
+    LockReply lockReply;	/* lock reply */
+    LockMode oldMode;
+
+
+    TR_PRINT(handle, TR_OM, TR1, ("OM_GetObjectHdr(finfo=%P, oid=%P, objHdr=%P, lockup=%P)",
+			  finfo, oid, objHdr, lockup));
+
+
+    /* get pid from oid */
+    pid = *((PageID *)oid);
+
+#ifdef CCPL
+    if(lockup){
+	/* lock the page */
+	e = LM_getPageLock(handle, &xactEntry->xactId, &pid, &finfo->fid,
+			   lockup->mode, lockup->duration, L_UNCONDITIONAL, &lockReply, &oldMode);
+	if (e < eNOERROR) ERR(handle, e);
+
+	if(lockReply == LR_DEADLOCK){
+	    ERR(handle, eDEADLOCK);	    /* deadlock */
+	}
+    }
+#endif /* CCPL */
+
+#ifdef CCPL
+    e = BfM_getAndFixBuffer(handle, (TrainID *)oid, M_FREE, &aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCPL */
+
+#ifdef CCRL
+    e = BfM_getAndFixBuffer(handle, (TrainID *)oid, M_SHARED, &aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+    apage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+    if(!IS_VALID_OBJECTID(oid, apage)) {
+#ifdef CCPL
+	ERRB1(handle, eBADOBJECTID_OM, aPage_BCBP, PAGE_BUF);
+#endif /* CCPL */
+
+#ifdef CCRL
+	ERRBL1(handle, eBADOBJECTID_OM, aPage_BCBP, PAGE_BUF);
+#endif /* CCRL */
+    }
+
+#ifdef CCRL
+    if (lockup) {
+
+	e = LM_getObjectLock(handle, &xactEntry->xactId, oid, &apage->header.fid,
+			     lockup->mode, lockup->duration, L_CONDITIONAL, &lockReply, &oldMode);
+	if ( e < eNOERROR ) ERRBL1(handle, e, aPage_BCBP, PAGE_BUF);
+
+	if ( lockReply == LR_NOTOK ) {
+	    /* release latch to avoid deadlock situation */
+	    e = SHM_releaseLatch(handle, aPage_BCBP->latchPtr, procIndex);
+	    if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+
+	    e = LM_getObjectLock(handle, &xactEntry->xactId, oid, &apage->header.fid,
+				 lockup->mode, lockup->duration, L_UNCONDITIONAL, &lockReply, &oldMode);
+	    if ( e < eNOERROR ) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+
+	    if ( lockReply == LR_DEADLOCK ) ERRB1(handle, eDEADLOCK, aPage_BCBP, PAGE_BUF);
+
+	    /* relatch the page */
+	    e = SHM_getLatch(handle, aPage_BCBP->latchPtr, procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+	    if ( e < eNOERROR ) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+
+	    /* re-validation the objectID */
+	    if(!IS_VALID_OBJECTID(oid, apage)) ERRBL1(handle, eBADOBJECTID_OM, aPage_BCBP, PAGE_BUF);
+	}
+    }
+#endif /* CCRL */
+
+    obj = (Object *)&(apage->data[apage->slot[-(oid->slotNo)].offset]);
+
+    *objHdr = obj->header;
+
+#ifdef CCRL
+    e = SHM_releaseLatch(handle, aPage_BCBP->latchPtr, procIndex);
+    if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+#endif /* CCRL */
+
+    e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* OM_GetObjectHdr() */

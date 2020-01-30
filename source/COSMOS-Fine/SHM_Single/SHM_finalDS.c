@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,54 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SHM_finalDS.c
+ *
+ * Description:
+ *   finalize shared/local data structure
+ *
+ * Exports:
+ *	SHM_finalSharedDS( )
+ *	SHM_finalLocalDS( )
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@================================
+ * SHM_finalSharedDS( )
+ *================================*/
+/* SHM_finalSharedDS( )
+   Finalize the Shared Data Structures of KAOSS */
+Four SHM_finalSharedDS(
+    Four	handle
+)
+{
+
+    /* close the corresponding entry of the processTable */
+    shm_freeProcessTableEntry(handle, procIndex);
+
+    return(eNOERROR);
+
+} /* SHM_finalSharedDS( ) */
+
+
+
+/*@================================
+ * SHM_initLocalDS( )
+ *================================*/
+/* SHM_finalLocalDS( )
+   finalize the local data structures of KAOSS */
+Four SHM_finalLocalDS(
+    Four	handle
+)
+{
+    return(eNOERROR);
+
+} /* SHM_finalLocalDS( ) */

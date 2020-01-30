@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,84 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: tm_AllocXactId.c
+ *
+ * Description:
+ *  Allocate a new transaction id.
+ *
+ * Exports:
+ *  Four tm_AllocXactId(Four, XactID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: void TM_SetXactIdCounter(Four, XactID*)
+ *
+ * Description:
+ *  Set the transaction id to be allocated next time.
+ *
+ * Returns:
+ *  None
+ *
+ * Note:
+ *  This function is called on the restart time; so there is no need
+ *  for the concurrency control.
+ */
+void TM_SetXactIdCounter(
+    Four 	handle,
+    XactID 	*xactId)		/* IN tranaction id to alloc next time */
+{
+    TR_PRINT(handle, TR_TM, TR1, ("TM_SetXactIdCounter(xactId=%P)", xactId));
+
+    tm_shmPtr->xactIdCounter = *xactId;
+
+} /* TM_SetXactIdCounter() */
+
+
+
+/*
+ * Function: Four tm_AllocXactId(Four, XactID*)
+ *
+ * Description:
+ *  Allocate a new transaction id.
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ *    error codes returned by other function calls
+ */
+Four tm_AllocXactId(
+    Four 	handle,
+    XactID 	*xactId)		/* OUT allocated transaction id */
+{
+    Four 	e;			/* error code */
+
+
+    TR_PRINT(handle, TR_TM, TR1, ("tm_AllocXactId(xactId=%P)", xactId));
+
+
+    e = SHM_getLatch(handle, &tm_shmPtr->latch_xactIdCounter, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    ASSIGN_XACTID(*xactId, tm_shmPtr->xactIdCounter);
+
+    INCREASE_XACTID(tm_shmPtr->xactIdCounter);
+
+    e = SHM_releaseLatch(handle, &tm_shmPtr->latch_xactIdCounter, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* tm_AllocXactId( ) */

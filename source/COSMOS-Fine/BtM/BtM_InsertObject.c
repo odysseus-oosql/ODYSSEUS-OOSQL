@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,101 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_InsertObject.c
+ *
+ * Description :
+ *  Insert an ObjectID 'oid' into a Btree whose key value is 'kval'.
+ *
+ * Exports:
+ *  Four BtM_InsertObject(Four, PageID*, LATCH_TYPE*, KeyDesc*, KeyValue*, ObjectID*, LockParameter*)
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER_BTM
+ *    some errors caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four BtM_InsertObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    BtreeIndexInfo *iinfo,      /* IN B tree index information */ 
+    FileID     *fid,            /* IN FileID */ 
+    KeyDesc  *kdesc,		/* IN key descriptor */
+    KeyValue *kval,		/* IN key value */
+    ObjectID *oid,		/* IN ObjectID which will be inserted */
+    LockParameter *lockup,	/* IN request lock or not */
+    LogParameter_T *logParam)   /* IN log parameter */
+{
+    Four e;			/* error number */
+    btm_TraversePath path;	/* Btree traverse path stack */
+    LATCH_TYPE *treeLatchPtr;
+    PageID root;
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("BtM_InsertObject(handle, iinfo=%P, kdesc=%P, kval=%P, oid=%P, lockup=%P)",
+	      iinfo, kdesc, kval, oid, lockup));
+
+
+    /* check parameters */
+
+    if (iinfo == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kdesc == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kval == NULL) ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Get root's page ID of the current index */
+    e = btm_GetRootPid(handle, xactEntry, iinfo, &root, lockup);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Get TreeLatchPtr of the current index */
+    e = BtM_GetTreeLatchPtrFromIndexId(handle, &iinfo->iid, &treeLatchPtr); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Initialize the traverse path stack. */
+    btm_InitPath(handle, &path, treeLatchPtr);
+
+    for (;;) {
+
+	/* Get the traverse path. */
+	e = btm_Search(handle, &iinfo->iid, &root, kdesc, kval, BTM_INSERT, 0, &path); 
+	if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+	/* Insert the given ObjectID into the Btree if there is enough space */
+	/* in the leaf page where the ObjectID is to be placed. */
+	e = btm_InsertLeaf(handle, xactEntry, iinfo, fid, &path, kdesc, kval, oid, lockup, logParam); 
+	if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+	/* The ObjectID was inserted successfully.*/
+	if (e == eNOERROR) break;
+
+	if (e == BTM_NOSPACE) {
+	    /* btm_Insert() have failed since there was no enough space. */
+	    /* Split the page on the top of 'path'. */
+	    e = btm_Split(handle, xactEntry, &path, iinfo, &root, kdesc, kval, logParam); 
+	    if (e < eNOERROR) ERRPATH(handle, e, &path);
+	}
+    }
+
+    /* Finalize the traverse path stack. */
+    e = btm_FinalPath(handle, &path);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+}   /* BtM_InsertObject() */

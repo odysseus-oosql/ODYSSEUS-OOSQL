@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,85 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_OM_ChangeObject.c
+ *
+ * Description:
+ *  redo changing object
+ *
+ * Exports:
+ *  Four Redo_OM_ChangeObject(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "OM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_OM_ChangeObject(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    SlottedPage *aPage = anyPage;
+    Four e;                     /* error code */
+    Object *obj;                /* points to the updated object */
+    Four alignedOrigLen;	/* aligned length of original length */
+    Four alignedNewLen;         /* aligned length of new length */
+    LOG_Image_OM_ChangeObject_T *changeObjInfo;
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_OM_ChangeObject()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    changeObjInfo = (LOG_Image_OM_ChangeObject_T*)logRecInfo->imageData[0];
+
+    /* Points the object. */
+    obj = (Object*)&(aPage->data[aPage->slot[-(changeObjInfo->any.slotNo)].offset]);
+
+    alignedOrigLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(logRecInfo->imageSize[1] - changeObjInfo->any.deltaOfDataAreaSize));
+    alignedNewLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(logRecInfo->imageSize[1]));
+
+    /*
+     *	redo changing object
+     */
+    /* Change the size of the object data part */
+    e = om_ChangeObjectSize(handle, &logRecInfo->xactId, aPage, changeObjInfo->any.slotNo, alignedOrigLen, alignedNewLen, FALSE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* In om_ChangeObjectSize( ), obj may be moved to someplace. */
+    obj = (Object*)&(aPage->data[aPage->slot[-(changeObjInfo->any.slotNo)].offset]);
+
+    switch(changeObjInfo->any.type) {
+      case CHANGE_OBJECT_TYPE_NONE:
+        break;
+
+      case CHANGE_OBJECT_TYPE_PROPERTIES:
+        obj->header.properties ^= changeObjInfo->p.propertiesXor;
+        break;
+
+      case CHANGE_OBJECT_TYPE_PROPERTIES_AND_LENGTH:
+        obj->header.properties ^= changeObjInfo->p_l.propertiesXor;
+        obj->header.length += changeObjInfo->p_l.deltaInLengthField;
+        break;
+
+      default:
+        ERR(handle, eBADPARAMETER);
+    }
+
+    memcpy(obj->data, logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+
+    return(eNOERROR);
+
+} /* Redo_OM_ChangeObject( ) */

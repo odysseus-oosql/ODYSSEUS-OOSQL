@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,164 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_FlushLogRecords.c
+ *
+ * Description:
+ *  Flush log buffer pages so that the given log record should be permanant.
+ *
+ * Exports:
+ *  Four LOG_FlushLogRecords(Four, Lsn_T*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_FlushLogRecords(Four, Lsn_T*, Four)
+ *
+ * Description:
+ *  Flush log buffer pages so that the given log record should be permanant.
+ *  The log buffers from LOG_LBI_TAIL to the buffer holding the given log record
+ *  will be written into the disk.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_FlushLogRecords(
+    Four 	handle,
+    Lsn_T 	*logRecLsn,		/* IN log record which should be written into disk */
+    Four 	logRecLength)		/* IN the length of the log record */
+{
+    Four 	e;			/* error code */
+    Four 	pageNo;			/* page no of the log page containing the last byte of the log record */
+    Four 	pageDistance;		/* distance between two log pages */
+    Four 	nPages;			/* # of log pages buffered in log buffer pool */
+    Lsn_T 	lsn;                  	/* temporary variable */
+    Four 	logBufIdx;            	/* log buffer index */
+    Boolean 	flushAllBuffersFlag; 	/* TRUE if all the buffers are to be flushed */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_FlushLogRecords(logRecLsn=%P, logRecLength=%lD)",
+			   logRecLsn, logRecLength));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecLsn == NULL) ERR(handle, eBADPARAMETER);
+
+    /*
+     * If there is no log volume, we have completed the flush.
+     */
+    if (LOG_LOGMASTER.volNo == NIL) return(eNOERROR);
+
+    /* if log record length is 0, there is no need to flush. */
+    /* The log record length can be 0.; no update but buffer dirty flag was set. */
+    /* If the length is 0, we *SHOULD* return here becuase the follows cannot handle this case.(LOG_INCREASE_LSN(lsn, logRecLength-1) */
+    assert(logRecLength >= 0);
+    if (logRecLength == 0) return(eNOERROR);
+
+    /* Get the page no containing the last byte of the log record. */
+    lsn = *logRecLsn;
+    LOG_INCREASE_LSN(lsn, logRecLength-1);
+    pageNo = LOG_GET_PAGE_NO_FROM_LSN_OFFSET(lsn.offset);
+
+
+    /*
+     * Save the current LOG_LBI_HEAD value.
+     * To avoid deadlock we should request latches in the order
+     * LOG_LATCH4HEAD ==> LOG_LATCH4TAIL
+     */
+    /* Get the latch LOG_LATCH4HEAD to read the head no of the circular log buffer pool. */
+    e = SHM_getLatch(handle, &LOG_LATCH4HEAD, procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     * We should get the latch LOG_LATCH4TAIL before releasing the latch
+     * LOG_LATCH4HEAD.
+     */
+    e = SHM_getLatch(handle, &LOG_LATCH4TAIL, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERRL1(handle, e, &LOG_LATCH4HEAD);
+
+
+    /*
+     * Get the distance between the log page containg log records and the log
+     * page pointed by LOG_LBI_TAIL.
+     */
+    pageDistance = LOG_GET_DISTANCE_BTW_PAGES(lsn.wrapCount, pageNo,
+					      LOG_LBT_WRAPCOUNT(LOG_LBI_TAIL),
+					      LOG_LBT_PAGENO(LOG_LBI_TAIL));
+
+    /* The log records were already flushed out. */
+    if (pageDistance < 0) {
+	e = SHM_releaseLatch(handle, &LOG_LATCH4TAIL, procIndex);
+	if (e < eNOERROR) ERRL1(handle, e, &LOG_LATCH4HEAD);
+
+        e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+	return(eNOERROR);
+    }
+
+#ifndef NDEBUG
+    /* Get the number of pages in the log buffer pool. */
+    nPages = (LOG_LBI_HEAD >= LOG_LBI_TAIL) ?
+	(LOG_LBI_HEAD - LOG_LBI_TAIL + 1) : (NUM_WRITE_LOG_BUFS + LOG_LBI_HEAD - LOG_LBI_TAIL + 1);
+
+    /* The log records are not written yet. */
+    if ((pageDistance+1) > nPages) {
+	e = SHM_releaseLatch(handle, &LOG_LATCH4TAIL, procIndex);
+	if (e < eNOERROR) ERRL1(handle, e, &LOG_LATCH4HEAD);
+
+        e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+	ERR(handle, eBADPARAMETER);
+    }
+#endif /* NDEBUG */
+
+    logBufIdx = (LOG_LBI_TAIL + pageDistance) % NUM_WRITE_LOG_BUFS;
+
+    if (LOG_LBI_HEAD == logBufIdx) {
+        flushAllBuffersFlag = TRUE;
+
+    } else {
+        flushAllBuffersFlag = FALSE;
+
+        /* Release the latch LOG_LATCH4HEAD to allow the other things to go on. */
+        e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+        if (e < eNOERROR) ERRL1(handle, e, &LOG_LATCH4TAIL);
+
+    }
+
+    /* lastKeepBufFlag parameter has TRUE value when flushAllBuffersFlag is TRUE. */
+    e = log_FlushLogBuffers(handle, logBufIdx, flushAllBuffersFlag);
+    if (e < eNOERROR) {
+        if (flushAllBuffersFlag)
+            (Four) SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+        ERRL1(handle, e, &LOG_LATCH4TAIL);
+    }
+
+    if (flushAllBuffersFlag) {
+        /* Release the latch LOG_LATCH4HEAD. */
+        e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+        if (e < eNOERROR) ERRL1(handle, e, &LOG_LATCH4TAIL);
+    }
+
+    /* release latch */
+    e = SHM_releaseLatch(handle, &LOG_LATCH4TAIL, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LOG_Flush() */

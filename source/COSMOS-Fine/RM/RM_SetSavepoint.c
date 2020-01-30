@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,51 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RM_SetSavepoint.c
+ *
+ * Description:
+ *  Set savepoint.
+ *
+ * Exports:
+ *  Four RM_SetSavepoint(Four, XactTableEntry_T*, Lsn_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "dirtyPageTable.h"
+#include "xactTable.h"
+#include "LOG.h"
+#include "TM.h"
+#include "RM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four RM_SetSavepoint(Four, XactTableEntry_T*, Lsn_T*)
+ *
+ * Description:
+ *  set savepoint
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ */
+Four RM_SetSavepoint(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 		/* IN transaction table entry */
+    Lsn_T 		*lsn)                 	/* OUT last lsn */
+{
+    /*
+     * get the last lsn
+     */
+    *lsn = xactEntry->lastLsn;
+
+    return(eNOERROR);
+
+} /* RM_SetSavepoint() */

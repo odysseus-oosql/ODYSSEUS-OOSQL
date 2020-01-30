@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,81 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_OM_DestroySmallObject.c
+ *
+ * Description:
+ *  redo destroying a small object
+ *
+ * Exports:
+ *  Four Redo_OM_DestroySmallObject(Four, SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOT.h" 
+#include "OM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_OM_DestroySmallObject(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN log record information */
+{
+    Four e;                     /* error code */
+    SlottedPage *aPage = anyPage;
+    Object *obj;                /* an object */
+    LOG_Image_OM_ObjectInPage_T *objInfoPtr; /* specify an object in a slotted page */
+    Boolean pageUpdateFlag;
+    Four        alignedLen;	/* aligned length of object data area */
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_OM_DestroySmallObject(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* get the images */
+    objInfoPtr = (LOG_Image_OM_ObjectInPage_T*)logRecInfo->imageData[0];
+
+
+    /* Function call om_ReleaseSpace( ) was moved after the setting of 'obj' variable */
+
+    /*
+     *	redo destroying a small object
+     */
+    obj = (Object*)&aPage->data[aPage->slot[-(objInfoPtr->slotNo)].offset];
+
+#ifdef CCRL
+    if (obj->header.properties & P_LRGOBJ)
+        alignedLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(LOT_GetSize(handle, obj->data, IS_LRGOBJ_ROOTWITHHDR(obj->header.properties))));
+    else if (obj->header.properties & P_MOVED)
+        alignedLen = sizeof(ObjectID);
+    else
+        alignedLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(obj->header.length));
+
+    e = om_ReleaseSpace(handle, &logRecInfo->xactId, aPage, sizeof(ObjectHdr)+alignedLen, &pageUpdateFlag);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+    /* free the space allocated */
+    aPage->header.unused += sizeof(ObjectHdr) + MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(obj->header.length));
+
+    /* set the slot to EMPTYSLOT */
+    aPage->slot[-(objInfoPtr->slotNo)].offset = EMPTYSLOT;
+
+    if (*((Boolean*)logRecInfo->imageData[1])) aPage->header.nSlots --;
+
+    return(eNOERROR);
+
+} /* Redo_OM_DestroySmallObject( ) */

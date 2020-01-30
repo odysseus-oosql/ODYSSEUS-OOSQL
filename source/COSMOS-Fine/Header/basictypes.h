@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,152 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _BASICTYPES_H_
+#define _BASICTYPES_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "param.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*
+ * Type definitions for the basic types
+ */
+
+#if defined(_LP64) && defined(SUPPORT_LARGE_DATABASE2) 
+
+/* one byte data type (in fact, it is a two byte data type) */
+typedef short                   One;
+typedef unsigned short          UOne;
+
+/* two bytes data type (in fact, it is a four byte data type) */
+typedef int                     Two;
+typedef unsigned int            UTwo;
+
+/* four bytes data type (in fact, it is a eight byte data type) */
+typedef long                    Four;
+typedef unsigned long           UFour;
+
+/* eight bytes data type */
+typedef long                    Eight;
+typedef unsigned long           UEight;
+
+/* invarialbe size data type */
+typedef char                    One_Invariable;
+typedef unsigned char           UOne_Invariable;
+typedef One                     Two_Invariable;
+typedef UOne                    UTwo_Invariable;
+typedef Two                     Four_Invariable;
+typedef UTwo                    UFour_Invariable;
+typedef Four                    Eight_Invariable;
+typedef UFour                   UEight_Invariable;
+
+#elif defined(_LP64) && !defined(SUPPORT_LARGE_DATABASE2)
+
+/* one byte data type */
+typedef char                    One;
+typedef unsigned char           UOne;
+
+/* two bytes data type */
+typedef short                   Two;
+typedef unsigned short          UTwo;
+
+/* four bytes data type */
+typedef int                     Four;
+typedef unsigned int            UFour;
+
+/* eight bytes data type */
+typedef long                    Eight;
+typedef unsigned long           UEight;
+
+/* invarialbe size data type */       
+typedef char                    One_Invariable;
+typedef unsigned char           UOne_Invariable;
+typedef Two                     Two_Invariable;
+typedef UTwo                    UTwo_Invariable;
+typedef Four                    Four_Invariable;
+typedef UFour                   UFour_Invariable;
+typedef Eight                   Eight_Invariable;
+typedef UEight                  UEight_Invariable;
+
+#elif !defined(_LP64) && defined(SUPPORT_LARGE_DATABASE2)
+
+/* one byte data type (in fact, it is a two byte data type) */
+typedef short                   One;
+typedef unsigned short          UOne;
+
+/* two bytes data type (in fact, it is a four byte data type) */
+typedef long                    Two;
+typedef unsigned long           UTwo;
+
+/* four bytes data type (in fact, it is a eight byte data type) */
+#if defined(AIX64) || defined(SOLARIS64) || defined(LINUX64)
+typedef long long               Four;
+typedef unsigned long long      UFour;
+#elif defined(WIN64) || defined(WIN32)
+typedef __int64                 Four;
+typedef unsigned __int64        UFour;
+#else
+#define EIGHT_NOT_DEFINED
+#endif /* defined(AIX64) || defined(SOLARIS64) || defined(LINUX64) */
+
+/* eight bytes data type */
+#if defined(AIX64) || defined(SOLARIS64) || defined(LINUX64)
+typedef long long               Eight;
+typedef unsigned long long      UEight;
+#elif defined(WIN64) || defined(WIN32)
+typedef __int64                 Eight;
+typedef unsigned __int64        UEight;
+#else
+#define EIGHT_NOT_DEFINED
+#endif /* defined(AIX64) || defined(SOLARIS64) || defined(LINUX64) */
+ 
+/* invarialbe size data type */
+typedef char                    One_Invariable;
+typedef unsigned char           UOne_Invariable;
+typedef One                     Two_Invariable;
+typedef UOne                    UTwo_Invariable;
+typedef Two                     Four_Invariable;
+typedef UTwo                    UFour_Invariable;
+#if defined(AIX64) || defined(SOLARIS64) || defined(LINUX64) || defined(WIN64) || defined(WIN32)
+typedef Four                    Eight_Invariable;
+typedef UFour                   UEight_Invariable;
+#endif
+
+#elif !defined(_LP64) && !defined(SUPPORT_LARGE_DATABASE2) 
+
+/* one byte data type */
+typedef char                    One;
+typedef unsigned char           UOne;
+
+/* two bytes data type */
+typedef short                   Two;
+typedef unsigned short          UTwo;
+
+/* four bytes data type */
+typedef long                    Four;
+typedef unsigned long           UFour;
+ 
+/* eight bytes data type */
+#if defined(AIX64) || defined(SOLARIS64) || defined(LINUX64)
+typedef long long               Eight;
+typedef unsigned long long      UEight;
+#elif defined(WIN64) || defined(WIN32)
+typedef __int64                 Eight;
+typedef unsigned __int64        UEight;
+#else
+#define EIGHT_NOT_DEFINED
+#endif /* defined(AIX64) || defined(SOLARIS64) || defined(LINUX64) */
+ 
+/* invarialbe size data type */
+typedef char                    One_Invariable;
+typedef unsigned char           UOne_Invariable;
+typedef Two                     Two_Invariable;
+typedef UTwo                    UTwo_Invariable;
+typedef Four                    Four_Invariable;
+typedef UFour                   UFour_Invariable;
+#if defined(AIX64) || defined(SOLARIS64) || defined(LINUX64) || defined(WIN64) || defined(WIN32)
+typedef Eight                   Eight_Invariable;
+typedef UEight                  UEight_Invariable;
+#endif
+
+#endif 
+
+#endif /* _BASICTYPES_H_ */

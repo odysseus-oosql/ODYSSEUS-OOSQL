@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,125 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_FetchObject.c
+ *
+ * Description:
+ *  Read the given object's contents. If the given object is NULL, then read
+ *  the current cursor's object.
+ *
+ * Exports:
+ *  Four SM_FetchObject(Four, Four, ObjectID*, Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_FetchObject( )
+ *================================*/
+/*
+ * Function: Four SM_FetchObject(Four, Four, ObjectID*, Four, Four, char*)
+ *
+ * Description:
+ *  Read the given object's contents. If the given object is NULL, then read
+ *  the current cursor's object.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eBADCURSOR
+ *    some errors caused by function calls
+ */
+Four SM_FetchObject(
+    Four handle,
+    Four scanId,		/* IN scan to use */
+    ObjectID *oid,		/* IN object to read */
+    Four start,			/* IN starting offset of data to read */
+    Four length,		/* IN amount of data to read */
+    char *data,			/* OUT space to return the read data */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four e, e1;			/* error number */ 
+    ObjectID *readOid;		/* object to read */
+    LockParameter *realLockup;
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_FetchObject(handle, scanId=%ld, oid=%P, start=%ld, length=%ld, data=%P, lockup=%P)",
+	      scanId, oid, start, length, data, lockup));
+
+    /*@ check parameters. */
+    if (!VALID_SCANID(handle, scanId)) ERR(handle, eBADPARAMETER);
+
+    if (length < 0 && length != REMAINDER) ERR(handle, eBADPARAMETER);
+
+    if (length > 0 && data == NULL) ERR(handle, eBADPARAMETER);
+
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /*@ oid is equal to NULL? */
+    /* If the 'oid' is NULL, then use the current cursor's object. */
+    if (oid == NULL) {
+	if (SM_SCANTABLE(handle)[scanId].cursor.any.flag != CURSOR_ON)
+	    ERR(handle, eBADCURSOR);
+
+	readOid = &(SM_SCANTABLE(handle)[scanId].cursor.any.oid);
+    } else
+	readOid = oid;
+
+    /* check the lockup parameter */
+    realLockup = NULL;
+
+    if(lockup){
+	if(lockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+	if((lockup->mode != L_X) && (lockup->mode != L_S))
+	    ERR(handle, eBADLOCKMODE_SM);
+	switch ( SM_SCANTABLE(handle)[scanId].acquiredFileLock ) {
+	  case L_IS :
+	  case L_IX : realLockup = lockup; break;
+	  case L_S  :
+	  case L_SIX:
+	  case L_X  : realLockup = NULL; break; /* already enough lock  */
+          /*
+           * This error can detected by LM_getObjectLock call
+           * default   : ERR(handle, eINVALIDHIERARCHICALLOCK_SM);
+           */
+	}
+    }
+
+    if(length != 0){
+	/* Read the object. */
+	e = OM_ReadObject(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_SCANTABLE(handle)[scanId].finfo.fid), readOid, start,
+			  length, data, realLockup); 
+	if (e < eNOERROR) ERR(handle, e);
+    }
+    else e = 0;
+
+    if(ACTION_ON(handle)){  
+	e1 = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e1 < eNOERROR) ERR(handle, e1);
+    }
+
+    return(e);
+
+} /* SM_FetchObject() */
+
+

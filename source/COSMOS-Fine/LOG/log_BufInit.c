@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,65 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: log_BufInit.c
+ *
+ * Description:
+ *  Initialize the data structures for log buffer manager.
+ *
+ * Exports:
+ *  Four log_BufInit(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four log_BufInit(Four)
+ *
+ * Description:
+ *  Initialize the data structures for log buffer manager.
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ */
+Four log_BufInit(
+    Four    	handle)
+{
+    Four	i;		/* loop index */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("log_BufInit()"));
+
+
+    /* No concurrency control is needed because only one process runs. */
+
+    /*
+     *	initialize the logBufferInfo
+     */
+    LOG_LBI_HEAD = 0;
+    LOG_LBI_TAIL = 0;
+
+
+    /*
+     *	initialize the logBufferTable
+     */
+    for (i = 0; i < NUM_WRITE_LOG_BUFS; i++) {
+
+	LOG_LBT_PAGENO(i) = NIL;
+	LOG_LBT_WRAPCOUNT(i) = NIL;
+
+    } /* end for */
+
+
+    return(eNOERROR);
+
+} /* log_BufInit( ) */

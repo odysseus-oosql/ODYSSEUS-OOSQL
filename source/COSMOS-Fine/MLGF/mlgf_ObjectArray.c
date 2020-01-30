@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,121 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_ObjectArray.c
+ *
+ * Description:
+ *  Routines for the object array. The object array is the array of pairs
+ *  of ObjectID and its extra data. The objects in one array have the same
+ *  keys.
+ *
+ * Exports:
+ *  Four mlgf_ObjectIdComp(Four, ObjectID*, ObjectID*)
+ *  Boolean mlgf_BinarySearchObjectArray(Four, char*, ObjectID*, Four, Four, Four*)
+ *
+ * Returns:
+ *  TRUE if we find the given object
+ *  FALSE otherwise
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four mlgf_ObjectIdComp(Four, ObjectID*, ObjectID*)
+ *
+ * Description:
+ *  Compare two ObjectIDs and returns its result.
+ *
+ * Returns:
+ *  Result of comparison
+ *    EQUAL : oid_x and oid_y are same
+ *    GREAT : oid_x is greater than oid_y
+ *    LESS  : oid_x is less than oid_y
+ */
+Four mlgf_ObjectIdComp(
+    Four 	handle,
+    ObjectID 	*oid_x,		/* IN one ObjectID */
+    ObjectID 	*oid_y)		/* IN another ObjectID */
+{
+    TR_PRINT(handle, TR_MLGF, TR1, ("mlgf_ObjectIdComp(oid_x=%P, oid_y=%P)", oid_x, oid_y));
+
+   /* Consider PageIDs, if they are identical, compare slotNos */
+    if (oid_x->volNo < oid_y->volNo) return(LESS);
+    else if (oid_x->volNo > oid_y->volNo) return(GREAT);
+    else if( oid_x->pageNo < oid_y->pageNo) return(LESS);
+    else if( oid_x->pageNo > oid_y->pageNo) return(GREAT);
+    else if( oid_x->slotNo < oid_y->slotNo) return(LESS);
+    else if( oid_x->slotNo > oid_y->slotNo) return(GREAT);
+
+    return(eNOERROR);
+}
+
+
+/*
+ * Function: Boolean mlgf_BinarySearchObjectArray(Four, char*, ObjectID*, Four, Four, Four*)
+ *
+ * Description:
+ *  Search the object array for an entry whose ObjectID is equal to the given
+ *  ObjectID. If found, returns its element No. Otherwise, the entry No whose
+ *  ObjectID is smallest but not less than the given ObjectID.
+ *
+ * Returns:
+ *  TRUE if we find the given object
+ *  FALSE otherwise
+ */
+Boolean mlgf_BinarySearchObjectArray(
+    Four 	handle,
+    char 	*array,			/* IN starting point of array */
+    ObjectID 	*oid,			/* IN search for this object */
+    Four 	nObjects,		/* IN number of ojbects in the array */
+    Four 	elemLen,		/* IN length of an element in array */
+    Four 	*elemNo)		/* OUT  */
+{
+    Four 	low, high, mid;		/* variables used for binary search */
+    Four 	cmp;			/* result of comparison */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_BinarySearchObjectArray(handle, array=%P, oid=%P, nObjects=%ld, elemLen=%ld, elemNo=%P)",
+	      array, oid, nObjects, elemLen, elemNo));
+
+
+    low = 0;
+    high = nObjects - 1;
+
+    while (low <= high) {
+	mid = (low + high) / 2;
+
+	cmp = mlgf_ObjectIdComp(handle, oid, (ObjectID*)(array + mid*elemLen));
+
+	if (cmp == EQUAL) {
+	    *elemNo = mid;
+	    return(TRUE);
+	}
+
+	if (cmp == GREAT) low = mid + 1;
+	else high = mid - 1;
+    }
+
+    *elemNo = low;
+    return(FALSE);
+
+} /* mlgf_binarySearchObjectArray*() */
+

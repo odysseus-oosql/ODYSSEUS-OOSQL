@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,118 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_Dismount.c
+ *
+ * Description:
+ *  Dismount the used volume.
+ *
+ * Exports:
+ *  Four SM_Dismount(Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <unistd.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_Dismount( )
+ *================================*/
+/*
+ * Function: Four SM_Dismount(Four, Four)
+ *
+ * Description:
+ *  Dismount the used volume.
+ *
+ * Returns:
+ *   Error code
+ *     eBADPARAMETER
+ *     eNOTMOUNTEDVOLUME_SM
+ *     some errors caused by function calls
+ */
+Four SM_Dismount(
+    Four handle,
+    Four volId)			/* IN volume to dismount */
+{
+    Four e;			/* error number */
+    Four v;			/* array index on the mount table */
+    Four i;			/* temporary variable */
+
+    /* pointer for SM Data Structure of perThreadTable */
+    SM_PerThreadDS_T *sm_perThreadDSptr = SM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_Dismount(volId=%P)", volId));
+
+    /*@ check a parameter */
+    if (volId < 0) ERR(handle, eBADPARAMETER);
+
+    if (MY_XACT_TABLE_ENTRY(handle) != NULL) ERR(handle, eVOLUMEDISMOUNTDISALLOWED_SM); 
+
+
+    /* get the latch on the mount table
+       to support exclusive mount/dismount operation */
+    ERROR_PASS(handle, SHM_getLatch(handle, &SM_LATCH_MOUNTTABLE, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL));
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == volId) break; /* found */
+
+    if (v == MAXNUMOFVOLS)
+        ERRL1(handle, eNOTMOUNTEDVOLUME_SM, &SM_LATCH_MOUNTTABLE);
+
+
+    /*@ for each entry */
+    /* Close the scans using this volume. */
+    for (i = 0; i < sm_perThreadDSptr->smScanTable.nEntries; i++)
+	if (SM_SCANTABLE(handle)[i].scanType != NIL &&
+	    SM_SCANTABLE(handle)[i].finfo.fid.volNo == volId) {
+
+	    /* Close this scan. */
+	    SM_SCANTABLE(handle)[i].scanType = NIL;
+	}
+
+    SM_MOUNTTABLE[v].nMount--;  /* assume as Atomic Operation */
+
+    if ( SM_MOUNTTABLE[v].nMount > 0) {
+	/* another process still use this device */
+	ERROR_PASS(handle, SHM_releaseLatch(handle, &SM_LATCH_MOUNTTABLE, procIndex));
+	return(eNOERROR);
+    }
+    else if(SM_MOUNTTABLE[v].nMount < 0){
+	/* this case can not happen */
+	ERRL1(handle, eINVALIDMOUNTCOUNTER_SM, &SM_LATCH_MOUNTTABLE);
+    }
+
+    /* Delete the corresponding entry from the mount table. */
+    SM_MOUNTTABLE[v].volId = NIL;
+
+    /* Force out the dirty pages. */
+    e = BfM_dismount(handle, volId);
+    if (e < eNOERROR) ERRL1(handle, e, &SM_LATCH_MOUNTTABLE);
+
+    /*@ Dismount the volume. */
+    e = RDsM_Dismount(handle, volId, common_shmPtr->recoveryFlag);
+    if (e < eNOERROR) ERRL1(handle, e, &SM_LATCH_MOUNTTABLE);
+
+    ERROR_PASS(handle, SHM_releaseLatch(handle, &SM_LATCH_MOUNTTABLE, procIndex));
+
+    return(eNOERROR);
+
+} /* SM_Dismount( ) */
+

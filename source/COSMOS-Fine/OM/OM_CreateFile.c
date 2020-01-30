@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,131 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module:	OM_CreateFile.c
+ *
+ * Description :
+ *  Create a new data file. The FileID - file identifier - is the same as
+ *  the first page's PageID of the new segment.
+ *  We reserve the first page. As doing so, we do not have to change
+ *  the first page's PageID which is needed for the sequential access.
+ *
+ * Assume :
+ *  File creating need x-lock on the new file.
+ *  So, we don't need to lock the page.
+ *
+ * Exports:
+ *  Four OM_CreateFile(Four, Four, Four, sm_CatOverlayForData*)
+ *
+ * Return Values:
+ *  Error codes
+ *    some errors caused by function calls
+ *
+ * Side effects:
+ *  0) A new data file is created.
+ *  1) parameter catEntry
+ *      catEntry is set to the information for the newly create file.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four OM_CreateFile(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    FileID* fid,                 /* IN allocated file ID */ 
+    sm_CatOverlayForData *catEntry, /* OUT File Information for the newly created file */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four        e;		/* for the error number */
+    PageID      pid;		/* first PageID of the new segment */
+    SlottedPage *apage;		/* point to the data page */
+    Buffer_ACC_CB *aPage_BCBP;  /* buffer access control block holding data */
+    LockReply  lockReply;       /* lock reply */
+    LockMode oldMode;
+    SegmentID_T pageSegmentID;  /* page segment ID */
+    SegmentID_T trainSegmentID;  /* train segment ID */
+
+
+    TR_PRINT(handle, TR_OM, TR1,
+	     ("OM_CreateFile(handle, fid=%ld, catEntry=%P)", fid, catEntry));
+
+    /* allocate a page : first page should be reserved.
+       As doing so, we do not have to update the first page's PageID
+       which is needed for the sequential access.
+       From this decision, we also use the first PageID as the FileID. */
+
+    /* initialize segment ID */
+    INIT_SEGMENT_ID(&pageSegmentID);
+    INIT_SEGMENT_ID(&trainSegmentID);
+
+    e = RDsM_CreateSegment(handle, xactEntry, fid->volNo, &pageSegmentID, PAGESIZE2, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = om_SetSegmentIDToCatOverlayForDataUsingCatOverlayForData(handle, catEntry, &pageSegmentID, PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = om_SetSegmentIDToCatOverlayForDataUsingCatOverlayForData(handle, catEntry, &trainSegmentID, TRAINSIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = RDsM_AllocTrains(handle, xactEntry, fid->volNo, &pageSegmentID, (PageID *)NULL, 1, PAGESIZE2, TRUE, &pid, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     * NOTICE: We should acquire the X lock on the new page; the page
+     *         becomes the new last page of this file.
+     *         The caller request the X lock on this page.
+     */
+
+    /* construct the catalog data structure */
+    catEntry->fid = *fid;
+    catEntry->firstPage = pid.pageNo;
+    catEntry->lastPage = pid.pageNo;
+
+#ifdef CCPL
+    e = BfM_fixNewBuffer(handle, &pid, M_FREE, &aPage_BCBP, PAGE_BUF); 
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCPL */
+
+#ifdef CCRL
+    e = BfM_fixNewBuffer(handle, &pid, M_EXCLUSIVE, &aPage_BCBP, PAGE_BUF); 
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+    apage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+    e = om_InitSlottedPage(handle, xactEntry, apage, &(catEntry->fid), &pid, logParam);
+    if (e < eNOERROR) {
+#ifdef CCPL
+        ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+#endif /* CCPL */
+
+#ifdef CCRL
+        ERRBL1(handle, e, aPage_BCBP, PAGE_BUF);
+#endif /* CCRL */
+    }
+
+    /* set dirty */
+    aPage_BCBP->dirtyFlag = 1;
+
+#ifdef CCRL
+    e = SHM_releaseLatch(handle, aPage_BCBP->latchPtr, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+    e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* OM_CreateFile() */

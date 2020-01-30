@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,58 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Err_GetErrName.c
+ *
+ * Description:
+ *  Return the error name when an error code is given.
+ *
+ * Exports:
+ *  char *Err_GetErrName(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: char *Err_GetErrName(Four)
+ *
+ * Description:
+ *  Return the error name when an error code is given.
+ *
+ * Returns:
+ *  error name
+ */
+char *Err_GetErrName(
+    Four 	errCode)	/* IN error code */
+{
+    Four 	base;		/* base of the error code */
+    Four 	no;		/* no of the error code */
+
+
+    if (errCode > 0) return("Invalid error code");
+
+    if (errCode == 0) return("eNOERROR");
+
+    base = ERR_GET_BASE_FROM_ERROR_CODE(errCode);
+
+    if (base >= NUM_OF_ERROR_BASES)
+	return("Invalid error code");
+
+    if (base == UNIX_ERR_BASE) {
+	return("Unix error code");
+    } else {
+	no = ERR_GET_NO_FROM_ERROR_CODE(errCode);
+	if (no < err_errBaseInfo[base].nErrors)
+	    return(err_allErrInfo[base][no].name);
+	else
+	    return("Invalid_error_code");
+    }
+
+} /* Err_GetErrName() */
+
+

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,81 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_OM_CreateSmallObject.c
+ *
+ * Description:
+ *  redo creating a small object
+ *
+ * Exports:
+ *  Four Redo_OM_CreateSmallObject(Four, SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "OM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_OM_CreateSmallObject(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    Four e;                     /* error code */
+    SlottedPage *aPage = anyPage;
+    Boolean     addSlotFlag;	/* add a new slot if TRUE */
+    LOG_Image_OM_ObjectInPage_T *objInfoPtr; /* pointer to log image */
+    Boolean allocFlag, pageUpdateFlag;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_OM_CreateSmallObject(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* points to the image */
+    objInfoPtr = (LOG_Image_OM_ObjectInPage_T*)(logRecInfo->imageData[0]);
+    addSlotFlag = *((Boolean*)logRecInfo->imageData[1]);
+
+#ifdef CCRL
+        e = om_AcquireSpace(handle, &logRecInfo->xactId, aPage, logRecInfo->imageSize[2] + ((addSlotFlag) ? sizeof(SlottedPageSlot):0),
+                            (addSlotFlag ? sizeof(SlottedPageSlot):0),
+                            &allocFlag, &pageUpdateFlag);
+        if (e < eNOERROR) ERR(handle, e);
+        assert(allocFlag == TRUE);
+        assert(pageUpdateFlag == TRUE);
+#endif /* CCRL */
+
+    /*
+     *	redo creating the small object
+     */
+    if (SP_CFREE(aPage) < logRecInfo->imageSize[2] + ((addSlotFlag) ? sizeof(SlottedPageSlot):0)) {
+	/* There is no enough contiguous free space */
+
+	(void) om_CompactPage(handle, aPage, NIL);
+    }
+
+    aPage->slot[-(objInfoPtr->slotNo)].offset = aPage->header.free;
+    aPage->slot[-(objInfoPtr->slotNo)].unique = objInfoPtr->unique;
+
+    /* copy the object content */
+    memcpy(&(aPage->data[aPage->header.free]), logRecInfo->imageData[2], logRecInfo->imageSize[2]);
+
+    aPage->header.free += logRecInfo->imageSize[2];
+    aPage->header.unique++;
+    if (addSlotFlag) aPage->header.nSlots++;
+
+    return(eNOERROR);
+
+} /* Redo_OM_CreateSmallObject( ) */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,49 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: log_GetLogRecordLength.c
+ *
+ * Description:
+ *  Return the log record length in byte.
+ *
+ * Exports:
+ *  Four log_GetLogRecordLength(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four log_GetLogRecordLength(Four, LOG_LogRecInfo_T*)
+ *
+ * Description:
+ *  Return the log record length in byte.
+ *
+ * Returns:
+ *  error code
+ */
+Four log_GetLogRecordLength(
+    Four 		handle,
+    LOG_LogRecInfo_T 	*logRecInfo) 	/* IN log record information */
+{
+    Four 		nBytes;		/* log record length */
+    Four 		i;		/* loop variable */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("log_GetLogRecordLength(logRecInfo=%P)", logRecInfo));
+
+    nBytes = OFFSET_OF(LOG_LogRecInfo_T, imageData[0]);
+    for (i = 0; i < logRecInfo->nImages; i++)
+	nBytes += logRecInfo->imageSize[i];
+
+    return(nBytes);
+
+} /* log_GetLogRecordLength() */

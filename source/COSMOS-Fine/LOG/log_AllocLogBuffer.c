@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,86 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: log_AllocLogBuffer.c
+ *
+ * Description:
+ *  Allocate a log buffer to the given log page.
+ *
+ * Exports:
+ *  Four log_AllocLogBuffer(Four, Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four log_AllocLogBuffer(Four, Four, Four)
+ *
+ * Description:
+ *  Allocate a log buffer to the given log page.
+ *
+ * Returns:
+ *  error code
+ *
+ * Assumption:
+ *  The caller is holding the latch LOG_LATCH4HEAD.
+ */
+Four log_AllocLogBuffer(
+    Four handle,
+    Four pageNo,		/* IN page no of the log page */
+    Four wrapCount)		/* IN wrap count of the log page */
+{
+    Four e;			/* error code */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("log_AllocLogBuffer(pageNo=%lD, wrapCount=%lD)", pageNo, wrapCount));
+
+
+    /* LOG_LBI_TAIL information may be changed */
+    e = SHM_getLatch(handle, &LOG_LATCH4TAIL, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     *	check if all the buffer pages are used now
+     */
+    if (((LOG_LBI_HEAD+1)%NUM_WRITE_LOG_BUFS) == LOG_LBI_TAIL) {
+
+	/*
+	 * flush the log pages from the page pointed by LOG_LBI_TAIL to the page including the headLsn
+	 */
+	e = log_FlushLogBuffers(handle, LOG_LBI_HEAD, FALSE);
+        if (e < eNOERROR) ERRL1(handle, e, &LOG_LATCH4TAIL);
+
+	LOG_LBI_HEAD = 0;
+	LOG_LBI_TAIL = 0;
+
+    } else {
+
+	/*
+	 *	proceed the head index
+	 */
+	LOG_LBI_HEAD = (LOG_LBI_HEAD+1) % NUM_WRITE_LOG_BUFS;
+
+    }
+
+    e = SHM_releaseLatch(handle, &LOG_LATCH4TAIL, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     *	fill out the entry in the logBufferTable
+     */
+    LOG_LBT_WRAPCOUNT(LOG_LBI_HEAD) = wrapCount;
+    LOG_LBT_PAGENO(LOG_LBI_HEAD) = pageNo;
+
+    return(eNOERROR);
+
+} /* log_AllocLogBuffer() */

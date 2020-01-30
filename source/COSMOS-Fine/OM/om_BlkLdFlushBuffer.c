@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,150 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: om_BlkLdFlushBuffer.c
+ *
+ * Description:
+ *
+ * Exports:
+ *  Four om_BlkLdFlushBuffer(void)
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <string.h>
+#include "common.h"
+#include "param.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "RDsM.h"
+#include "BfM.h"           /* for the buffer manager call */
+#include "LOT.h"           /* for the large object manager call */
+#include "OM.h"
+#include "BL_OM.h"
+
+#include "error.h"
+#include "latch.h"
+#include "LOG.h"
+
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+/*@========================================
+ *  om_BlkLdFlushBuffer()
+ * =======================================*/
+/*
+ * Function : Four om_BlkLdFlushBuffer()
+ *
+ * Description :
+ *
+ * Return Values :
+ *
+ *  Error Code.
+ *
+ * Side Effects :
+ *
+ */
+
+Four om_BlkLdFlushBuffer(
+    Four               handle,       	/* IN handle */
+    XactTableEntry_T*  xactEntry,    	/* IN  entry of transaction table */
+    Four               blkLdId,      	/* IN  OM bulkload ID */ 
+    char               *bufferPtr,
+    PageID             *pageIdAry,
+    Four               bufSize,
+    LogParameter_T*    logParam)     	/* IN  log parameter */
+{
+
+    SlottedPage  	*firstPage;     /* the first page of data file */
+    OM_BlkLdTableEntry	*blkLdEntry;  	/* entry in which informattion about bulkload is saved */ 
+    Four 		e;
+
+    Four             	i,j,k;          /* index variable */
+    Four             	numContTrains;  /* number of contiguous trains in bulkload write buffer */
+    Four             	startPage;      /* start page index in bulkload write buffer for using RDSM_WriteTrains */
+    Buffer_ACC_CB    	*aPage_BCBP;    /* buffer access control block for a data page */
+
+
+    /* set entry for fast access */
+    blkLdEntry = &OM_BLKLD_TABLE(handle)[blkLdId];
+
+    startPage = 0;
+
+    /* first page of data file must be written by BfM interface because of recovery */
+    if (EQUAL_PAGEID(pageIdAry[0], blkLdEntry->pFid)) {
+
+#ifdef CCPL
+
+        /* read first page of the data file */
+        e = BfM_getAndFixBuffer(handle, (TrainID*)(&(blkLdEntry->pFid)), M_FREE, &aPage_BCBP, PAGE_BUF);
+        if (e < eNOERROR) ERR(handle, e);
+
+        firstPage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+        /* copy into buffer */
+        memcpy(firstPage, bufferPtr, PAGESIZE);
+
+        /* set dirty bit */
+        aPage_BCBP->dirtyFlag = 1;
+
+        /* free buffer */
+        e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF);
+        if(e < eNOERROR) ERR(handle, e);
+#endif
+
+#ifdef CCRL
+
+        /* read first page of the data file */
+        e = BfM_getAndFixBuffer(handle, (TrainID*)(&(blkLdEntry->pFid)), M_SHARED, &aPage_BCBP, PAGE_BUF);
+        if (e < eNOERROR) ERR(handle, e);
+
+        firstPage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+        /* copy into buffer */
+        memcpy(firstPage, bufferPtr, PAGESIZE);
+
+        /* set dirty bit */
+        aPage_BCBP->dirtyFlag = 1;
+
+        e = SHM_releaseLatch(handle, aPage_BCBP->latchPtr, procIndex);
+        if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+
+        e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF);
+        if(e < eNOERROR) ERR(handle, e);
+
+#endif
+
+
+        startPage = 1;
+        bufferPtr += 1 * PAGESIZE2 * PAGESIZE;
+    }
+
+    for (i = startPage; i < bufSize; i += numContTrains) {
+
+        /* calculate 'numContTrains' */
+        for (numContTrains = 1, j = i ;
+             j + 1 < bufSize && pageIdAry[j].pageNo + PAGESIZE2 == pageIdAry[j+1].pageNo ;
+             j++, numContTrains++);
+
+        for (k = 0; k < numContTrains; k++) {
+            e = BfM_FlushTrain(handle, &pageIdAry[i+k], PAGE_BUF);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+
+        /*@ write a train into the disk */
+        e = RDsM_WriteTrains(handle, bufferPtr, &pageIdAry[i], numContTrains, PAGESIZE2);
+        if (e < eNOERROR) ERR(handle, e);
+
+	for (k = 0; k < numContTrains; k++) {
+            e = BfM_RemoveTrain(handle, &pageIdAry[i+k], PAGE_BUF, FALSE);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+
+        /* update 'bufPtr' */
+        bufferPtr += numContTrains*PAGESIZE2*PAGESIZE;
+    }
+
+
+    return(eNOERROR);
+
+
+} /* om_BlkLdFlushBuffer() */

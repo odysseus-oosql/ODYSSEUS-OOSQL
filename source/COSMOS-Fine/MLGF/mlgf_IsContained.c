@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,59 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_IsContained.c
+ *
+ * Description:
+ *  Check that the given node is contained by the given boundary.
+ *
+ * Exports:
+ *
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Boolean mlgf_IsContained(
+    Four 		handle,
+    MLGF_KeyDesc        *kdesc,
+    MLGF_HashValue      *lowerBound,
+    MLGF_HashValue      *upperBound,
+    mlgf_DirectoryEntry *dirEntry)
+{
+    Four 		i;
+    MLGF_HashValue 	max, min;
+    MLGF_HashValue 	*hashVector;
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("mlgf_CheckBoundary(kdesc=%p, lowerBound=%p, upperBound=%p, dirEntry=%p)", kdesc, lowerBound, upperBound, dirEntry));
+
+   hashVector = MLGF_DIRENTRY_HASHVALUEPTR(dirEntry, kdesc->nKeys);
+
+   for(i = 0; i < kdesc->nKeys; i++){
+   	max =  MLGF_HASHVALUE_SET_EXCEPT_UPPER_N_BITS(dirEntry->nValidBits[i]) | hashVector[i];
+	min =  MLGF_HASHVALUE_MASK_UPPER_N_BITS(hashVector[i], dirEntry->nValidBits[i]);
+	if(lowerBound[i] <= min && upperBound[i] >= max) continue;
+	else return(FALSE);
+   }
+
+   return(TRUE);
+}

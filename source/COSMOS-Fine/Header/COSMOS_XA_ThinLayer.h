@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,130 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _COSMOS_XA_THINLAYER_H_
+#define _COSMOS_XA_THINLAYER_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <string.h>  /* for memcpy */
+#include <stdlib.h>  /* for malloc, free */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "xa.h"
+
+
+/*
+ * Type Definition
+ */
+
+
+/* Global Transaction Status */
+typedef enum { COSMOS_XA_UNINITIALIZED, COSMOS_XA_INITIALIZED } COSMOSXAopenStatus;
+typedef enum { COSMOS_XA_NOTASSOCIATED, COSMOS_XA_ASSOCIATED, COSMOS_XA_RETRY } COSMOSXAassociationStatus;
+typedef enum { COSMOS_XA_NONTRANSACTION, COSMOS_XA_ACTIVE, COSMOS_XA_IDLE, COSMOS_XA_PREPARED, COSMOS_XA_ROLLBACKONLY, COSMOS_XA_HEURISTICCOMPLETION, COSMOS_XA_RETRY_TRAN} COSMOSXAtranStatus;
+typedef enum { COSMOS_XA_SCANSTARTED, COSMOS_XA_SCANENDED } COSMOSXAscanStatus;
+
+typedef XID COSMOS_XA_XID;
+
+/*
+ * Transaction branch identification: XID and NULLXID:
+ */
+
+
+
+/*
+ * Constant Variable Definition
+ */
+
+#define COSMOS_XA_OPENSTRINGHEADER      "COSMOS_XA"
+#define COSMOS_XA_MAXOPENSTRINGLEN      1024
+
+/*
+ *Flag definitions for the RM switch
+ */
+
+#define COSMOS_XA_TMASYNC      0x80000000L        /* perform routine asynchronously */
+#define COSMOS_XA_TMONEPHASE   0x40000000L        /* caller is using on-phase commit
+                                                       optimisation */
+#define COSMOS_XA_TMFAIL       0x20000000L        /* dissociates caller and marks
+                                                       transaction branch rollback-only */
+#define COSMOS_XA_TMNOWAIT     0x10000000L        /* return if blocking condition exists */
+#define COSMOS_XA_TMRESUME     0x08000000L        /* caller is resuming association
+                                                       with suspended transaction branch */
+#define COSMOS_XA_TMSUCCESS    0x04000000L        /* dissociate caller from transaction branch*/
+#define COSMOS_XA_TMSUSPEND    0x02000000L        /* caller is suspending, not ending, association */
+#define COSMOS_XA_TMSTARTRSCAN 0x01000000L        /* start a recovery scan */
+#define COSMOS_XA_TMENDRSCAN   0x00800000L        /* end a recovery scan */
+#define COSMOS_XA_TMMULTIPLE   0x00400000L        /* wait for any asynchronous operation */
+#define COSMOS_XA_TMJOIN       0x00200000L        /* caller is joining existing transaction branch */
+#define COSMOS_XA_TMMIGRATE    0x00100000L        /* caller intends to perfrom migration */
+
+/*
+ *Flag definitions for the RM switch
+ */
+
+#define COSMOS_XA_TMNOFLAGS    0x00000000L        /* no resource manager features selected */
+#define COSMOS_XA_TMREGISTER   0x00000001L        /* resource manager dynamically registers */
+#define COSMOS_XA_TMNOMIGRATE  0x00000002L        /* resource manager does not support association migration */
+#define COSMOS_XA_TMUSEASYNC   0x00000004L        /* resource manager supports asynchronous operations */
+
+
+/*
+ * Macro Definitions
+ */
+
+#define COSMOS_XA_RMOPENSTATUS(_handle)          (perThreadTable[_handle].xaDS.cosmos_xa_rmOpenStatus)
+#define COSMOS_XA_RMASSOCIATIONSTATUS(_handle)   (perThreadTable[_handle].xaDS.cosmos_xa_rmAssociationStatus)
+#define COSMOS_XA_RMTRANSTATUS(_handle)          (perThreadTable[_handle].xaDS.cosmos_xa_rmTranStatus)
+
+
+#define COSMOS_XA_SCANSTATUS(_handle)            (perThreadTable[_handle].xaDS.cosmos_xa_scanStatus)
+#define COSMOS_XA_PREPAREDNUM(_handle)           (perThreadTable[_handle].xaDS.cosmos_xa_preparedNum)
+#define COSMOS_XA_CURRENTPOS(_handle)            (perThreadTable[_handle].xaDS.cosmos_xa_currentPos)
+#define COSMOS_XA_PREPAREDLIST(_handle)          (perThreadTable[_handle].xaDS.cosmos_xa_preparedList)
+
+#define COSMOS_XA_VOLID(_handle)                 (perThreadTable[_handle].xaDS.cosmos_xa_volId)
+
+
+
+/*
+ * Global Variable
+ */
+
+extern struct xa_switch_t  cosmosxa;
+
+
+
+/*
+ * Type Definition
+ */
+
+
+
+
+
+/*
+** Interface Function Prototypes of COSMOS_XA_ThinLayer
+*/
+
+int COSMOS_XA_Commit(XID*, int, long);
+int COSMOS_XA_Forget(XID *, int, long);
+int COSMOS_XA_Prepare(XID *, int, long);
+int COSMOS_XA_Start(XID *, int, long);
+int COSMOS_XA_Complete(int *, int *, int, long);
+int COSMOS_XA_Open(char*, int, long);
+int COSMOS_XA_Recover(XID *, long, int, long);
+int COSMOS_XA_Close(char *, int, long);
+int COSMOS_XA_End(XID *, int, long);
+int COSMOS_XA_Rollback(XID *, int, long);
+int COSMOS_XA_AxReg(int, XID * , long); 
+int COSMOS_XA_AxUnreg(int, long); 
+
+
+/*
+** Noninterface Function Prototypes of COSMOS_XA
+*/
+
+Four cosmos_xa_GetInitInfo(char*, Four*, char***, char*);
+Four cosmos_xa_ErrorConvert(Four, int* );
+Four XA_InitLocalDS(Four);
+
+
+#endif /* _COSMOS_XA_THINLAYER_H_ */

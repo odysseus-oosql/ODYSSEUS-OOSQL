@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,100 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_FinalDS.c
+ *
+ * Description:
+ *  Finalize the data structure of the scan manager.
+ *
+ * Exports:
+ *  Four SM_FinalLocalDS(Four)
+ *  Four SM_FinalSharedDS(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "RM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_FinalSharedDS( )
+ *================================*/
+Four SM_FinalSharedDS(
+    Four handle)
+{
+    Four e;			/* error code */
+    Four v;			/* array index on the mount table */
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_FinalSharedDS()"));
+
+    /* Dismount the volumes that has been mounted but not dismounted. */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId != NIL) { /* entry for a mounted volume */
+
+	    /* enforce the dismount operation */
+	    SM_MOUNTTABLE[v].nMount = 1;
+	    e = SM_Dismount(handle, SM_MOUNTTABLE[v].volId);
+	    if (e < eNOERROR) ERR(handle, e);
+	}
+
+    return(eNOERROR);
+
+} /* SM_FinalSharedDS( ) */
+
+
+
+/*@================================
+ * SM_FinalLocalDS( )
+ *================================*/
+Four SM_FinalLocalDS(
+    Four handle)
+{
+    Four e;                     /* error code */
+    Four i;			/* temporary variable */
+
+    /* pointer for SM Data Structure of perThreadTable */
+    SM_PerThreadDS_T *sm_perThreadDSptr = SM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_FinalLocalDS()"));
+
+    /* Finalize the main memory data structure used in scan manager */
+
+    /* Finalize sm_sysIndexesForTmpFiles. */
+    e = Util_finalVarArray(handle, &(sm_perThreadDSptr->sm_sysIndexesForTmpFiles));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize sm_sysTablesForTmpFiles. */
+    e = Util_finalVarArray(handle, &(sm_perThreadDSptr->sm_sysTablesForTmpFiles));
+    if (e < eNOERROR) ERR(handle, e);
+
+     /* Finalize the scan table. */
+    e = Util_finalVarArray(handle, &(sm_perThreadDSptr->smScanTable));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the deallocatedPageList pool. */
+    e = Util_finalLocalPool(handle, &SM_DLPOOL(handle));
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* SM_FinalLocalDS() */
+
+
+

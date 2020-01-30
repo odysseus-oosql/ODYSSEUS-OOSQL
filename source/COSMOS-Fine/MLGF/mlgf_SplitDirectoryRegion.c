@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,134 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_splitDirecotryRegion.c
+ *
+ * Description:
+ *  Split the given directory region into two regions. If all entries in the
+ *  given region are included in only one region of the two splitted regions,
+ *  then split the region which contains all entries again. The split is
+ *  repeated until both the splitted regions have at least one entry.
+ *  Returns the domain number which are used as a split domain finally.
+ *
+ * Exports:
+ *  void mlgf_SplitDirectoryRegion(Four, mlgf_DirectoryPage*, Four,
+ *                                 mlgf_DirectoryEntry*, mlgf_DirectoryEntry*,
+ *                                 mlgf_DirectoryEntry*, Four*);
+ *
+ * Returns:
+ *  Error code
+ *    eNOERROR
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+void mlgf_SplitDirectoryRegion(
+    Four 		handle,
+    mlgf_DirectoryPage 	*dirPage,        	/* IN a directory page of MLGF */
+    Four 		nKeys,			/* IN number of keys of MLGF */
+    mlgf_DirectoryEntry *insertedEntry,		/* IN entry to insert */
+    mlgf_DirectoryEntry *srcEntry,		/* INOUT entry for original directory page */
+    mlgf_DirectoryEntry *dstEntry,		/* OUT entry for new directory page */
+    Four 		*splitDomain)		/* OUT domain used for split */
+{
+    Four 		i, k;			/* index variables */
+    Four 		entryLen;		/* length of a directory entry */
+    Four 		domain;			/* split domain */
+    Boolean 		done;			/* loop control variable */
+    mlgf_DirectoryEntry *entry;			/* a directory entry */
+    MLGF_HashValue 	bitmask;		/* bitmask for region test */
+    MLGF_HashValue 	insertedHashValue; 	/* hash value of `domain'-th key of inserted entry */
+    MLGF_HashValue 	*hashValue;	      	/* points to 'domain'-th key of entry */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_SplitDirectoryRegion(handle, dirPage=%P, nKeys=%ld, insertedEntry=%P, srcEntry=%P, dstEntry=%P, splitDomain=%P)",
+	      dirPage, nKeys, insertedEntry, srcEntry, dstEntry, splitDomain));
+
+
+    /* Get the domain number used for first split domain. */
+    domain = 0;
+    for (k = 1; k < nKeys; k++)
+	if (srcEntry->nValidBits[k-1] != srcEntry->nValidBits[k]) {
+	    domain = k;
+	    break;
+	}
+
+    /* Get the length of a directory entry. */
+    entryLen = MLGF_DIRENTRY_LENGTH(nKeys);
+
+    for (done = FALSE; !done; domain = (domain+1) % nKeys) {
+
+	/* Increment the number of valid bits of the selected domain. */
+	srcEntry->nValidBits[domain] ++;
+
+	/* Get bit mask used for dividing the entries into two groups. */
+	bitmask = MLGF_HASHVALUE_ITH_BIT_SET(srcEntry->nValidBits[domain]);
+
+	/*
+	 * Check if the entries are distributed into two page
+	 * by the given vector of number of valid bits.
+	 */
+	/* insertedHashValue is the domain-th hash value of the insetedEntry. */
+	insertedHashValue = MLGF_DIRENTRY_HASHVALUEPTR(insertedEntry, nKeys)[domain];
+
+	/* first entry of the directory page */
+	entry = MLGF_ITH_DIRENTRY(dirPage, 0, entryLen);
+
+	/* hashValue points to the domain-th hash value. */
+	hashValue = MLGF_DIRENTRY_HASHVALUEPTR(entry, nKeys) + domain;
+
+	for (i = 0; i < dirPage->hdr.nEntries; i++) {
+#ifdef TRACE
+	    entry = MLGF_ITH_DIRENTRY(dirPage, i, entryLen);
+	    if (srcEntry->nValidBits[domain] > entry->nValidBits[domain]) {
+		printf("exceed the maxium valid bits\n");
+		for(;;);
+	    }
+#endif /* TRACE */
+	    if ((insertedHashValue ^ *hashValue) & bitmask) {
+		*splitDomain = domain;
+		done = TRUE;
+		break;
+	    }
+
+	    /* Points to the domain-th hash value of the next entry. */
+	    hashValue = (MLGF_HashValue*)((char*)hashValue + entryLen);
+	}
+    }
+
+    /* Set the hash values of srcEntry. */
+    memcpy((char*)MLGF_DIRENTRY_HASHVALUEPTR(srcEntry, nKeys),
+	   (char*)MLGF_DIRENTRY_HASHVALUEPTR(insertedEntry, nKeys),
+	   nKeys*sizeof(MLGF_HashValue));
+
+    /* Reset the split-boundary bit fo the domain-th hash values of srcEntry. */
+    MLGF_DIRENTRY_HASHVALUEPTR(srcEntry, nKeys)[*splitDomain] &= ~bitmask;
+
+    /* copy srcEntry into dstEntry */
+    memcpy((char*)dstEntry, (char*)srcEntry, entryLen);
+
+    /* Set the split-boundary bit of the domain-th hash value of the dstEntry to 1. */
+    MLGF_DIRENTRY_HASHVALUEPTR(dstEntry, nKeys)[*splitDomain] |= bitmask;
+
+} /* mlgf_SplitDirectoryRegion() */
+

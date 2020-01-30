@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,189 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : SM_Stream.c
+ *
+ * Description :
+ *  Sort a data file.
+ *
+ * Exports :
+ * Four SM_OpenStream(Four);
+ * Four SM_CloseStream(Four);
+ * Four SM_PutTuplesIntoStream(Four, Four, SortStreamTuple*);
+ * Four SM_ChangePhaseStream(Four);
+ * Four SM_GetTuplesFromStream(Four, Four*, SortStreamTuple*, Boolean*);
+ * Four SM_GetNumTuplesInStream(Four);
+ * Four SM_GetSizeOfStream(Four);
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <assert.h> /* for assertion check */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "SM.h"
+#include "RDsM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+/* ========================================
+ *  SM_OpenStream()
+ * =======================================*/
+
+/*
+ * Function SM_OpenStream(VolID)
+ *
+ * Description :
+ *
+ * Return Values :
+ *  Error Code.
+ *
+ * Side Effects :
+ */
+Four SM_OpenStream(
+    Four		 handle,
+    Four                 volId)                   /* IN  volume ID in which temporary files are allocated */
+{
+    LogParameter_T       logParam;
+
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return (Util_OpenStream(handle, MY_XACT_TABLE_ENTRY(handle), volId, &logParam));
+
+} /* SM_OpenStream() */
+
+
+/* ========================================
+ *  SM_CloseStream()
+ * =======================================*/
+
+/*
+ * Function Four SM_CloseStream(Four)
+ *
+ * Description :
+ *
+ * Return Values :
+ *  Error Code.
+ *
+ * Side Effects :
+ */
+Four SM_CloseStream(
+    Four		  handle,
+    Four                  streamId)                /* IN */
+{
+    LogParameter_T        logParam;
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return (Util_CloseStream(handle, MY_XACT_TABLE_ENTRY(handle), streamId, &logParam));
+
+} /* SM_CloseStream() */
+
+
+/* ========================================
+ *  SM_PutTuplesIntoStream()
+ * =======================================*/
+
+/*
+ * Function Four SM_PutTuplesIntoStream(Four, Four, SortStreamTuple*)
+ *
+ * Description :
+ *
+ * Return Values :
+ *  Error Code.
+ *
+ * Side Effects :
+ */
+Four SM_PutTuplesIntoStream(
+    Four		  handle,
+    Four                  streamId,        /* IN */
+    Four                  numTuples,       /* IN */
+    SortStreamTuple*      tuples)          /* IN */
+{
+    LogParameter_T        logParam;
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return (Util_PutTuplesIntoStream(handle, MY_XACT_TABLE_ENTRY(handle), streamId, numTuples, tuples, &logParam));
+
+} /* SM_PutTuplesIntoStream() */
+
+
+/* ========================================
+ *  SM_ChangePhaseStream()
+ * =======================================*/
+
+/*
+ * Function Four SM_ChangePhaseStream(Four)
+ *
+ * Description :
+ *
+ * Return Values :
+ *  Error Code.
+ *
+ * Side Effects :
+ */
+Four SM_ChangePhaseStream(
+    Four		  handle,
+    Four                  streamId)        /* IN */
+{
+    LogParameter_T        logParam;
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+    return (Util_ChangePhaseStream(handle, MY_XACT_TABLE_ENTRY(handle), streamId, &logParam));
+
+} /* SM_ChangePhaseStream */
+
+
+/* ========================================
+ *  SM_GetTuplesIntoStream()
+ * =======================================*/
+
+/*
+ * Function Four SM_GetTuplesFromStream(Four, Four*, SortStreamTuple*, Boolean*)
+ *
+ * Description :
+ *
+ * Return Values :
+ *  Error Code.
+ *
+ * Side Effects :
+ */
+Four SM_GetTuplesFromStream(
+    Four		     handle,
+    Four                     streamId,           /* IN */
+    Four*                    numTuples,          /* INOUT */
+    SortStreamTuple*         tuples,             /* OUT */
+    Boolean*                 eof)                /* OUT */
+{
+    return (Util_GetTuplesFromStream(handle, streamId, numTuples, tuples, eof));
+
+} /* SM_GetTuplesFromStream() */
+
+
+/* ========================================
+ *  SM_GetNumTuplesInStream()
+ * =======================================*/
+
+Four SM_GetNumTuplesInStream(
+    Four	  handle,
+    Four          streamId)            /* IN */
+{
+    return (Util_GetNumTuplesInStream(handle, streamId));
+
+} /* SM_GetNumTuplesInStream() */
+
+
+/* ========================================
+ *  SM_GetSizeOfStream()
+ * =======================================*/
+
+Four SM_GetSizeOfStream(
+    Four	  handle,
+    Four          streamId)            /* IN */
+{
+    return (Util_GetSizeOfStream(handle, streamId));
+
+} /* SM_GetSizeOfStream() */

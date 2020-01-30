@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,109 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module :	LOT_InsertInObject.c
+ *
+ * Description :
+ *  Insert data to the large object tree.
+ *
+ * Exports :
+ *  Four LOT_InsertInObject(Four, DataFileInfo*, PageID*, Four, Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LOT_InsertInObject( )
+ *================================*/
+/*
+ * Function: Four LOT_InsertInObject(Four, DataFileInfo*, PageID*, Four, Four, Four, char*)
+ *
+ * Description :
+ *  Insert data to the large object tree.
+ *
+ * Returns:
+ *  Error codes
+ *    eBADCATOBJ
+ *    eBADPAGEID
+ *    eBADOFFSET_LOT
+ *    eBADLENGTH_LOT
+ *    eBADPARAMETER
+ *    eBADSLOTNO_LOT
+ *    some errors caused by function calls
+ */
+Four LOT_InsertInObject(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 		/* IN transaction table entry */
+    DataFileInfo 	*finfo,			/* IN file information */
+    PageID 		*nearPidForRoot,     	/* IN near page for root */ 
+    char 		*anodeOrRootPageNo,    	/* INOUT anode or root page no */
+    Boolean 		*rootWithHdr_Flag,  	/* INOUT TRUE if root is with header */
+    Four 		maxNodeLen,            	/* IN node can grow at most to this value */
+    Four     		start,			/* IN starting offset to insert */
+    Four     		length,			/* IN amount of data to insert */
+    char     		*data,			/* IN user buffer holding the data */
+    LogParameter_T 	*logParam) 		/* IN log parameter */
+{
+    Four 		e;			/* error number */
+    Four 		height;			/* height of root node */
+    PageID  		root;			/* PID of subtree root page */
+    L_O_T_ItemList 	childItems;		/* storage to hold slots overflowed from child node */
+    Boolean 		f;			/* indicates the change of root PageID */
+
+
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_InsertInObject()"));
+
+
+    /*@ checking the parameters */
+    if (finfo == NULL)	/* catObjForFile unexpected NULL */
+	ERR(handle, eBADPARAMETER);
+
+    if (start < 0)		/* bad starting offset of insert */
+	ERR(handle, eBADPARAMETER);
+
+    if (length < 0)		/* bad length (< 0) of insert */
+	ERR(handle, eBADPARAMETER);
+
+    /* just return */
+    if (length == 0) return(eNOERROR);
+
+    if (data == NULL)		/* data buffer unexpected NULL */
+	ERR(handle, eBADPARAMETER);
+
+    if (!(*rootWithHdr_Flag)) {
+	/*@ get root PageID */
+	MAKE_PAGEID(root, finfo->fid.volNo, *((ShortPageID *)anodeOrRootPageNo));
+    }
+
+    /* insert the data into the large object tree */
+    e = lot_InsertInObject(handle, xactEntry, finfo, nearPidForRoot,
+                           ((*rootWithHdr_Flag) ? NULL:&root), (L_O_T_INode*)anodeOrRootPageNo,
+                           start, length, data, &childItems, &f, &height, logParam); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* overflow handling */
+    if (f) {
+	e = lot_MakeRoot(handle, xactEntry, finfo, nearPidForRoot, anodeOrRootPageNo, rootWithHdr_Flag,
+                         maxNodeLen, height+1, &childItems, logParam); 
+
+	if (e < eNOERROR) ERR(handle, e);
+
+    } else if (*rootWithHdr_Flag && LOT_INODE_USED_SIZE((L_O_T_INode*)anodeOrRootPageNo) > maxNodeLen) {
+        e = lot_SeparateRootNode(handle, xactEntry, finfo, nearPidForRoot, anodeOrRootPageNo, rootWithHdr_Flag, logParam); 
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return (eNOERROR);
+
+} /* LOT_InsertInObject() */

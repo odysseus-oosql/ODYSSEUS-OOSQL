@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,147 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_Savepoint.c
+ *
+ * Description:
+ *  Close the given scan. The scan cannot be used any more.
+ *
+ * Exports:
+ *  Four LRDS_SetSavepoint(SavepointID *)
+ *  Four LRDS_RollbackSavepoint(SavepointID)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdlib.h>
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LRDS_SetSavepoint()
+ *================================*/
+/*
+ * Function: Four LRDS_SetSavepoint(SavepointID *)
+ *
+ * Description:
+ *  Set Savepoint
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ */
+Four LRDS_SetSavepoint(
+    Four         handle,
+    SavepointID* spID)		/* OUT ID of new savepoint */
+{
+    Four         e;		/* error code */
+    Four         i;		/* index variable */
+
+    /* pointer for LRDS Data Structure of perThreadTable */
+    LRDS_PerThreadDS_T *lrds_perThreadDSptr = LRDS_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_SM, TR1, ("LRDS_SetSavepoint(SavepointID=%P)", spID));
+
+
+    /* check any scan is opened */
+    for (i = 0; i < lrds_perThreadDSptr->lrdsScanTable.nEntries; i++)
+        if (LRDS_SCANTABLE(handle)[i].orn != NIL) ERR(handle, eSCANOPENATSAVEPOINT);
+
+    /* check any relation is opened */
+    for (i = 0; i < LRDS_NUM_OF_ENTRIES_OF_USEROPENRELTABLE; i++)
+        if (!LRDS_IS_UNUSED_ENTRY_OF_USEROPENRELTABLE(handle, i)) ERR(handle, eRELATIONOPENATSAVEPOINT_LRDS);
+
+    /* check any temporary relation exists */
+    for (i = 0; i < LRDS_NUM_OF_ENTRIES_OF_RELTABLE_FOR_TMP_RELS; i++)
+        if (!LRDS_IS_UNUSED_ENTRY_OF_RELTABLE_FOR_TMP_RELS(handle, i)) ERR(handle, eTMPRELEXISTATSAVEPOINT_LRDS);
+
+    /* call SM function to set savepoint */
+    e = SM_SetSavepoint(handle, spID);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LRDS_SetSavepoint() */
+
+
+
+/*@================================
+ * LRDS_RollbackSavepoint()
+ *================================*/
+/*
+ * Function: Four LRDS_RollbackSavepoint(SavepointID)
+ *
+ * Description:
+ *  Rollback to given savepoint
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ */
+Four LRDS_RollbackSavepoint(
+    Four         handle,
+    SavepointID  spID)		       /* OUT ID of savepoint */
+{
+    Four         e;		       /* error code */
+    Four         i;                    /* index variable */
+    Four         colNo;                /* column number */
+    ColDesc      *relTableEntry_cdesc; 
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("LRDS_RollbackSavepoint()"));
+
+
+    /* close all scan */
+    e = LRDS_CloseAllScans(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* close all relations */
+    e = LRDS_CloseAllRelations(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* delete all entries from temporary file & index catalog */
+    /* Note!! destroy of temporary file & index in disk is done during disk recovery */
+    for (i = 0; i < LRDS_NUM_OF_ENTRIES_OF_RELTABLE_FOR_TMP_RELS; i++) {
+        if (!LRDS_IS_UNUSED_ENTRY_OF_RELTABLE_FOR_TMP_RELS(handle, i)) {
+
+            relTableEntry_cdesc = PHYSICAL_PTR(LRDS_RELTABLE_FOR_TMP_RELS(handle)[i].cdesc); 
+            /* Note!! nColumns is always greater than 0 */
+            for (colNo = 0; colNo < LRDS_RELTABLE_FOR_TMP_RELS(handle)[i].ri.nColumns; colNo++) {
+                if (PHYSICAL_PTR(relTableEntry_cdesc[colNo].auxInfo) != NULL) { 
+
+                    /* assertion check */
+                    assert(relTableEntry_cdesc[colNo].complexType == SM_COMPLEXTYPE_ORDEREDSET);
+
+                    /* free the dynamically allocated pool */
+                    e = Util_freeElementToLocalPool(handle, &LRDS_ORDEREDSET_AUXCOLINFO_LOCALPOOL(handle),
+                                                    PHYSICAL_PTR(relTableEntry_cdesc[colNo].auxInfo)); 
+                    if (e < eNOERROR) ERR(handle, e);
+                }
+            }
+
+            /* free the dynamically allocated memory */
+            free(PHYSICAL_PTR(LRDS_RELTABLE_FOR_TMP_RELS(handle)[i].ii));
+            free(relTableEntry_cdesc);
+
+            /* Mark this entry to unused. */
+            LRDS_SET_TO_UNUSED_ENTRY_OF_RELTABLE_FOR_TMP_RELS(handle, i);
+        }
+    }
+
+    /* rollback disk state */
+    e = SM_RollbackSavepoint(handle, spID);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LRDS_RollbackSavepoint() */

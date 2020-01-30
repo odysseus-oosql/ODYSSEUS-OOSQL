@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,83 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: sm_GetCatalogEntryFromDataFileId.c
+ *
+ * Description:
+ *  Get the ObjectID of the catalog entry of the given data file.
+ *
+ * Exports:
+ *  Four sm_GetCatalogEntryFromDataFileId(Four, Four, FileID*, ObjectID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * sm_GetCatalogEntryFromDataFileId( )
+ *================================*/
+/*
+ * Function: Four sm_GetCatalogEntryFromDataFileId(Four, Four, FileID*, ObjectID*)
+ *
+ * Description:
+ *  Get the ObjectID of the catalog entry of the given data file.
+ *  The data file is specified by 'fid', the FileID of the data file.
+ *
+ * Returns:
+ *  Error code
+ *    eBADFILEID
+ *    some errors caused by function calls
+ *
+ * Side effects:
+ *  1) catalogEntry - return the ObjectID of the catalog entry
+ */
+Four sm_GetCatalogEntryFromDataFileId(
+    Four 		handle,
+    Four 		v,			/* IN index for the used volume on the mount table */
+    FileID 		*fid,			/* IN data file */
+    ObjectID 		*catalogEntry)		/* OUT ObjectID of the catalog entry */
+{
+    Four        	e;			/* error number */
+    KeyValue    	kval;			/* key of  */
+    BtreeCursor 	schBid;			/* a B+ tree cursor */
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("sm_GetCatalogEntryFromDataFileId(v=%ld, fid=%P, catalogEntry=%P)",
+	      v, fid, catalogEntry));
+
+    /*@ Construct kval. */
+    /* Construct a key for the B+ tree on DataFileID field of SM_SYSTABLES. */
+    kval.len = sizeof(Two) + sizeof(Four);
+    memcpy(&(kval.val[0]), &(fid->volNo), sizeof(Two)); /* volNo is Two. */
+    memcpy(&(kval.val[sizeof(Two)]), &(fid->serial), sizeof(Four)); 
+
+    /* Get the ObjectID of the catalog entry for 'fid'. */
+    e = BtM_Fetch(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_MOUNTTABLE[v].sysTablesDataFileIdIndexInfo), 
+		  &(SM_MOUNTTABLE[v].sysTablesInfo.fid), 
+                  &SM_SYSTBL_DFILEIDIDX_KEYDESC, &kval, SM_EQ, &kval, SM_EQ, &schBid, NULL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if (schBid.flag == CURSOR_ON)
+	*catalogEntry = schBid.oid;
+    else
+	ERR(handle, eBADFILEID);
+
+    return(eNOERROR);
+
+} /* sm_GetCatalogEntryFromDataFileId( ) */

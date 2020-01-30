@@ -1,0 +1,27 @@
+.MAKE_VERSION:	VERSION-1.0
+kaoss_LRDS_aux:
+	echo "### Build the Object kaoss_LRDS.o ###"
+	/opt/SUNWspro/bin/cc -mt -o kaoss_LRDS.so.1 -h kaoss_LRDS.so.1 -G ./Err/Err.o ./Util/Util.o ./RDsM/RDsM.o ./BfM/BfM.o ./LOT/LOT.o  ./OM/OM.o ./BtM/BtM.o ./MLGF/MLGF.o ./SM/SM.o ./SHM/SHM.o ./LM/LM.o  ./TM/TM.o ./RM/RM.o ./LOG/LOG.o ./Redo/Redo.o ./Undo/Undo.o ./LRDS/LRDS.o ./THM/THM.o ./XA/COSMOS_XA.o -L/proj1/ladyhawk/early/source/flexlm/sun4_u5 -llmgr_pic /proj1/ladyhawk/early/source/flexlm/sun4_u5/lm_new.o
+	/opt/SUNWspro/bin/cc -mt -o libcosmos.so.1 -h libcosmos.so.1 -G ./Err/Err.o ./Util/Util.o ./RDsM/RDsM.o ./BfM/BfM.o ./LOT/LOT.o  ./OM/OM.o ./BtM/BtM.o ./MLGF/MLGF.o ./SM/SM.o ./SHM/SHM.o ./LM/LM.o  ./TM/TM.o ./RM/RM.o ./LOG/LOG.o ./Redo/Redo.o ./Undo/Undo.o ./LRDS/LRDS.o ./THM/THM.o ./XA/COSMOS_XA.o -L/proj1/ladyhawk/early/source/flexlm/sun4_u5 -llmgr_pic /proj1/ladyhawk/early/source/flexlm/sun4_u5/lm_new.o
+	size kaoss_LRDS.so.1
+	ld -r -o kaoss_LRDS.o ./Err/Err.o ./Util/Util.o ./RDsM/RDsM.o ./BfM/BfM.o ./LOT/LOT.o  ./OM/OM.o ./BtM/BtM.o ./MLGF/MLGF.o ./SM/SM.o ./SHM/SHM.o ./LM/LM.o  ./TM/TM.o ./RM/RM.o ./LOG/LOG.o ./Redo/Redo.o ./Undo/Undo.o ./LRDS/LRDS.o ./THM/THM.o ./XA/COSMOS_XA.o 
+	size kaoss_LRDS.o
+	\cp kaoss_LRDS.o cosmos.o
+	echo "### Build the utilities ###"
+	(cd ./Misc; make "PERL=/usr/local/bin/perl" "CC=/opt/SUNWspro/bin/cc -mt" "CPP=/usr/ccs/lib/cpp" "LINT=alint" "LINT.c=alint  -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED"  "TRACEFLAG=" "PROF=" "INCLUDE=../Header"  "CPPFLAGS=-I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED" "CFLAGS= -xO2 -KPIC" "LDFLAGS="  "LDLIBS=" "LINTFLAGS=" "MAKEDEPEND=makedepend"  "FLEXLMINCLUDE=/proj1/ladyhawk/early/source/flexlm/machind" kaoss_LRDS)
+kaoss_components:
+	echo "### Make the component objects ###"
+	for dir in Err Util RDsM BfM LOT OM BtM MLGF SM SHM LM TM RM LOG Redo Undo LRDS THM XA; do (cd ./${dir}; make "PERL=/usr/local/bin/perl" "CC=/opt/SUNWspro/bin/cc -mt" "CPP=/usr/ccs/lib/cpp" "LINT=alint" "LINT.c=alint  -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED"  "TRACEFLAG=" "PROF=" "INCLUDE=../Header"  "CPPFLAGS=-I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED" "CFLAGS= -xO2 -KPIC" "LDFLAGS="  "LDLIBS=" "LINTFLAGS=" "MAKEDEPEND=makedepend"  "FLEXLMINCLUDE=/proj1/ladyhawk/early/source/flexlm/machind" ); done
+kaoss_include_files:
+	echo "### Generate the include files ###"
+	(cd ./Err; make "PERL=/usr/local/bin/perl" "CC=/opt/SUNWspro/bin/cc -mt" "CPP=/usr/ccs/lib/cpp" "LINT=alint" "LINT.c=alint  -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED"  "TRACEFLAG=" "PROF=" "INCLUDE=../Header"  "CPPFLAGS=-I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED" "CFLAGS= -xO2 -KPIC" "LDFLAGS="  "LDLIBS=" "LINTFLAGS=" "MAKEDEPEND=makedepend"  "FLEXLMINCLUDE=/proj1/ladyhawk/early/source/flexlm/machind" ../Header/errorcodes.h)
+	(cd ./Misc; make "PERL=/usr/local/bin/perl" "CC=/opt/SUNWspro/bin/cc -mt" "CPP=/usr/ccs/lib/cpp" "LINT=alint" "LINT.c=alint  -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED"  "TRACEFLAG=" "PROF=" "INCLUDE=../Header"  "CPPFLAGS=-I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED" "CFLAGS= -xO2 -KPIC" "LDFLAGS="  "LDLIBS=" "LINTFLAGS=" "MAKEDEPEND=makedepend"  "FLEXLMINCLUDE=/proj1/ladyhawk/early/source/flexlm/machind" sedForCheckDummySize.dat)
+.BUILT_LAST_MAKE_RUN:
+clean:
+	for dir in Err Util RDsM BfM LOT OM BtM MLGF SM SHM LM TM RM LOG Redo Undo LRDS THM XA; do ( cd ./${dir}; make clean); done;
+	(cd ./Misc; make clean )
+	/bin/rm -f ./Header/errorcodes.h
+	/bin/rm -f ./Header/log_LogRecTbl.i
+	/bin/rm -f kaoss_SM.o kaoss_LRDS.o kaoss_SM.so.1 kaoss_LRDS.so.1 libcosmos.so.1 cosmos.o
+kaoss_LRDS:
+	make "SUBDIR=Err Util RDsM BfM LOT OM BtM MLGF SM SHM LM TM RM LOG Redo Undo LRDS THM XA" "CPPFLAGS=-I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED" kaoss_LRDS_aux

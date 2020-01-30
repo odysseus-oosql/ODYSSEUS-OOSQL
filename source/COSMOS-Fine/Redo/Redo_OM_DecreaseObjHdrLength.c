@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,57 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_OM_DecreaseObjHdrLength.c
+ *
+ * Description:
+ *  redo increasing the length field of object header
+ *
+ * Exports:
+ *  Four Redo_OM_DecreaseObjHdrLength(Four, SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "OM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_OM_DecreaseObjHdrLength(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN log record information */
+{
+    SlottedPage *aPage = anyPage;
+    Object *obj;                /* points to the updated object */
+    LOG_Image_OM_ModifyObjHdrLen_T *modifyObjHdrLenInfoPtr; /* object length change information */
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_OM_DecreaseObjHdrLength(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* get the images */
+    modifyObjHdrLenInfoPtr = (LOG_Image_OM_ModifyObjHdrLen_T*)(logRecInfo->imageData[0]);
+
+    /* points to the object */
+    obj = (Object*)&(aPage->data[aPage->slot[-(modifyObjHdrLenInfoPtr->slotNo)].offset]);
+
+    /*
+     *	redo increasing the length field of an object header
+     */
+    obj->header.length -= modifyObjHdrLenInfoPtr->length;
+
+    return(eNOERROR);
+
+} /* Redo_OM_DecreaseObjHdrLength( ) */

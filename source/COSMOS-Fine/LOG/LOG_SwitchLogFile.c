@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,132 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_SwitchLogFile.c
+ *
+ * Description:
+ *  Switch the log file.
+ *
+ * Exports:
+ *  Four LOG_SwithLogFile(XactTableEntry_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "LOG.h"
+#include "RM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*
+ * Function: Four LOG_SwithLogFile(XactTableEntry_T*)
+ *
+ * Description:
+ *  Switch the log file.
+ *
+ * Returns:
+ *  error codes
+ */
+Four LOG_SwitchLogFile(
+    Four 	handle,
+    Four 	logRecLen)            /* IN log record length */
+{
+    Four  	e;                    /* error code */
+    Lsn_T 	minOnlineLsn;         /* LSN to keep online */
+    Lsn_T 	nextLsn;
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_SwitchLogFile()"));
+
+
+    /* get latch */
+    e = SHM_getLatch(handle, &LOG_LATCH4LOGFILESWITCH, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* To get minimum online LSN (see below), Set the minOnlineLsn with the minimum of first LSN of active transactions. */
+    /* This call should come here before requesting log related latches to avoid a deadlock among latches. */
+    e = TM_XT_GetMinFirstLsn(handle, &minOnlineLsn);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* get latch */
+    e = SHM_getLatch(handle, &LOG_LATCH4HEAD, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if (LOG_LOGMASTER.numBytesRemained >= logRecLen) {
+        e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+        e = SHM_releaseLatch(handle, &LOG_LATCH4LOGFILESWITCH, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+        return(eNOERROR);
+    }
+
+    e = SHM_getLatch(handle, &LOG_LATCH4TAIL, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) {
+	(Four) SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+	ERR(handle, e);
+    }
+
+    /*
+     * Flush all log buffers for the current log file.
+     */
+    e = log_FlushLogBuffers(handle, LOG_LBI_HEAD, FALSE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    LOG_LBI_HEAD = LOG_LBI_TAIL = 0;
+
+    /* release latch */
+    e = SHM_releaseLatch(handle, &LOG_LATCH4TAIL, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * Get the low water mark, minOnlineLsn.
+     */
+    /* Compare with the checkpoint LSN. */
+    if (!IS_NIL_LSN(LOG_LOGMASTER.checkpointLsn) && LSN_CMP_LT(LOG_LOGMASTER.checkpointLsn, minOnlineLsn))
+        minOnlineLsn = LOG_LOGMASTER.checkpointLsn;
+
+    /* Compare with the recovery LSN of dirty buffer pages. */
+
+
+    /*
+     * Check whether the next log file is available.
+     */
+    assert((minOnlineLsn.wrapCount + LOG_LOGMASTER.nLogFiles - 1) >= LOG_LOGMASTER.headWrapCount);
+    if ((minOnlineLsn.wrapCount + LOG_LOGMASTER.nLogFiles - 1) == LOG_LOGMASTER.headWrapCount)
+        ERR(handle, eNOLOGSPACE_LOG);
+
+
+    /*
+     * Set next log record LSN.
+     */
+    nextLsn.wrapCount = LOG_LOGMASTER.headWrapCount + 1;
+    nextLsn.offset = 0;
+    e = LOG_SetNextLogRecordLsn(handle, &nextLsn);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* release latch */
+    /* We should release the latch befor checkpointing to avoid a deadlock among latches. */
+    e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * perform the checkpointing for keeping a stable status
+     */
+    e = RM_Checkpoint(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* release latch */
+    e = SHM_releaseLatch(handle, &LOG_LATCH4LOGFILESWITCH, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LOG_WriteLogRecord() */

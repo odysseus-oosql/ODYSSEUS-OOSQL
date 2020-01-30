@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,68 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __PERPROCESSDS_H__
+#define __PERPROCESSDS_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "SM.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "LOG.h"
+#include "THM_cosmosThread.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*
+ *  Per-Process Data Structure
+ */
+
+typedef struct PerProcessDS_T_tag {
+	SM_PerProcessDS_T		smDS;
+	LM_PerProcessDS_T		lmDS;   /* Declared in LM_LockMatrix.h */
+	SHM_PerProcessDS_T		shmDS;
+
+	Four				nThread;
+} PerProcessDS_T;
+
+
+/*
+ *  MACRO Definition
+ */
+
+#define SM_PER_PROCESS_DS_PTR   	(&perProcessDS.smDS)
+#define LM_PER_PROCESS_DS_PTR   	(&perProcessDS.lmDS)
+#define SHM_PER_PROCESS_DS_PTR   	(&perProcessDS.shmDS)
+#define IS_PER_PROCESS_DS_INITIALIZED   (isPerProcessDSInitialized)
+#define NUM_OF_THREADS_IN_PROCESS       (perProcessDS.nThread)
+
+
+/* For Array Copy */
+#define ARRAYCOPY(_source, _target, _size)  (memcpy(_source, _target, _size))
+
+
+
+
+/*
+ *  global variable
+ */
+extern PerProcessDS_T   	perProcessDS;
+
+extern SM_PerProcessDS_T 	*sm_perProcessDSptr;
+extern LM_PerProcessDS_T 	*lm_perProcessDSptr;
+extern SHM_PerProcessDS_T	*shm_perProcessDSptr;
+
+extern Four                 isPerProcessDSInitialized;
+
+/*
+ * Definition Function 
+ */
+Four THM_InitSystem(void);
+Four THM_FinalSystem(void);
+
+Four THM_InitPerProcess(void);
+Four THM_FinalPerProcess(void);
+
+#endif /* __PERPROCESSDS_H__ */

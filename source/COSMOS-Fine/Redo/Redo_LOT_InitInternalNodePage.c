@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,50 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_LOT_InitInternalNodePage.c
+ *
+ * Description:
+ *  redo initializing internal node page
+ *
+ * Exports:
+ *  Four Redo_LOT_InitInternalNodePage(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_LOT_InitInternalNodePage(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for creating the small object */
+{
+    L_O_T_INodePage *apage = anyPage;
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_LOT_InitInternalNodePage()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (anyPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	redo initializing the internal node page
+     */
+    LOT_INIT_INODE_PAGE_HDR(apage, *((FileID*)logRecInfo->imageData[0]), logRecInfo->pid);
+
+    memcpy(&apage->node, logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+
+    return(eNOERROR);
+
+} /* Redo_LOT_InitInternalNodePage( ) */

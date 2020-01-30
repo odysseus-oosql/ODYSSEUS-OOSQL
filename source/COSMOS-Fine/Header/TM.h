@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,136 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __TM_H__
+#define __TM_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "Util.h"
+#include "xactTable.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/* Initial Pool Size */
+#define INITDPLPOOL   100
+
+
+/*
+ * Type Definition
+ */
+typedef struct {
+    Boolean 		logFlag;		/* reserved: do logging if TRUE */
+    XactTableEntry_T 	*myXactTableEntryPtr; 	/* pointer to my transaction table entry */
+} TM_XactDesc_T;
+
+
+
+/*
+ * Macro Definitions
+ */
+
+#define MY_XACT_LOG_FLAG(_handle)       (perThreadTable[_handle].tmDS.TM_myXactDesc.logFlag)
+#define MY_XACT_TABLE_ENTRY(_handle)    (perThreadTable[_handle].tmDS.TM_myXactDesc.myXactTableEntryPtr)
+
+#define MY_XACT_STATUS(_handle)   	(perThreadTable[_handle].tmDS.TM_myXactDesc.myXactTableEntryPtr->status)
+#define MY_XACTID(_handle)        	(perThreadTable[_handle].tmDS.TM_myXactDesc.myXactTableEntryPtr->xactId)
+#define MY_LAST_LSN(_handle)      	(perThreadTable[_handle].tmDS.TM_myXactDesc.myXactTableEntryPtr->lastLsn)
+#define MY_UNDO_NEXT_LSN(_handle) 	(perThreadTable[_handle].tmDS.TM_myXactDesc.myXactTableEntryPtr->undoNextLsn)
+#define MY_DEALLOC_LSN(_handle)   	(perThreadTable[_handle].tmDS.TM_myXactDesc.myXactTableEntryPtr->deallocLsn)
+#define MY_XACT_LATCH(_handle)    	(perThreadTable[_handle].tmDS.TM_myXactDesc.myXactTableEntryPtr->latch)
+
+
+/*** BEGIN_OF_SHM_RELATED_AREA ***/
+
+/*
+ * Constant Definitions
+ */
+#define MAXNESTEDTOPLSNS 10
+
+
+/*
+ * Type Definitions
+ */
+
+/* Shared Memory in TM */
+typedef struct {
+
+    Four	status;
+    Four	procCounter;	/* number of active proccess */
+    PIB 	processTable[MAXPROCS];
+    TCB         TCB_Pool[TOTALTHREADS];
+    XactTable_T xactTable;
+
+    XactID	xactIdCounter;  /* for allocation of transaction id */
+    LATCH_TYPE	latch_xactIdCounter; /* mutex for update xactIdCounter */
+  
+    Pool	globalXactIdPool; /* global transaction id pool */
+    
+} TM_SHM;
+
+extern TM_SHM *tm_shmPtr;
+extern Four procIndex;
+
+#define TM_PROCESSTABLE(_handle)	perThreadTable[_handle].TCBptr
+#define MY_PROCENTRY(_handle) 		perThreadTable[_handle].TCBptr
+#define TM_XACTTBL			tm_shmPtr->xactTable
+#define TM_GLOBALXACTIDPOOL		tm_shmPtr->globalXactIdPool
+#ifdef USE_LOGICAL_PTR
+#define TM_XACTTBL_HASHTBLENTRY(_i)	(((LogicalPtr_T*)PHYSICAL_PTR(tm_shmPtr->xactTable.hashTable))[_i])
+#else
+#define TM_XACTTBL_HASHTBLENTRY(_i)	(tm_shmPtr->xactTable.hashTable[_i])
+#endif
+#define MY_NUMGRANTED(_handle) (perThreadTable[_handle].TCBptr)->nGranted
+#define MY_GRANTEDLATCHSTRUCT(_handle) (perThreadTable[_handle].TCBptr->grantedLatchStruct)
+#define MY_GRANTEDLATCHLIST(_handle) ((LatchEntry *)(perThreadTable[_handle].TCBptr->grantedLatchStruct)->ptr)
+#define MY_GRANTEDLATCHENTRY(_handle, num) ((LatchEntry *)perThreadTable[_handle].TCBptr->grantedLatchStruct->ptr)[num]
+
+/*** END_OF_SHM_RELATED_AREA ***/
+
+
+/*
+ * Function Prototypes
+ */
+Four TM_InitSharedDS(Four);
+Four TM_InitLocalDS(Four);
+Four TM_FinalSharedDS(Four);
+Four TM_FinalLocalDS(Four);
+Four TM_XT_AllocAndInitXactTableEntry(Four, XactID*, XactTableEntry_T**);
+Four TM_XT_FreeXactTableEntry(Four, XactID*);
+void TM_XT_DeleteEndedXactEntries(Four);
+void TM_XT_DeleteEntry(Four, XactID*);
+Boolean TM_XT_GetEntryPtr(Four, XactID*, XactTableEntry_T**);
+void TM_XT_GetMaxUndoNextLsn(Four, Lsn_T*);
+void TM_XT_GetMinDeallocLsn(Four, Lsn_T*);
+Four TM_XT_GetMinFirstLsn(Four, Lsn_T*);
+Four TM_XT_GetPreparedTransactions(Four, Four, GlobalXactID*, Four*);
+Four TM_XT_GetXactIdFromGlobalXactId(Four, GlobalXactID*, XactID*);
+Four TM_XT_InitTable(Four);
+Four TM_XT_InsertEntry(Four, ActiveXactRec_T*, XactTableEntry_T**);
+void TM_SetXactIdCounter(Four, XactID*);
+Four TM_XT_GetMinXactId(Four, XactID*);
+Four TM_AbortTransaction(Four, XactID*);
+Four TM_BeginTransaction(Four, XactID*, ConcurrencyLevel); 
+Four TM_CommitTransaction(Four, XactID*);
+Four TM_DoPendingActionsOfCommittedTransaction(Four, XactTableEntry_T*);
+Four tm_AllocXactId(Four, XactID*);
+Four TM_XT_LogActiveXacts(Four);
+void TM_XT_DeleteRollbackedXactEntries(Four);
+Four TM_XT_DoPendingActionsOfCommittedTransactions(Four);
+Four TM_XT_AddToDeallocPageList(Four, XactTableEntry_T*, PageID*);
+Four TM_XT_AddToDeallocTrainList(Four, XactTableEntry_T*, TrainID*);
+Four TM_XT_AddToDeallocList(Four, XactTableEntry_T*, PageID*, SegmentID_T*, SegmentID_T*, DLType); 
+Four TM_XT_AddToDeallocPageSegmentList(Four, XactTableEntry_T*, SegmentID_T*);
+Four TM_XT_AddToDeallocTrainSegmentList(Four, XactTableEntry_T*, SegmentID_T*);
+Four TM_XT_DeleteLastElemFromDeallocPageSegmentList(Four, XactTableEntry_T*, SegmentID_T*);
+Four TM_XT_DeleteLastElemFromDeallocTrainSegmentList(Four, XactTableEntry_T*, SegmentID_T*);
+Four TM_XT_BeginNestedTopAction(Four, XactTableEntry_T*, Lsn_T*);
+Four TM_XT_EndNestedTopAction(Four, XactTableEntry_T*, LogParameter_T*);
+void TM_XT_InitXactTableEntry(Four, XactTableEntry_T*);
+Four TM_XT_FinalXactTableEntry(Four, XactTableEntry_T*);
+Four TM_EnterTwoPhaseCommit(Four, XactID*, GlobalXactID*);
+Four TM_IsReadOnlyTransaction(Four, XactID*, Boolean*);
+Four TM_IsDuplicatedGXID(Four, GlobalXactID*, Boolean*);
+Four TM_RecoverTwoPhaseCommit(Four, GlobalXactID*, XactID*);
+Four TM_PrepareTransaction(Four, XactID*);
+Four tm_DL_ConvertIntoSmallUnits(Four, XactTableEntry_T*);
+Four tm_DL_Log(Four, XactTableEntry_T*);
+Four tm_DL_FreeReally(Four, XactTableEntry_T*);
+#endif /* __TM_H__ */

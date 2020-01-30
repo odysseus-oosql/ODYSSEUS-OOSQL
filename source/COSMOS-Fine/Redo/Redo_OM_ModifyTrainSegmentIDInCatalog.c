@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,97 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_OM_ModifyTrainSegmentIDInCatalog.c
+ *
+ * Description:
+ *  redo modifying train segment id field in the catalog trable
+ *
+ * Exports:
+ *  Four Redo_OM_ModifyTrainSegmentIDInCatalog(Four, SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "LM.h"
+#include "LOG.h"
+#include "RM.h"
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Four Redo_OM_ModifyTrainSegmentIDInCatalog(
+    Four                        handle,                 /* IN  handle */
+    void 			*anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T 		*logRecInfo) 		/* IN log record information */
+{
+    SlottedPage 		*aPage = anyPage;
+    Four 			e;			/* error code */
+    LockReply 			lockReply;		/* lock reply */
+    LockMode 			oldMode;
+    sm_CatOverlayForData 	*catEntry;		/* pointer to data file catalog information */
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_OM_ModifyTrainSegmentIDInCatalog(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	redo modifying last page field in the catalog trable
+     */
+#ifdef CCPL
+    /* Get recovery lock before requesting the lock for the updated page. */
+    e = LM_getFlatPageLock(handle, &logRecInfo->xactId, &RM_pid4RecoveryLock, L_X, L_MANUAL,
+                           L_UNCONDITIONAL, &lockReply, &oldMode);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if (lockReply == LR_DEADLOCK) ERR(handle, eDEADLOCK);
+
+
+    /* Update the catalog entry in the disk. */
+    /*
+    ** Request X lock on the page.
+    ** We use the flat page lock because 1) we don't know the file id of
+    ** the catalog table and 2) the check of file lock is an overhead.
+    */
+    e = LM_getFlatPageLock(handle, &logRecInfo->xactId, &(logRecInfo->pid),
+			   L_X, L_MANUAL, L_UNCONDITIONAL, &lockReply, &oldMode);
+    if (e < eNOERROR) {
+	(Four)LM_releaseFlatPageLock(handle, &logRecInfo->xactId, &RM_pid4RecoveryLock, L_MANUAL);
+	ERR(handle, e);
+    }
+
+    if (lockReply == LR_DEADLOCK) ERR(handle, eDEADLOCK);
+#endif /* CCPL */
+
+    GET_PTR_TO_CATENTRY_FOR_DATA(*((Two*)logRecInfo->imageData[0]), aPage, catEntry);
+
+    catEntry->trainSegmentID = *((SegmentID_T*)logRecInfo->imageData[1]);
+
+#ifdef CCPL
+    /* Release the lock on the catalog page. */
+    e = LM_releaseFlatPageLock(handle, &logRecInfo->xactId, &(logRecInfo->pid), L_MANUAL);
+    if (e < eNOERROR) {
+	(Four)LM_releaseFlatPageLock(handle, &logRecInfo->xactId, &RM_pid4RecoveryLock, L_MANUAL);
+	ERR(handle, e);
+    }
+
+    /* Release the RECOVERY lock. */
+    e = LM_releaseFlatPageLock(handle, &logRecInfo->xactId, &RM_pid4RecoveryLock, L_MANUAL);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCPL */
+
+    return(eNOERROR);
+
+} /* Redo_OM_ModifyTrainSegmentIDInCatalog() */

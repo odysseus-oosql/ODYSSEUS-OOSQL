@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,118 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*@================================
+ * btm_ChangeInternalEntrySize( )
+ *================================*/
+void btm_ChangeInternalEntrySize(
+    Four          	handle,
+    BtreeInternal 	*apage,			/* INOUT an internal page */
+    Four 		slotNo,                	/* IN slot to be changed */
+    Four 		newLength)             	/* IN new entry size */
+{
+    Four 		diff;			/* difference btw. old length and new length */
+    Four 		entryOffset;           	/* starting offset of the changed entry */
+    Four 		oldLength;             	/* old entry length */
+    btm_InternalEntry 	*entry;   		/* entry to be changed */
+
+
+    TR_PRINT(handle, TR_BTM, TR1, ("btm_ChangeInternalEntrySize()"));
+
+
+    entryOffset = apage->slot[-slotNo];
+    entry = (btm_InternalEntry*)&apage->data[entryOffset];
+    oldLength = BTM_INTERNAL_ENTRY_LENGTH(entry->klen);
+
+    diff = newLength - oldLength;
+
+    if (entryOffset + oldLength == apage->hdr.free && diff <= BI_CFREE(apage)) {
+
+        apage->hdr.free += diff;
+
+    } else if (diff <= 0) {
+
+        apage->hdr.unused += -diff;
+
+    } else if (newLength <= BI_CFREE(apage)) {
+
+        /*@ move the entry to the free space */
+        apage->slot[-slotNo] = apage->hdr.free;
+        memcpy(&apage->data[apage->hdr.free], entry, oldLength); /* oldLength is less than newLength */
+
+        apage->hdr.unused += oldLength;
+        apage->hdr.free += newLength;
+
+    } else {		/* no enough contiguous space */
+
+        btm_CompactInternalPage(handle, apage, slotNo);
+        /* entry have moved in btm_CompactInternalPage( ). */
+
+        apage->hdr.free += diff;
+    }
+
+} /* btm_ChangeInternalEntrySize() */
+
+
+
+/*@================================
+ * btm_ChangeLeafEntrySize( )
+ *================================*/
+void btm_ChangeLeafEntrySize(
+    Four      		handle,
+    BtreeLeaf 		*apage,           	/* INOUT an internal page */
+    Four 		slotNo,                	/* IN slot to be changed */
+    Four 		newLength)             	/* IN new entry size */
+{
+    Four 		diff;			/* difference btw. old length and new length */
+    Four 		entryOffset;           	/* starting offset of the changed entry */
+    Four 		oldLength;             	/* old entry length */
+    btm_LeafEntry 	*entry;       		/* entry to be changed */
+
+
+    TR_PRINT(handle, TR_BTM, TR1, ("btm_ChangeLeafEntrySize()"));
+
+
+    entryOffset = apage->slot[-slotNo];
+    entry = (btm_LeafEntry*)&apage->data[entryOffset];
+    oldLength = BTM_LEAF_ENTRY_LENGTH(entry->klen, entry->nObjects);
+
+    diff = newLength - oldLength;
+
+    if (entryOffset + oldLength == apage->hdr.free && diff <= BL_CFREE(apage)) {
+
+        apage->hdr.free += diff;
+
+    } else if (diff <= 0) {
+
+        apage->hdr.unused += -diff;
+
+    } else if (newLength <= BL_CFREE(apage)) {
+
+        /*@ move the entry to the free space */
+        apage->slot[-slotNo] = apage->hdr.free;
+        memcpy(&apage->data[apage->hdr.free], entry, oldLength); /* oldLength is less than newLength */
+
+        apage->hdr.unused += oldLength;
+        apage->hdr.free += newLength;
+
+    } else {		/* no enough contiguous space */
+
+        btm_CompactLeafPage(handle, apage, slotNo);
+        /* entry have moved in btm_CompactLeafPage( ). */
+
+        apage->hdr.free += diff;
+    }
+
+} /* btm_ChangeLeafEntrySize() */
+
+

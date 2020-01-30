@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,147 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SHM_process.c
+ *
+ * Description:
+ *  Process Initialization and finalization
+ *
+ * Exports:
+ *	new_process()
+ *	end_process()
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+#include <errno.h>
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RM.h"
+#include "SHM.h"
+
+
+/* Static Variable */
+static Four_Invariable  shmId;
+static Four 		sharedHeapSize;		/* needed shared memory size */
+
+
+
+/*@================================
+ * SHM_beginProcess( )
+ *================================*/
+Four SHM_beginProcess(
+    Four 		handle,
+    CfgParams_T 	*cfgParams,     	/* IN configuration parameters */
+    ComponentInfo_T 	componentInfos[], 	/* IN component informations */
+    Four 		nComponents)           	/* IN number of components */
+{
+
+    Four 		i;			/* loop index */
+    Four		e;              	/* error number */
+
+
+    /*
+     *  Evaluate the size
+     */
+    /* these are defined in BfM_init() */
+    sharedHeapSize = PAGESIZE*NUM_PAGE_BUFS+ /* for page size buffer */
+                     PAGESIZE*NUM_LOT_LEAF_BUFS*TRAINSIZE2+/* for large object buffer */
+                     sizeof(bfmHashEntry)*NUM_PAGE_BUFS*7+sizeof(Lock_hashEntry)*NUM_PAGE_BUFS*7+
+                     sizeof(Lock_ctrlBlock)*NUM_PAGE_BUFS*7+MAXFREESPACE;
+
+
+    /*
+     *  Get shard memeory from system
+     */
+    shmPtr = (SemStruct *) malloc(sizeof(SemStruct)+sharedHeapSize);
+    if (shmPtr == NULL) ERR(handle, eMEMORYALLOCERR);
+
+
+    /*
+     * Initialize all the local data structures of all the components.
+     */
+    shm_assignSharedPtr(handle);
+
+
+    /*
+     * Initialize all the shared data structures of all the components.
+     */
+
+    common_shmPtr->cfgParams = *cfgParams;
+    common_shmPtr->recoveryFlag = FALSE;
+
+    e = shm_initSharedHeap(handle, sharedHeapSize);
+    if (e < eNOERROR) ERR(handle, e);
+
+    for (i = 0; i < nComponents; i++) {
+        if (componentInfos[i].initSharedDS != NULL) {
+            e = componentInfos[i].initSharedDS(handle);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+    }
+
+    NUM_OF_THREADS_IN_SYSTEM = 1;
+
+
+    return(eNOERROR);
+
+} /* SHM_beginProcess() */
+
+
+
+/*@================================
+ * SHM_endProcess( )
+ *================================*/
+Four SHM_endProcess(
+    Four 		handle,
+    CfgParams_T 	*cfgParams,     	/* IN configuration parameters */
+    ComponentInfo_T 	componentInfos[], 	/* IN component informations */
+    Four 		nComponents)           	/* IN number of components */
+{
+    Four 		e = eNOERROR;		/* returned error number */
+    Four 		i;
+
+
+
+    handle = previousHandle;
+
+    /*
+     * Finalize all the shared & local data structures of all the components.
+     */
+    for (i = nComponents-1; i >= 0; i--) {
+        if (componentInfos[i].finalComponent != NULL) {
+            e = (*componentInfos[i].finalComponent)(handle);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+        if (componentInfos[i].finalLocalDS != NULL) {
+            e = (*componentInfos[i].finalLocalDS)(handle);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+        if (componentInfos[i].finalSharedDS != NULL) {
+            e = componentInfos[i].finalSharedDS(handle);
+            if (e < eNOERROR) ERR(handle, e);
+        }
+    }
+
+    NUM_OF_THREADS_IN_SYSTEM = 0;
+
+    /*
+     *  Free shard memeory from system
+     */
+    free(shmPtr);
+
+    e = thm_FinalPerThreadDS(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* SHM_endProcess() */

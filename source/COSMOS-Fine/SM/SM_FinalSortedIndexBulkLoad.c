@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,89 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_FinalSortedIndexBulkLoad.c
+ *
+ * Description :
+ *  Finalize B+ tree index bulkload
+ *
+ * Exports:
+ *  Four SM_FinalSortedIndexBulkLoad()
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "BtM.h"
+#include "SM.h"
+#include "BL_BtM.h"
+#include "BL_SM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+/*@=============================
+ * SM_FinalSortedIndexBulkLoad()
+ *=============================*/
+/*
+ * Function: Four SM_FinalSortedIndexBulkLoad()
+ *
+ * Description:
+ *  Finalize B+ tree index bulkload
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calss
+ *
+ * Side Effects:
+ *
+ */
+Four SM_FinalSortedIndexBulkLoad (
+    Four  		    handle,
+    Four                    blkLdId)                /* IN  bulkload ID */
+{
+    Four                    e;                      /* error number */
+    SM_IdxBlkLdTableEntry*  blkLdEntrySM;           /* entry in which information about bulkload is saved */
+    BtM_BlkLdTableEntry*    blkLdEntryBtM;          /* entry in which information about BtM bulkload */
+    LogParameter_T          logParam;
+
+    TR_PRINT(handle, TR_SM, TR1,
+             ("SM_FinalSortedIndexBulkLoad(blkLdId=%ld)", blkLdId));
+
+
+    /*
+    **  O. set entry for fast access
+    */
+    blkLdEntrySM = &SM_IDXBLKLD_TABLE(handle)[blkLdId];
+    blkLdEntryBtM = &BTM_BLKLD_TABLE(handle)[blkLdEntrySM->btmBlkLdId];
+
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, blkLdEntryBtM->btmBlkLdblkldInfo.iinfo.tmpIndexFlag);
+
+    /*
+    **  I. Finalize B+ tree index bulkload
+    */
+    if (blkLdEntrySM->smBlkLdisAppend == TRUE) {
+        e = BtM_FinalSortedAppendBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), blkLdEntrySM->btmBlkLdId, &blkLdEntrySM->fid, &logParam); 
+        if (e < eNOERROR) ERR(handle, e);
+    }
+    else {
+        e = BtM_FinalSortedBulkLoad(handle, MY_XACT_TABLE_ENTRY(handle), blkLdEntrySM->btmBlkLdId, &logParam);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+
+    /*
+    **  II. empty entry of SM bulkload table
+    */
+    blkLdEntrySM->isUsed = FALSE;
+
+
+    return eNOERROR;
+
+}   /* SM_FinalSortedIndexBulkLoad() */
+

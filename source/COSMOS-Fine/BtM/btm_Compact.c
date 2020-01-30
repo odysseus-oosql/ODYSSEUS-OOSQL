@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,152 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_Compact.c
+ *
+ * Description:
+ *  Two functions btm_CompactInternalPage( ) and btm_CompactLeafPage( ) are
+ *  used to compact the internal page and the leaf page, respectively.
+ *
+ * Exports:
+ *  void btm_CompactInternalPage(Four, BtreeInternal*, Four)
+ *  void btm_CompactLeafPage(Four, BtreeLeaf*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"		/* for tracing : TR_PRINT(handle, ) macro */
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * btm_CompactInternalPage( )
+ *================================*/
+/*
+ * Function: btm_CompactInternalPage(handle, BtreeInternal*, Four)
+ *
+ * Description:
+ *  Reorganize the internal page to make sure the unused bytes in the page
+ *  are located contiguously "in the middle", between the entries and the
+ *  slot array. To compress out holes, entries must be moved toward the
+ *  beginning of the page.
+ *
+ * Returns:
+ *  None
+ *
+ * Side effects:
+ *  The leaf page is reorganized to compact the space.
+ */
+void btm_CompactInternalPage(
+    Four 		handle,
+    BtreeInternal 	*apage,			/* INOUT leaf page to compact */
+    Four      		slotNo)			/* IN slot to go to the boundary of free space */
+{
+    BtreeInternal 	tpage;			/* temporay page used to save the given page */
+    Four   		apageDataOffset;	/* where the next object is to be moved */
+    Four   		len;			/* length of the leaf entry */
+    Four   		i;			/* index variable */
+    btm_InternalEntry 	*entry;			/* an entry in leaf page */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("btm_CompactInternalPage(handle, apage=%P, slotNo=%ld)", apage, slotNo));
+
+    /*@ save the slotted page */
+    tpage = *apage;
+
+    apageDataOffset = 0;	/* start at the beginning of the data area */
+
+    for (i = 0; i < tpage.hdr.nSlots; i++) {
+
+        /* 'entry' points to the currently moved leaf entry. */
+        entry = (btm_InternalEntry*)&tpage.data[tpage.slot[-i]];
+
+        /* copy the entire entry to the reorganized page */
+        len = sizeof(ShortPageID) + ALIGNED_LENGTH(sizeof(Two)+entry->klen);
+
+        if (i != slotNo) {
+            apage->slot[-i] = apageDataOffset;
+            apageDataOffset += len;
+        } else {
+            apage->slot[-i] = apage->hdr.free - apage->hdr.unused - len;
+        }
+
+        memcpy(&(apage->data[apage->slot[-i]]), entry, len);
+    }
+
+    /*@ set the control variables */
+    apage->hdr.free -= apage->hdr.unused; /* start pos. of contiguous space */
+    apage->hdr.unused = 0;		  /* no fragmented unused space */
+
+} /* btm_CompactInternalPage() */
+
+
+
+/*@================================
+ * btm_CompactLeafPage( )
+ *================================*/
+/*
+ * Function: Void btm_CompactLeafPage(handle, BtreeLeaf*, Four)
+ *
+ * Description:
+ *  Reorganizes the leaf page to make sure the unused bytes in the page
+ *  are located contiguously "in the middle", between the entries and the
+ *  slot array. To compress out holes, entries must be moved toward the
+ *  beginning of the page.
+ *
+ * Return Values :
+ *  None
+ *
+ * Side Effects :
+ *  The leaf page is reorganized to comact the space.
+ */
+void btm_CompactLeafPage(
+    Four 		handle,
+    BtreeLeaf 		*apage,			/* INOUT leaf page to compact */
+    Four      		slotNo)			/* IN slot to go to the boundary of free space */
+{
+    BtreeLeaf 		tpage;			/* temporay page used to save the given page */
+    Four   		apageDataOffset;	/* where the next object is to be moved */
+    Four   		len;			/* length of the leaf entry */
+    Four   		i;			/* index variable */
+    btm_LeafEntry 	*entry;			/* an entry in leaf page */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("btm_CompactLeafPage(handle, apage=%P, slotNo=%ld)", apage, slotNo));
+
+    /*@ save the slotted page */
+    tpage = *apage;
+
+    apageDataOffset = 0;	/* start at the beginning of the data area */
+
+    for (i = 0; i < tpage.hdr.nSlots; i++) {
+
+        /* 'entry' points to the currently moved leaf entry. */
+        entry = (btm_LeafEntry*)&tpage.data[tpage.slot[-i]];
+
+        /* copy the entire entry to the reorganized page */
+        len = BTM_LEAF_ENTRY_LENGTH(entry->klen, entry->nObjects);
+
+	if (i != slotNo) {
+            apage->slot[-i] = apageDataOffset;
+            apageDataOffset += len;
+        } else {
+            apage->slot[-i] = apage->hdr.free - apage->hdr.unused - len;
+        }
+
+        memcpy(&apage->data[apage->slot[-i]], entry, len);
+    }
+
+    /*@ set the control variables */
+    apage->hdr.free -= apage->hdr.unused; /* start pos. of contiguous space */
+    apage->hdr.unused = 0;		   /* no fragmented unused space */
+
+} /* btm_CompactLeafPage() */

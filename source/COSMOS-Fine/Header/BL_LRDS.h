@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,86 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _BL_LRDS_H_
+#define _BL_LRDS_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "LRDS.h"
+
+
+/*@
+ * Type Definitions
+ */
+
+typedef ColListStruct ColListForKval[MAXNUMKEYPARTS];
+typedef char KvalBuffer[MAXKEYLEN]; 
+
+typedef struct {
+    Boolean             isUsed;
+
+    Four                smDataFileBlkLdId;
+
+    PageID              firstPageId;           
+
+    SortKeyDesc         lrdsBlkLdSortKeyDesc;
+    lrds_RelTableEntry* lrdsBlkLdRelTableEntry; /* pointer to an entry of relation table */
+    Four                lrdsBlkLdOrn;
+    Four                lrdsBlkLdScanId; 
+    IndexID             lrdsBlkLdTxtIndexId;
+
+    char*               lrdsBlkLdTupBuf;
+    Four                lrdsBlkLdTupBufOffset;
+    Boolean             lrdsBlkLdIsFirstTupBuf;
+
+    char*               lrdsBlkLdTupHdrBuf;
+    Four                lrdsBlkLdTupHdrSize;
+    TupleHdr*           lrdsBlkLdTupHdrPtr;
+    unsigned char*      lrdsBlkLdNullVector;
+
+    Boolean*            lrdsBlkLdRemainFlagArray;
+    Four                lrdsBlkLdRemainFlagArrayIdxForVarCols;
+    Four                lrdsBlkLdRemainFlagArrayIdxForFixedCols;
+
+    Boolean             indexBlkLdFlag;
+    Boolean             clusteringFlag;
+    Four*               smIndexBlkLdIdArray;
+    ColListForKval*     kvalColListArray;
+    KvalBuffer*         kvalBufArray;
+
+    Four*               kvalStreamIdArray; 
+
+    LockParameter       lockup;
+
+} LRDS_BlkLdTableEntry;
+
+
+/*
+ *  Global variables for relation bulkload 
+ */
+
+
+#define LRDS_BLKLD_TABLE(_handle)      perThreadTable[_handle].lrdsDS.lrdsBlkLdTable
+
+
+
+/*
+ *  Function prototype for relation bulkload 
+ */
+
+Four LRDS_InitRelationBulkLoad(Four, Four, Four, char*, Boolean, Boolean, Two, Two, LockParameter*); 
+Four LRDS_NextRelationBulkLoad(Four, Four, Four, ColListStruct*, Boolean, TupleID*);
+Four LRDS_FinalRelationBulkLoad(Four, Four);
+
+#ifndef COMPRESSION 
+Four LRDS_NextRelationBulkLoad_OrderedSetBulkLoad(Four, Four, Four, Four, Four, Four, char*, Boolean, TupleID*); 
+#else
+Four LRDS_NextRelationBulkLoad_OrderedSetBulkLoad(Four, Four, Four, Four, Four, Four, char*, Boolean, TupleID*, char*, VolNo, Four); 
+#endif
+Four LRDS_NextRelationBulkLoad_Collection(Four, VolID, Four, Four, Boolean, Boolean, TupleID*, Four, Four); 
+Four LRDS_OrderedSetAppendBulkLoad(Four, Four, Four, Boolean, TupleID*, Four, Four, Four, char*, LockParameter*);
+
+Four LRDS_InitTextBulkLoad(Four, Four, Four, Boolean, Boolean, Four, LockParameter*); 
+Four LRDS_NextTextBulkLoad(Four, Four, TupleID*, Four, char*);
+Four LRDS_FinalTextBulkLoad(Four, Four);
+
+#endif /* _BL_LRDS_H_ */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,109 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOT_DeleteFromObject.c
+ *
+ * Description:
+ *  Delete the given bytes from the large object tree.
+ *
+ * Exports:
+ *  Four LOT_DeleteFromObject(Four, DataFileInfo*, PageID*, Four, Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <stdlib.h> /* for malloc & free */
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LOT_DeleteFromObject( )
+ *================================*/
+/*
+ * Function: Four LOT_DeleteFromObject(Four, DataFileInfo*, PageID*, Four, Four, Four)
+ *
+ * Description:
+ *  Delete the given bytes from the large object tree.
+ *
+ * Returns:
+ *  Error codes
+ *    eBADCATOBJ
+ *    eBADPAGEID
+ *    eBADOFFSET_LOT
+ *    eBADLENGTH_LOT
+ *    eBADSLOTNO_LOT
+ */
+Four LOT_DeleteFromObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    DataFileInfo *finfo,	/* IN file information */
+    char *anodeOrRootPageNo,    /* INOUT anode or root page no */
+    Boolean *rootWithHdr_Flag,  /* INOUT TRUE if root is with header */
+    Four maxNodeLen,            /* IN node can grow at most to this value */
+    Four start,			/* IN starting offset of delete */
+    Four length,		/* IN amount of data to delete */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four e;			/* Error Number */
+    L_O_T_ItemList list;	/* infomation for root node */
+    Boolean uf;			/* underflow flag */
+    Boolean mf;			/* merge flag */
+    PageID root;		/* root of large object tree */
+    L_O_T_Path path;		/* cut path */
+    Boolean f;			/* indicates the change of root PageID */
+    Four c_which;
+    L_O_T_INodeEntry tmpEntries[2]; /* temporary entries */
+
+
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_DeleteFromObject()"));
+
+
+    /*@ checking the parameters */
+    if (finfo == NULL)	/* catObjForFile unexpected NULL */
+	ERR(handle, eBADPARAMETER);
+
+    if (start < 0)		/* bad starting offset of insert*/
+	ERR(handle, eBADPARAMETER);
+
+    if (length < 0)		/* bad length (< 0) of insert */
+	ERR(handle, eBADPARAMETER);
+
+    if (length == 0) return(eNOERROR);
+
+
+    list.nEntries = 2;
+    list.entry = tmpEntries;
+    list.entry[0].spid = (*rootWithHdr_Flag == TRUE) ? NIL : (*(ShortPageID*)anodeOrRootPageNo);
+    list.entry[1].spid = NIL;
+
+    /*@ Initialize the path */
+    lot_InitPath(handle, &path);
+
+    e = lot_DeleteFromObject(handle, xactEntry, finfo, &list, (L_O_T_INode*)anodeOrRootPageNo, start,
+			     start+length-1, &c_which, &uf, &mf, &path, logParam);
+    if (e < 0) {
+	lot_FinalPath(handle, &path);
+	ERR(handle, e);
+    }
+
+    assert(list.entry[0].count != 0);
+
+    e = lot_RebalanceTree(handle, xactEntry, finfo, &path, anodeOrRootPageNo,
+                          rootWithHdr_Flag, maxNodeLen, &uf, logParam);
+    if (e < 0) {
+        lot_FinalPath(handle, &path);
+        ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* LOT_DeleteFromObject( ) */

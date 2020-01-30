@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,79 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _LM_LOCKMATRIX_H_
+#define _LM_LOCKMATRIX_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#define MAXLOCKMODES	6
+#define NOTOK		0
+#define OK		1
+#define NONEED		2
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+static Two_Invariable LOCK_conversion[MAXLOCKMODES][MAXLOCKMODES]= {
+  { L_NL,  L_IS,  L_IX,  L_S,   L_SIX, L_X },
+  { L_IS,  L_IS,  L_IX,  L_S,   L_SIX, L_X },
+  { L_IX,  L_IX,  L_IX,  L_SIX, L_SIX, L_X },
+  { L_S,   L_S,   L_SIX, L_S,   L_SIX, L_X },
+  { L_SIX, L_SIX, L_SIX, L_SIX, L_SIX, L_X },
+  { L_X,   L_X,   L_X,   L_X,   L_X,   L_X }
+};
+
+static Two_Invariable LOCK_compatible[MAXLOCKMODES][MAXLOCKMODES]= {
+  { OK,  OK,    OK,    OK,    OK,    OK    },
+  { OK,  OK,    OK,    OK,    OK,    NOTOK },
+  { OK,  OK,    OK,    NOTOK, NOTOK, NOTOK },
+  { OK,  OK,    NOTOK, OK,    NOTOK, NOTOK },
+  { OK,  OK,    NOTOK, NOTOK, NOTOK, NOTOK },
+  { OK,  NOTOK, NOTOK, NOTOK, NOTOK, NOTOK }
+};
+
+static Two_Invariable LOCK_supreme[MAXLOCKMODES][MAXLOCKMODES] = {
+  { L_NL,  L_IS,  L_IX,  L_S,   L_SIX, L_X },
+  { L_IS,  L_IS,  L_IX,  L_S,   L_SIX, L_X },
+  { L_IX,  L_IX,  L_IX,  L_SIX, L_SIX, L_X },
+  { L_S,   L_S,   L_SIX, L_S,   L_SIX, L_X },
+  { L_SIX, L_SIX, L_SIX, L_SIX, L_SIX, L_X },
+  { L_X,   L_X,   L_X,   L_X,   L_X,   L_X }
+};
+
+static Two_Invariable LOCK_super[MAXLOCKMODES] = { L_NL,   L_S,   L_X,   L_S,   L_X,   L_X };
+
+/* table for rule of lock hierachy */
+/* left side is parent level and right side is child level */
+/* NOTOK  :: child lock request violates lock request rule */
+/* OK     :: child lock request matches lock request rule */
+/* NONEED :: parent lock implicitly sets on its descendants */
+
+static Two_Invariable LOCK_hierarchy[MAXLOCKMODES][MAXLOCKMODES] = {
+  { NOTOK, NOTOK,  NOTOK,  NOTOK,  NOTOK,  NOTOK },
+  { OK,    OK,     NOTOK,  OK,     NOTOK,  NOTOK },
+  { OK,    OK,     OK,     OK,     OK,     OK },
+  { OK,    NONEED, NOTOK,  NONEED, NOTOK,  NOTOK },
+  { OK,    NONEED, OK,     NONEED, OK,     OK },
+  { OK,    NONEED, NONEED, NONEED, NONEED, NONEED }
+};
+
+/* ----------------- BEGIN of per Process Section --------------------- */
+
+/* Shared Memory Data Structures */
+
+typedef struct LM_PerProcessDS_T_tag {
+     Two_Invariable LOCK_conversion[MAXLOCKMODES][MAXLOCKMODES];
+     Two_Invariable LOCK_compatible[MAXLOCKMODES][MAXLOCKMODES];
+     Two_Invariable LOCK_supreme[MAXLOCKMODES][MAXLOCKMODES];
+     Two_Invariable LOCK_super[MAXLOCKMODES];
+
+/* table for rule of lock hierachy */
+/* left side is parent level and right side is child level */
+/* NOTOK  :: child lock request violates lock request rule */
+/* OK     :: child lock request matches lock request rule */
+/* NONEED :: parent lock implicitly sets on its descendants */
+
+     Two_Invariable LOCK_hierarchy[MAXLOCKMODES][MAXLOCKMODES];
+
+} LM_PerProcessDS_T;
+
+
+/* ----------------- END of per Process Section --------------------- */
+
+#endif /* _LM_LOCKMATRIX_H_ */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,125 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: rdsm_Segment.c
+ *
+ * Description:
+ *  Manipulation the segment
+ *
+ * Exports:
+ *  Four rdsm_InsertExtentToSegment(XactTableEntry_T*, RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, LogParameter_T*)
+ *  Four rdsm_RemoveExtentFromSegment(XactTableEntry_T*, RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four rdsm_InsertExtentToSegment(XactTableEntry_T*, RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, LogParameter_T*)
+ *
+ * Description:
+ *  Insert new extent pointed by 'newExtent' to the segment
+ *         between the extent pointed by 'midExtent' and the extent pointed by 'nextExtent'
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_InsertExtentToSegment(
+    Four                        handle,                 /* IN    handle */
+    XactTableEntry_T		*xactEntry, 		/* IN transaction table entry */
+    RDsM_VolumeInfo_T		*volInfo, 		/* IN volume information */
+    AllocAndFreeExtentInfo_T	*midExtent, 		/* IN pointer of middle extent */
+    AllocAndFreeExtentInfo_T	*nextExtent, 		/* IN pointer of next extnet */
+    AllocAndFreeExtentInfo_T	*newExtent, 		/* IN pointer of new extent */
+    LogParameter_T		*logParam		/* IN log parameter */
+)
+{
+    Four			e;			/* returned error value */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_InsertExtentToSegment(xactEntry=%P, volInfo=%P, midExtent=%P, nextExtent=%P, newExtent=%P, logParam=%P)", xactEntry, volInfo, midExtent, nextExtent, newExtent, logParam));
+
+
+    /* update extent map about middle extent */
+    e = rdsm_SetExtentMapInfo(handle, xactEntry, midExtent, NO_OP, newExtent->extentNo, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* update extent map about new extent */
+    e = rdsm_SetExtentMapInfo(handle, xactEntry, newExtent, midExtent->extentNo, nextExtent->extentNo, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* update extent map about next extent */
+    if (nextExtent->extentNo != NIL) {
+    	e = rdsm_SetExtentMapInfo(handle, xactEntry, nextExtent, newExtent->extentNo, NO_OP, logParam);
+    	if (e < eNOERROR) ERR(handle, e);
+    }
+
+
+    return (eNOERROR);
+}
+
+
+/*
+ * Function: Four rdsm_RemoveExtentFromSegment(XactTableEntry_T*, RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, AllocAndFreeExtentInfo_T*, LogParameter_T*)
+ *
+ * Description:
+ *  Delete the extent pointed by 'midExtent'
+ *         between the extent pointed by 'prevExtent' and the extent pointed by 'nextExtent'
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_RemoveExtentFromSegment(
+    Four                        handle,                 /* IN    handle */
+    XactTableEntry_T		*xactEntry, 		/* IN  transaction table entry */
+    RDsM_VolumeInfo_T		*volInfo, 		/* IN  volume information */
+    AllocAndFreeExtentInfo_T	*prevExtent, 		/* IN  pointer of previous extent */
+    AllocAndFreeExtentInfo_T	*midExtent, 		/* IN  pointer of middle extent */
+    AllocAndFreeExtentInfo_T	*nextExtent, 		/* IN  pointer of next extent */
+    LogParameter_T		*logParam		/* IN  log parameter */
+)
+{
+    Four			e;			/* returned error value */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_RemoveExtentFromSegment(xactEntry=%P, volInfo=%P, prevExtent=%P, midExtent=%P, nextExtent=%P, logParam=%P)", xactEntry, volInfo, prevExtent, midExtent, nextExtent, logParam));
+
+
+    /* case: previous extent and next extent exist */
+    if (prevExtent->extentNo != NIL && nextExtent->extentNo != NIL) {
+
+	e = rdsm_SetExtentMapInfo(handle, xactEntry, prevExtent, NO_OP, nextExtent->extentNo, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+
+	e = rdsm_SetExtentMapInfo(handle, xactEntry, nextExtent, prevExtent->extentNo, NO_OP, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+    /* case: previous extent doesn't exist */
+    else if (nextExtent->extentNo != NIL) {
+
+	e = rdsm_SetExtentMapInfo(handle, xactEntry, nextExtent, NIL, NO_OP, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+    /* case: next extent doesn't exist */
+    else if (prevExtent->extentNo != NIL) {
+
+	e = rdsm_SetExtentMapInfo(handle, xactEntry, prevExtent, NO_OP, NIL, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+    else {
+
+	return (eBADPARAMETER);
+    }
+
+    return (eNOERROR);
+}

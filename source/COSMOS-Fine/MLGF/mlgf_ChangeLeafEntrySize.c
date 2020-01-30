@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,103 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_ChangeLeafEntrySize.c
+ *
+ * Description:
+ *  Change a leaf entry size.
+ *
+ * Exports:
+ *  Four mlgf_ChangeLeafEntrySize(Four, mlgf_LeafPage*, Four, Four, Four, Four)
+ *
+ * Returns:
+ *  error code
+ *
+ * Assumption:
+ *  We assume that the page can be accomdate the new length.
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four mlgf_ChangeLeafEntrySize(
+    Four 		handle,
+    mlgf_LeafPage 	*apage,       	/* INOUT page containing the object */
+    Four 		nKeys,          /* IN # of keys */
+    Four 		extraDataLen,   /* IN extra data length */
+    Four        	entryNo,        /* IN entry number */
+    Four		oldLength,      /* IN old length */
+    Four		newLength)      /* IN new length */
+{
+    mlgf_LeafEntry 	*entry;      	/* point to the object in page */
+    Four 		offset;		/* offset in data area of the object */
+    Four 		deltaLength;    /* difference between old length and new length */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("mlgf_ChangeLeafEntrySize()"));
+
+
+    deltaLength = newLength - oldLength;
+
+    /* Points to the object. */
+    offset = apage->slot[-entryNo];
+    entry = (mlgf_LeafEntry *)&(apage->data[offset]);
+
+    if (deltaLength > 0) {	/* grow the size */
+
+	if (apage->hdr.free == offset+oldLength &&
+	    deltaLength <= MLGF_LP_CFREE(apage)) {
+	    /* This entry is the last entry in the page and
+	     * the added bytes can be appended without movement. */
+
+	    apage->hdr.free += deltaLength;
+
+	} else if (newLength <= MLGF_LP_CFREE(apage)) {
+	    /* The contiguous free space can accomadate full entry */
+
+	    /* copy the original entry to the last data space */
+	    memcpy(&(apage->data[apage->hdr.free]), entry, oldLength);
+
+	    apage->slot[-entryNo] = apage->hdr.free;
+	    apage->hdr.free += newLength;
+	    apage->hdr.unused += oldLength;
+
+	} else {
+	    /* Complex Case: Compact the data page and insert it */
+
+	    (void) mlgf_CompactLeafPage(handle, apage, nKeys, extraDataLen, entryNo);
+
+	    apage->hdr.free += deltaLength;
+	}
+
+    } else { /* shrink the size */
+
+	if (apage->hdr.free == offset+oldLength) {
+	    /* this is the last entry in the page */
+	    /* the space can be reused in the contiguous space */
+	    /* apage->hdr.free -= -deltaLength */
+	    apage->hdr.free += deltaLength;
+	} else {
+	    /* free the space: apage->hdr.unused += -deltaLength */
+	    apage->hdr.unused -= deltaLength;
+	}
+    }
+
+    return(eNOERROR);
+
+} /* mlgf_ChangeLeafEntrySize() */

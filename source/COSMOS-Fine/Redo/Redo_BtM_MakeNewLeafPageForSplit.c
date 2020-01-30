@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,61 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_BtM_MakeNewLeafPageForSplit.c
+ *
+ * Description:
+ *  redo making a new leaf page for split
+ *
+ * Exports:
+ *  Four Redo_BtM_MakeNewLeafPageForSplit(void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_BtM_MakeNewLeafPageForSplit(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing the small object */
+{
+    BtreeLeaf *aPage = anyPage;
+    btm_LeafEntry *entry;       /* a leaf entry */
+    Four sum;                   /* sum of the space used by the entries */
+    Four i;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_BtM_MakeNewLeafPageForSplit(anyPage=%P, logRecInfo=%P)", anyPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Copy the leaf page header. */
+    aPage->hdr = *((BtreeLeafPageHdr_T*)logRecInfo->imageData[0]);
+
+    /* copy the entries */
+    memcpy(aPage->data, logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+
+    /* reconstruct the slot array */
+    for (sum = 0, i = 0; i < aPage->hdr.nSlots; i++) {
+        aPage->slot[-i] = sum;
+
+        entry = (btm_LeafEntry*)&aPage->data[sum];
+        sum += BTM_LEAF_ENTRY_LENGTH(entry->klen, entry->nObjects);
+    }
+
+    return(eNOERROR);
+
+} /* Redo_BtM_MakeNewLeafPageForSplit() */

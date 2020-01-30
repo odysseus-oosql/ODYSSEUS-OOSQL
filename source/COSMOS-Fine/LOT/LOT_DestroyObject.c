@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,108 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOT_DropObject.c
+ *
+ * Description:
+ *  Drop the specified large object tree.
+ *
+ * Exports:
+ *  Four LOT_DestroyObject(Four, XactTableEntry_T*, DataFileInfo*, char*, Boolean, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LOT_DestroyObject( )
+ *================================*/
+/*
+ * Function: Four LOT_DestroyObject(Four, XactTableEntry_T*, DataFileInfo*, char*, Boolean, LogParameter_T*)
+ *
+ * Description:
+ *  Drop the specified large object tree.
+ *
+ * Returns:
+ *  Error codes
+ *    eBADPAGEID
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *  The large object tree is dropped.
+ */
+Four LOT_DestroyObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    DataFileInfo *finfo,	/* IN file information */
+    char *anodeOrRootPageNo,    /* IN anode or root page no */
+    Boolean rootWithHdr_Flag,   /* IN TRUE if root is with header */
+    LogParameter_T *logParam)   /* IN log parameter */
+{
+    Four e;			/* error nubmer */
+    Four i;			/* index variable */
+    L_O_T_INode *anode;		/* pointer to the root node */
+    Four len;			/* length of internal node in slotted page */
+    PageID root;		/* the root of the large object tree */
+    PageID child;		/* child PageID */
+
+
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_DestroyObject()"));
+
+
+    if (rootWithHdr_Flag) {
+	anode = (L_O_T_INode*)anodeOrRootPageNo;
+
+        for (i = 0; i < anode->header.nEntries; i++) {
+
+            /* construct the child's PageID */
+            MAKE_PAGEID(child, finfo->fid.volNo, anode->entry[i].spid);
+
+            if (anode->header.height == 1) {	/* the deepest internal node */
+
+                /* deallocate the leaf data page */
+                e = RDsM_FreeTrain(handle, xactEntry, &child, TRAINSIZE2, finfo->tmpFileFlag, logParam);
+                if (e < eNOERROR) ERR(handle, e);
+
+            } else {		/* the internal node except the deepest internal node */
+
+                if (finfo->tmpFileFlag) {
+                    /*@ recursive call to drop the subtree */
+                    e = lot_DropTree(handle, xactEntry, &child, TRUE, logParam);
+                } else {
+                    e = TM_XT_AddToDeallocList(handle, xactEntry, &child, NULL, NULL, DL_LRGOBJ); 
+                }
+                if (e < eNOERROR) ERR(handle, e);
+            }
+	}
+
+    } else {
+	/*@ get root PageID */
+	MAKE_PAGEID(root, finfo->fid.volNo, *((ShortPageID *)anodeOrRootPageNo));
+
+
+        if (finfo->tmpFileFlag) {
+            /*@ recursive call to drop the subtree */
+            e = lot_DropTree(handle, xactEntry, &root, TRUE, logParam);
+        } else {
+            e = TM_XT_AddToDeallocList(handle, xactEntry, &root, NULL, NULL, DL_LRGOBJ); 
+        }
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* LOT_DestroyObject() */
+
+

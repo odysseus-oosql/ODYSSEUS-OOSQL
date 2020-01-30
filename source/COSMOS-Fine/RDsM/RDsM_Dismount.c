@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,162 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_Dismount.c
+ *
+ * Description:
+ *  Dismount the named device
+ *
+ * Exports:
+ *  Four RDsM_Dismount(Four, Boolean)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#ifndef WIN32
+#include <unistd.h>
+#else
+#include <windows.h>
+#endif /* WIN32 */
+#include <string.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "SHM.h"
+#include "RDsM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*
+ * Function: Four RDsM_Dismount(Four)
+ *
+ * Description:
+ *   Dismount the named device
+ *
+ * Returns:
+ *  Error code
+ */
+Four RDsM_Dismount(
+    Four                        handle,                 /* IN    handle */
+    Four    			volNo,			/* IN volID of the physical volume device */
+    Boolean 			logFlag)            	/* IN indicates whether logging is performed */
+{
+    Four 			e;                     	/* error returned */
+    Four 			i;                     	/* loop variable */
+    Four 			entryNo;               	/* entry no of volume table entry corresponding to the given volume */
+    rdsm_VolTableEntry_T 	*entry;			/* volume table entry (in shared memory) corresponding to the given volume */
+    Lsn_T 			lsn;                  	/* LSN of the newly written log record */
+    Four 			logRecLen;            	/* log record length */
+    LOG_LogRecInfo_T 		logRecInfo; 		/* log record information */
+    RDsM_VolumeInfo_T 		*volInfo;  		/* volume info */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_Dismount(volNo=%ld, logFlag=%ld)", volNo, logFlag));
+
+
+    /*
+     * get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     * At this point, we are sure that this process has been mounted the given volume.
+     */
+
+    /*
+     *	set a pointer to the corresponding entry
+     */
+    entry = &(RDSM_VOLTABLE[entryNo]);
+
+    /*
+     * points to the volume information
+     */
+    volInfo = &entry->volInfo;
+
+    /*
+     * Flush the volume info page.
+     * Note: Volume info page is read from disk, when volume is mounted.
+     *       To synchronize the volume info page, we flush the volume info page here.
+     */
+    e = BfM_FlushTrain(handle, &volInfo->volInfoPageId, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     *	close the volume device
+     */
+    for (i = 0; i < RDSM_USERVOLTABLE(handle)[entryNo].numDevices; i++) {
+#ifndef WIN32
+        if (close(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[i]) == -1) ERR(handle, eDEVICECLOSEFAIL_RDSM);
+#else
+	if (CloseHandle(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[i]) == 0) ERR(handle, eDEVICECLOSEFAIL_RDSM);
+#endif /* WIN32 */
+    }
+
+    /*
+     * Mark the entry as an empty entry.
+     */
+    RDSM_USERVOLTABLE(handle)[entryNo].volNo = NOVOL;
+
+    /*
+     * Dismount the volume from the shared volume table.
+     */
+    /* Mutex Begin :: Volume Table Entry  */
+    e = SHM_getLatch(handle, &entry->latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     * Decrement the mount count.
+     * If the nMounts is 0, then the entry will be cleared.
+     */
+    entry->nMounts --;
+
+    if (entry->nMounts == 0) {
+
+        /* free allocate memory for 'devInfo' array */
+        e = Util_freeArrayToHeap(handle, &RDSM_DEVINFOTABLEHEAP, PHYSICAL_PTR(entry->volInfo.devInfo)); 
+        if (e < eNOERROR) ERRL1(handle, e, &entry->latch);
+
+        /* free allocate memory for 'devInfoForDataVol' array */
+        if (PHYSICAL_PTR(entry->volInfo.dataVol.devInfo) != NULL) { 
+            e = Util_freeArrayToHeap(handle, &RDSM_DEVINFOFORDATAVOLTABLEHEAP, PHYSICAL_PTR(entry->volInfo.dataVol.devInfo)); 
+            if (e < eNOERROR) ERRL1(handle, e, &entry->latch);
+        }
+
+        /* empty corresponding entry */
+        entry->volInfo.volNo = NOVOL;
+        entry->volInfo.title[0] = '\0'; /* null string */
+        entry->volInfo.numDevices = 0;
+        entry->volInfo.devInfo = LOGICAL_PTR(NULL); 
+        entry->volInfo.dataVol.devInfo = LOGICAL_PTR(NULL); 
+
+        /* Write Log Record */
+        if (logFlag) {
+            VolNo tmp_volNo = volNo;
+
+            LOG_FILL_LOGRECINFO_1(logRecInfo, common_perThreadDSptr->nilXactId, LOG_TYPE_VOLUME,
+                                  LOG_ACTION_VOL_DISMOUNT_VOLUME, LOG_REDO_ONLY,
+                                  common_perThreadDSptr->nilPid, common_perThreadDSptr->nilLsn, common_perThreadDSptr->nilLsn,
+                                  sizeof(VolNo), &tmp_volNo);
+
+            e = LOG_WriteLogRecord(handle, NULL, &logRecInfo, &lsn, &logRecLen);
+            if (e < eNOERROR) ERRL1(handle, e, &entry->latch);
+        }
+    }
+
+    /* Mutex End :: Volume Table Entry  */
+    e = SHM_releaseLatch(handle, &entry->latch, procIndex);
+    if ( e < eNOERROR ) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* RDsM_Dismount() */

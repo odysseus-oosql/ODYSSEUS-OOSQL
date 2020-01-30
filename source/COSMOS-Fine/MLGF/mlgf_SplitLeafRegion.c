@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,117 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_SplitLeafRegion.c
+ *
+ * Description:
+ *  Split the given leaf region into two regions. If all entries in the
+ *  given region are included in only one region of the two splitted regions,
+ *  then split the region which contains all entries again. The split is
+ *  repeated until both the splitted regions have at least one entry.
+ *  Returns the domain number which are used as a split domain finally.
+ *
+ * Exports:
+ *  void mlgf_SplitLeafRegion(Four, mlgf_LeafPage*, Four,
+ *                                 mlgf_LeafEntry*, mlgf_DirectoryEntry*,
+ *                                 mlgf_DirectoryEntry*, Four*);
+ *
+ * Returns:
+ *  Error code
+ *    eNOERROR
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+void mlgf_SplitLeafRegion(
+    Four 		handle,
+    mlgf_LeafPage 	*leafPage,      /* IN a leaf page of MLGF */
+    MLGF_KeyDesc 	*kdesc,	    	/* IN key descriptor of used index */
+    MLGF_HashValue 	keys[],	    	/* IN keys of the inserted object */
+    mlgf_DirectoryEntry *srcEntry,  	/* INOUT entry for original directory page */
+    mlgf_DirectoryEntry *dstEntry,  	/* OUT entry for new directory page */
+    Four 		*splitDomain)   /* OUT domain used for split */
+{
+    Four 		i, k;		/* index variables */
+    Four 		domain;		/* split domain */
+    Boolean 		done;		/* loop control variable */
+    mlgf_LeafEntry 	*entry;		/* a leaf entry */
+    MLGF_HashValue 	bitmask;	/* bitmask for region test */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_SplitLeafRegion(handle, leafPage=%P, kdesc=%P, keys=%P, srcEntry=%P, dstEntry=%P, splitDomain=%P)",
+	      leafPage, kdesc, keys, srcEntry, dstEntry, splitDomain));
+
+
+    /* Get the domain number used for first split domain. */
+    domain = 0;
+    for (k = 1; k < kdesc->nKeys; k++)
+	if (srcEntry->nValidBits[k-1] != srcEntry->nValidBits[k]) {
+	    domain = k;
+	    break;
+	}
+
+    for (done = FALSE; !done; domain = (domain+1) % kdesc->nKeys) {
+
+#ifdef TRACE
+	if (srcEntry->nValidBits[domain] == MLGF_MAXNUM_VALIDBITS) {
+	    printf("exceed maxnum valid bits\n");
+	}
+#endif /* TRACE */
+
+	/* Increment the number of valid bits of the selected domain. */
+	srcEntry->nValidBits[domain] ++;
+
+	/* Get bit mask used for dividing the entries into two groups. */
+	bitmask = MLGF_HASHVALUE_ITH_BIT_SET(srcEntry->nValidBits[domain]);
+
+	/*
+	 * Check if the entries are distributed into two page
+	 * by the given vector of number of valid bits.
+	 */
+	for (i = 0; i < leafPage->hdr.nEntries; i++) {
+
+	    entry = MLGF_ITH_LEAFENTRY(leafPage, i);
+
+	    if ((keys[domain] ^ entry->keys[domain]) & bitmask) {
+		*splitDomain = domain;
+		done = TRUE;
+		break;
+	    }
+	}
+    }
+
+    /* Set the hash values of srcEntry. */
+    memcpy((char*)MLGF_DIRENTRY_HASHVALUEPTR(srcEntry, kdesc->nKeys),
+	   (char*)keys, kdesc->nKeys*sizeof(MLGF_HashValue));
+
+    /* Reset the split-boundary bit of the domain-th hash value of the srcEntry to 0. */
+    MLGF_DIRENTRY_HASHVALUEPTR(srcEntry, kdesc->nKeys)[*splitDomain] &= ~bitmask;
+
+    /* copy srcEntry into dstEntry */
+    memcpy((char*)dstEntry, (char*)srcEntry, MLGF_DIRENTRY_LENGTH(kdesc->nKeys));
+
+    /* Set the split-boundary bit of the domain-th hash value of the dstEntry to 1. */
+    MLGF_DIRENTRY_HASHVALUEPTR(dstEntry, kdesc->nKeys)[*splitDomain] |= bitmask;
+
+} /* mlgf_SplitLeafRegion() */
+

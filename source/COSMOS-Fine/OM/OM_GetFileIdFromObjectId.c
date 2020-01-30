@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,66 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: OM_GetFileIdFromObjectId.c
+ *
+ * Description:
+ *  Return the fileId to which given object(objectId) is belongs.
+ *
+ * Exports:
+ *  Four OM_GetFileIdFromObjectId(Four, ObjectID *, FileID *)
+ *
+ * Return value:
+ *  Error code
+ *    eBADOBJECTID_OM
+ *    some errors caused by function calls
+ *
+ * Side effect:
+ *  None
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#ifdef CCRL
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BfM.h"		/* for the buffer manager call */
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four OM_GetFileIdFromObjectId(
+    Four handle,
+    ObjectID *oid,		/* IN object whose header to get */
+    FileID *fid)		/* OUT object header to return */
+{
+    Four e;			/* error number */
+    SlottedPage *apage;		/* pointer to buffer holding the slotted page */
+    Buffer_ACC_CB *aPage_BCBP;	/* buffer access control block holding data */
+
+
+    TR_PRINT(handle, TR_OM, TR1, ("OM_GetFileIdFromObjectId(oid=%P, fid=%P)", oid, fid));
+
+    e = BfM_getAndFixBuffer(handle, (TrainID *)oid, M_SHARED, &aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    apage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+    if(!IS_VALID_OBJECTID(oid, apage))
+	ERRBL1(handle, eBADOBJECTID_OM, aPage_BCBP, PAGE_BUF);
+
+    *fid = apage->header.fid;
+
+    e = SHM_releaseLatch(handle, aPage_BCBP->latchPtr, procIndex);
+    if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, PAGE_BUF);
+
+    e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* OM_GetFileIdFromObjectId() */
+
+#endif /* CCRL */

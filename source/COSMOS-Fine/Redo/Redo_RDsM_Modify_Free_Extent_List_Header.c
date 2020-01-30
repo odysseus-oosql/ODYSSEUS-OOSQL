@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,104 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_RDsM_Modify_Free_Extent_List_Header.c
+ *
+ * Description:
+ *  redo modify free extent header
+ *
+ * Exports:
+ *  Four Redo_RDsM_Modify_Free_Extent_List_Header(SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RDsM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Four Redo_RDsM_Modify_Free_Extent_List_Header(
+    Four                                         handle,                    /* IN  handle */
+    void 					 *anyPage,		    /* OUT updated page */
+    LOG_LogRecInfo_T 				 *logRecInfo) 		    /* IN operation information for creating the small object */
+{
+    VolInfoPage_T 				 *aPage = anyPage;          /* volume info page */
+    RDsM_FreeExtentListHeader_T                  freeExtentListHeaderType;  /* free extent list header type */
+    LOG_Image_RDsM_Modify_FreeExtentListHeader_T *updateFreeExtentHeader;   /* free extent list update image */
+    RDsM_VolumeInfo_T           		 *volInfo;                  /* volume information in volume table entry */
+    Four                                         entryNo;                   /* entry no of volume table entry */
+    Four                                         e;                         /* return value */
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_RDsM_Modify_Free_Extent_List_Header(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *  get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, aPage->volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * set a pointer to the corresponding entry
+     */
+    volInfo = &(RDSM_VOLTABLE[entryNo].volInfo);
+
+
+    /*
+     *	redo update free extent list header
+     *
+     *  logRecInfo->imageData[0] : free extent list type
+     *  logRecInfo->imageData[1] : new FreeExtentHeader
+     *  logRecInfo->imageData[2] : old FreeExtentHeader
+     */
+    freeExtentListHeaderType = *(RDsM_FreeExtentListHeader_T*)logRecInfo->imageData[0];
+    updateFreeExtentHeader   = (LOG_Image_RDsM_Modify_FreeExtentListHeader_T*)logRecInfo->imageData[1];
+
+    if (freeExtentListHeaderType == RDSM_FREE_EXTENT_HEADER) {
+
+        aPage->dataVol.freeExtent    		= updateFreeExtentHeader->freeExtentNo;
+        aPage->dataVol.numOfFreeExtent 	       += updateFreeExtentHeader->differenceOfNumOfFreeExtent;
+
+        volInfo->dataVol.freeExtent      	= updateFreeExtentHeader->freeExtentNo;
+        volInfo->dataVol.numOfFreeExtent       += updateFreeExtentHeader->differenceOfNumOfFreeExtent;
+
+    } else if (freeExtentListHeaderType == RDSM_FREE_PAGE_EXTENT_HEADER) {
+
+        aPage->dataVol.freePageExtent    	= updateFreeExtentHeader->freeExtentNo;
+        aPage->dataVol.numOfFreePageExtent     += updateFreeExtentHeader->differenceOfNumOfFreeExtent;
+
+        volInfo->dataVol.freePageExtent      	= updateFreeExtentHeader->freeExtentNo;
+        volInfo->dataVol.numOfFreePageExtent   += updateFreeExtentHeader->differenceOfNumOfFreeExtent;
+
+    } else if (freeExtentListHeaderType == RDSM_FREE_TRAIN_EXTENT_HEADER) {
+
+        aPage->dataVol.freeTrainExtent    	= updateFreeExtentHeader->freeExtentNo;
+        aPage->dataVol.numOfFreeTrainExtent    += updateFreeExtentHeader->differenceOfNumOfFreeExtent;
+
+        volInfo->dataVol.freeTrainExtent      	= updateFreeExtentHeader->freeExtentNo;
+        volInfo->dataVol.numOfFreeTrainExtent  += updateFreeExtentHeader->differenceOfNumOfFreeExtent;
+
+    }
+    else {
+
+	return (eBADPARAMETER);
+    }
+
+
+    return(eNOERROR);
+
+} /* Redo_RDsM_Modify_Free_Extent_List_Header() */

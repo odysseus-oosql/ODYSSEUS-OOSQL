@@ -1,0 +1,16 @@
+setenv O_ROOT			/proj/dvel/odysseus/engine
+setenv O_SERVER			$O_ROOT
+setenv O_KAOSS			$O_ROOT/COSMOS-Fine
+setenv O_LOM_COMMON		$O_ROOT/LOM
+setenv O_LOM_SERVER		$O_ROOT/LOM
+setenv O_GEOM			$O_ROOT/GEOM
+setenv O_OOSQL_COMMON	$O_ROOT/OOSQL
+setenv O_OOSQL_SERVER	$O_ROOT/OOSQL
+setenv O_COMMON			$O_ROOT/OOSQL
+setenv O_DLLBROKER		$O_LOM_SERVER/RPCdll/dllbroker
+setenv O_DLLSERVER		$O_LOM_SERVER/RPCdll/dllserver
+setenv O_OOSQL_EXPORT	/proj/dvel/odysseus/target/OOSQL-Fine
+		
+setenv SWIG				/proj/dvel/tools/swig
+setenv BISON			/proj/dvel/tools/bison/bin/bison
+setenv PYTHON_HEADER	/usr/include/python

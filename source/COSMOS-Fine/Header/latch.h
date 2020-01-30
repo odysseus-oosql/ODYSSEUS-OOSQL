@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,112 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __LATCH_H__
+#define __LATCH_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "Util_varArray.h"
+#include "THM_cosmosThread.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#ifdef NOTTESTANDSET
+#define IDLE 		0
+#define INCS 		1
+#define WAITING 	2
+#endif
+
+
+/*
+ * Type Definition for Latch Conditions
+ */
+#define NUM_LATCH_MODES 3
+typedef enum LatchMode_tag {
+    M_FREE=0x0,
+    M_SHARED=0x1,
+    M_EXCLUSIVE=0x2
+} LatchMode;
+
+typedef enum LatchConditional_tag {
+    M_UNCONDITIONAL=0x1,
+    M_CONDITIONAL=0x2,
+    M_INSTANT=0x4
+} LatchConditional;
+
+
+#define SHM_BUSYLATCH   5
+
+typedef struct pcell PIB;   /* PIB - process information block structure */
+
+struct pcell {
+    Four    pID;            /* process ID */
+};
+
+typedef struct tcell TCB;   /* TCB - thread control block structure */
+
+struct tcell{
+    cosmos_thread_sem_t     	semID;      		/* semaphore ID for this thread */
+    cosmos_thread_semName_t    	semName[MAXSEMAPHORENAME]; /* semaphore ID for this thread */
+
+    /* data structure for latch algorithm */
+    LatchMode                   mode;                   /* latch request mode. old: Four mode */
+    LatchConditional            condition;              /* check whether M_INSTANT or not. old: Four condition */
+    LOGICAL_PTR_TYPE(TCB *) 	next;      		/* used for latch->queue structure */
+    Four        		nGranted;   		/* number of granted latch */
+    VarArray    		*grantedLatchStruct; 	/* keep information for granted latch */
+};
+
+typedef struct GlobalHandle_T {
+    Four    procIndex;
+    Four    threadIndex;
+} GlobalHandle;
+
+typedef struct {
+
+#ifndef NOTTESTANDSET
+    One_Invariable		sync;		/* testandset target */
+    One				dummy;		/* alignment */
+#else
+    GlobalHandle   		turn;
+    GlobalHandle   		globalHandle;
+    Four   			flags[MAXPROCS][MAXTHREADS];
+#endif
+    LatchMode                   mode;           /* M_FREE, M_SHARD or M_EXCLUSIVE. old: Two mode */
+    Two    			latchCounter;	/* number of granted */
+    GlobalHandle    		grantedGlobalHandle;	/* index of process which owns this latch */
+    LOGICAL_PTR_TYPE(TCB *) 	queue; /* waiting queue */ 
+
+    cosmos_thread_mutex_t       mutex; 
+
+} LATCH_TYPE;
+
+typedef struct _latchEntry  LatchEntry;
+
+struct _latchEntry {
+
+    Four       counter;		/* number of granted */
+    LATCH_TYPE *latchPtr;	/* granted Latch pointer  */
+};
+
+#define MAXLATCHENTRIES 60	/* latch entry maximum (initial value) */
+
+#define IS_BAD_LATCHMODE(mode)  (mode < 0 || mode >= NUM_LATCH_MODES)
+
+
+/* reduce # of useless function call request in COSMOS-CC/SINGLE */
+#ifndef SINGLE_USER
+/*
+ * External Function Prototypes
+ */
+Four SHM_initLatch(Four, LATCH_TYPE *);
+Four SHM_getLatch(Four, LATCH_TYPE *, Four, Four, Four, LATCH_TYPE *);
+Four SHM_releaseLatch(Four, LATCH_TYPE *, Four);
+Four SHM_releaseMyLatches(Four, Four);
+#else
+#define SHM_initLatch(_handle, _z)                       (eNOERROR)
+#define SHM_getLatch(_handle, _v, _w, _x, _y, _z)        (eNOERROR)
+#define SHM_releaseLatch(_handle, _y, _z)                (eNOERROR)
+#define SHM_releaseMyLatches(_handle, _x)                (eNOERROR)
+#endif
+
+#endif /* __LATCH_H__ */
+

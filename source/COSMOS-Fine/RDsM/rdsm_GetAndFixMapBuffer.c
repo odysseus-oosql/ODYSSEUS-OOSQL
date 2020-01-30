@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,143 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: rdsm_GetAndFixMapBuffer.c
+ *
+ * Description:
+ *  Get and Fix buffer page of bitmap & extentmap
+ *
+ * Exports:
+ *  Four rdsm_getAndFixBitMapBuffer(RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*)
+ *  rdsm_getAndFixExtentMapBuffer(RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four rdsm_getAndFixExtentMapBuffer(RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*)
+ *
+ * Description:
+ *  Get and Fix extent map buffer page
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_getAndFixExtentMapBuffer(
+    Four                        handle,                 /* IN    handle */
+    RDsM_VolumeInfo_T   	*volInfo,		/* IN     volume information */
+    AllocAndFreeExtentInfo_T    *extent			/* INOUT  extent information to getAndFix */
+)
+{
+    Four			e;			/* returned error value */
+    Four			devNo;			/* device no */
+    Four			trainOffset;		/* train offset */
+    Four			extentOffset;		/* extent offset */
+    Four                        extentmapOffset;	/* extent map offset */
+    RDsM_DevInfoForDataVol      *devInfoForDataVol;	/* device info for data volume */
+    PageID			extentmapPageId;	/* extent map page ID */
+    Buffer_ACC_CB		*extentmapPage_BCBP;	/* BCBP of extent map Page */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_getAndFixExtentMapBuffer(volInfo=%P, extent=%P)", volInfo, extent));
+
+
+    /* get physical infor from extent */
+    e = rdsm_GetPhysicalInfo(handle, volInfo, extent->extentNo * volInfo->extSize, &devNo, &trainOffset);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* calculate extent No. */
+    extentOffset = trainOffset / volInfo->extSize;
+
+    devInfoForDataVol = PHYSICAL_PTR(volInfo->dataVol.devInfo);
+
+    /* get extentmap page ID */
+    extentmapPageId.volNo = devInfoForDataVol[devNo].extentMapPageId.volNo;
+    extentmapPageId.pageNo = devInfoForDataVol[devNo].extentMapPageId.pageNo +
+			   (extentOffset/volInfo->dataVol.numExtentMapEntryInPage)*PAGESIZE2;
+
+    /* get and fix extentmap buffer page */
+    e = BfM_getAndFixBuffer(handle, &extentmapPageId, M_EXCLUSIVE, &extentmapPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* calculate offset in a extentmap page */
+    extentmapOffset = extentOffset % (volInfo->dataVol.numExtentMapEntryInPage);
+
+
+    /* set 'extentmapPage_BCBP' & 'extentmapOffset' */
+    extent->extentmapPage_BCBP = extentmapPage_BCBP;
+    extent->extentmapOffset = extentmapOffset;
+
+
+    return (eNOERROR);
+}
+
+
+
+/*
+ * Function: Four rdsm_getAndFixBitMapBuffer(RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*)
+ *
+ * Description:
+ *  Get and Fix bitmap map buffer page
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_getAndFixBitMapBuffer(
+    Four                        handle,                 /* IN    handle */
+    RDsM_VolumeInfo_T   	*volInfo,		/* IN    volume information */
+    AllocAndFreeExtentInfo_T    *extent			/* INOUT extent information data structure */
+)
+{
+    Four			e;			/* returned error value */
+    Four			devNo;			/* device no */
+    Four			trainOffset;		/* train offset */
+    Four			extentOffset;		/* extent offset */
+    Four                        bitmapOffset;		/* bitmap offset */
+    RDsM_DevInfoForDataVol      *devInfoForDataVol;	/* device info for data volume */
+    PageID			bitmapTrainId;		/* bitmap train ID */
+    Buffer_ACC_CB		*bitmapTrain_BCBP;	/* BCBP of bitmap train */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_getAndFixBitMapBuffer(volInfo=%P, extent=%P)", volInfo, extent));
+
+
+    /* get physical info from extent */
+    e = rdsm_GetPhysicalInfo(handle, volInfo, extent->extentNo * volInfo->extSize, &devNo, &trainOffset);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* get extent No. */
+    extentOffset = trainOffset / volInfo->extSize;
+
+    devInfoForDataVol = PHYSICAL_PTR(volInfo->dataVol.devInfo);
+
+    /* get bitmap train ID */
+    bitmapTrainId.volNo = devInfoForDataVol[devNo].bitmapTrainId.volNo;
+    bitmapTrainId.pageNo = devInfoForDataVol[devNo].bitmapTrainId.pageNo +
+			   (extentOffset/volInfo->dataVol.numExtMapsInTrain)*TRAINSIZE2;
+
+    /* get and fix bitmap buffer page */
+    e = BfM_getAndFixBuffer(handle, &bitmapTrainId, M_EXCLUSIVE, &bitmapTrain_BCBP, TRAIN_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* calculate offset in a bitmap page */
+    bitmapOffset = trainOffset % (volInfo->dataVol.numExtMapsInTrain * volInfo->extSize);
+
+
+    /* set 'bitmapTrain_BCBP' & 'bitmapOffset' */
+    extent->bitmapTrain_BCBP = bitmapTrain_BCBP;
+    extent->bitmapOffset = bitmapOffset;
+
+
+    return (eNOERROR);
+}

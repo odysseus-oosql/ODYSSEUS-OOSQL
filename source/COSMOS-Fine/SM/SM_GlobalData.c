@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,50 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_GlobalData.c
+ *
+ * Description:
+ *  includes the global data which are not specific to some layer.
+ *
+ * Exports:
+ *  Four SM_InitializeGlobalData(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four SM_InitializeGlobalData(
+    Four	handle)
+{
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_InitializeGlobalData()"));
+
+
+    SET_MAX_LSN(common_perThreadDSptr->maxLsn);
+
+    SET_MIN_LSN(common_perThreadDSptr->minLsn);
+
+    SET_NILINDEXID(common_perThreadDSptr->nilIid);
+
+    SET_NIL_LSN(common_perThreadDSptr->nilLsn);
+
+    SET_NILPAGEID(common_perThreadDSptr->nilPid);
+
+    SET_NIL_XACTID(common_perThreadDSptr->nilXactId);
+
+    return(eNOERROR);
+
+} /* SM_InitializeGlobalData() */
+
+
+

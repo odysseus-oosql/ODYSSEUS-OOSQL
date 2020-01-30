@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,131 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_DestroyObject.c
+ *
+ * Description:
+ *  Destroy the specified object, 'oid' from a data file.
+ *
+ * Exports:
+ *  Four SM_DestroyObject(Four, Four, ObjectID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"	
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_DestroyObject( )
+ *================================*/
+/*
+ * Function: Four SM_DestroyObject(Four, Four, ObjectID*)
+ *
+ * Description:
+ *  Destroy the specified object, 'oid' from a data file.
+ *  The used data file is acquired from the given scan 'scanId'.
+ *  If the given object is not included in the file, an error will be returned.
+ *
+ * Retruns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eNOTMOUNTEDVOLUME_SM
+ *    some errors caused by function calls
+ *
+ * Notes:
+ *  The object is not deleted from the index files.
+ *  So the user should be responsible for managing the indexes consistently.
+ */
+Four SM_DestroyObject(
+    Four     handle,
+    Four     scanId,		/* IN scan to use */
+    ObjectID *oid,		/* IN object to be deleted */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four e;			/* error code */
+    Four v;			/* index for the Scan Mananger Mount Table */
+    ObjectID *delOid;		/* ObjectID to delete */
+    LockParameter *realLockup;
+    LogParameter_T logParam;
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_DestroyObject(scanId=%ld, oid=%P, lockup=%P)",
+			  scanId, oid, lockup));
+
+    /*@
+     * Check parameters.
+     */
+    if (!VALID_SCANID(handle, scanId)) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /* check lockup parameter */
+    realLockup = NULL;
+
+    if(lockup){
+	if(lockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+	if(lockup->mode != L_X) ERR(handle, eEXCLUSIVELOCKREQUIRED_SM);
+        switch ( SM_SCANTABLE(handle)[scanId].acquiredFileLock ) {
+	  case L_IS :
+	  case L_S  : ERR(handle, eINVALIDHIERARCHICALLOCK_SM);
+	  case L_X  : realLockup = NULL; break; /* already enough lock  */
+	  case L_NL : /* for LRDS catalog file */
+	  case L_SIX:
+	  case L_IX : realLockup = lockup; break;
+/*
+ * This error can detected by LM_getObjectLock call
+ *               default   : ERR(handle, eINVALIDHIERARCHICALLOCK_SM);
+ */
+	}
+    }
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == SM_SCANTABLE(handle)[scanId].finfo.fid.volNo)
+	    break; /* found */
+
+    if (v == MAXNUMOFVOLS) /* Internal Error */
+	ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+    /*@ oid is equal to NULL? */
+    /* If 'oid' is NULL, then use the current cursor's ObjectID. */
+    if (oid == NULL) {
+	if (SM_SCANTABLE(handle)[scanId].cursor.any.flag != CURSOR_ON)
+	    ERR(handle, eBADCURSOR);
+
+	delOid = &(SM_SCANTABLE(handle)[scanId].cursor.any.oid);
+    } else
+	delOid = oid;
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, SM_SCANTABLE(handle)[scanId].finfo.tmpFileFlag);
+
+    /* destroy the specified object from a data file. */
+    e = OM_DestroyObject(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_SCANTABLE(handle)[scanId].finfo), delOid,
+			 realLockup, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* SM_DestroyObject() */
+
+

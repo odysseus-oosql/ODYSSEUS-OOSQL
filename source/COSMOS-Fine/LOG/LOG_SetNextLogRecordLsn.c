@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,89 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_SetNextLogRecordLsn.c
+ *
+ * Description:
+ *  Set the next log record lsn. After the restart analysis the next log
+ * record lsn is set using the function LOG_SetNextLogRecordLsn( ).
+ *
+ * Exports:
+ *  Four LOG_SetNextLogRecordLsn(Four, LOG_Lsn_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_SetNextLogRecordLsn(Four, Lsn_T*)
+ *
+ * Description:
+ *  Set the next log record lsn.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_SetNextLogRecordLsn(
+    Four 		handle,
+    Lsn_T 		*lsn)           /* IN the next log record lsn */
+{
+    Four 		e;		/* error code */
+    PageID 		pid;		/* temporary variable */
+    log_LogPage_T 	*logPage;	/* pointer to a log page */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_SetNextLogRecordLsn(lsn=%P)", lsn));
+
+
+    /* This function assumes that concurrency control is provided by the caller. */
+
+    /* Set the next log record lsn. */
+    LOG_LOGMASTER.nextLsn = *lsn;
+
+    /* Set the number of remained bytes in the current log file. */
+    LOG_LOGMASTER.numBytesRemained = LOG_LOGMASTER.numBytes - lsn->offset;
+
+    /*
+     * Initialize the log write buffer.
+     */
+
+    /* Get the page containing the bytes to be written next time. */
+    LOG_LOGMASTER.headWrapCount = lsn->wrapCount;
+    LOG_LOGMASTER.headPageNo = LOG_GET_PAGE_NO_FROM_LSN_OFFSET(lsn->offset);
+
+    LOG_LBT_PAGENO(LOG_LBI_HEAD) = LOG_LOGMASTER.headPageNo;
+    LOG_LBT_WRAPCOUNT(LOG_LBI_HEAD) = LOG_LOGMASTER.headWrapCount;
+
+
+    /*
+     *  read in the log page
+     */
+    pid.volNo = LOG_LOGMASTER.volNo;
+    pid.pageNo = LOG_GET_PHYSICAL_PAGENO(LOG_LOGMASTER, lsn->wrapCount, LOG_LBT_PAGENO(LOG_LBI_HEAD));
+    e = RDsM_ReadTrain(handle, &pid, (char*)&LOG_LOGBUFFERPAGE[LOG_LBI_HEAD], PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+    logPage = &LOG_LOGBUFFERPAGE[LOG_LBI_HEAD];
+    if (logPage->hdr.lsn.wrapCount < lsn->wrapCount) { 
+        /* Initialize the log buffer page */
+        LOG_INIT_LOG_PAGE(logPage, pid, LOG_GET_LSN_OFFSET_FROM_PAGE_NO(LOG_LBT_PAGENO(LOG_LBI_HEAD)), lsn->wrapCount); 
+    } else {
+        logPage->hdr.lsn.offset = lsn->offset;
+    }
+
+    return(eNOERROR);
+
+} /* LOG_SetNextLogRecordLsn() */
+
+
+

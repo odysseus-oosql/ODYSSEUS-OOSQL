@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,66 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __TRACE_H__
+#define __TRACE_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <stdio.h>	/* for printf(), fflush(), stdout */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/*
+ * Trace Areas definitions
+ */
+#define TR_ALL          CONSTANT_ALL_BITS_SET(Four)
+#define TR_UTIL		0x1
+#define TR_RDSM		0x2
+#define TR_BFM		0x4
+#define TR_LOT		0x8
+#define TR_OM		0x10
+#define TR_BTM          0x20
+#define TR_SM           0x40
+#define TR_LM           0x80
+#define TR_SHM          0x100
+#define TR_TM           0x200
+#define TR_MLGF         0x400
+#define TR_LRDS         0x800
+#define TR_ITR		0x1000
+#define TR_RM           0x2000
+#define TR_REDO         0x4000
+#define TR_UNDO         0x8000
+#define TR_LOG          0x10000
+#define TR_XA           0x20000
+
+/*
+ * Trace Level definitions
+ */
+#define TR0	0
+#define TR1	1
+#define TR2	2
+#define TR3	3
+
+#ifndef NDEBUG
+
+#define TR_TRACE(_handle, _Area, _Level)				\
+    if (((_Area) & (perThreadTable[_handle].utilDS.traceFlag)) && (_Level <= (perThreadTable[_handle].utilDS.traceLevel))) \
+    printf("file: %-22s  line: %4d\n", __FILE__, __LINE__),\
+    fflush(stdout)
+
+#define TR_PRINT(_handle, _Area, _Level, _Message)	\
+    if (((_Area) & (perThreadTable[_handle].utilDS.traceFlag)) && (_Level <= (perThreadTable[_handle].utilDS.traceLevel)) && (_handle > -1)) \
+    printf("%-22s:%4d\n", __FILE__, __LINE__),\
+    printf _Message,\
+    printf("\n"),\
+    fflush(stdout)
+
+#else /* NDEBUG */
+
+#define TR_TRACE(_handle, _Area, _Level)
+#define TR_PRINT(_handle, _Area, _Level, _Message)
+
+#endif /* NDEBUG */
+
+/* Interface Function Prototype */
+void Util_traceInit(Four, Four*, char**);
+
+#endif /* __TRACE_H__ */
+

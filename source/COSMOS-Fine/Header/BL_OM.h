@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,78 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _BL_OM_H_
+#define _BL_OM_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "RDsM.h"
+#include "OM.h"
+#include "Util_pool.h"		/* to get Pool */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*@
+ * Type Definitions
+ */
+
+typedef struct {
+    Boolean        isUsed;                /* flag which indicates that this entry is used */
+
+    ObjectID       catObjForFile;         /* file in which data bulk load is to be processed */
+    DataFileInfo   finfo;                 /* file information */
+    SlottedPage    *fileBuffer;           /* buffer which contains objects for bulk load in slotted page format*/
+
+    Four           fileBufIdx;
+
+    PageID         lastAllocatedPage;     /* page ID which allocated last at previous bulk load */
+    Boolean        isNeedSortFlag;        /* flag which indicates input data must be sorted by clustering index key */
+    PageID         rootOfLOT;             /* root page id of large object tree */
+    SortKeyDesc    *kdesc;                /* sort key description */
+    omGetKeyAttrsFuncPtr_T getKeyAttrs;   /* object analysis function */
+    void           *schema;               /* schema for analysis functio */
+
+    FileID         fid;                   /* file ID which data bulk load is to be processed */
+    PhysicalFileID pFid;                  /* physical file ID which data bulk load is to be processed */ 
+    Two            pff;                   /* page fill factor */
+    Two            eff;                   /* extent fill factor */
+    Four           dataFileSortStreamID;  /* sort stream ID for sorting by clustering index */
+
+    Four           bufSize;               /* extent size of this volume by page */ 
+    PageID         *allocExtentPageIdAry;
+    PageID         *flushExtentPageIdAry;
+    PageID         firstPageId;           /* first page of bulkloaded datafile */ 
+
+    Four           largeObjectLen;        /* length of largee object which current input */
+
+    Four           minFreeSpace;      
+    Four           sizeOfExt;             /* extent size of this volume by page */
+
+    PageNo         startPageNo;           /* start pageNo for searching free extent */
+    Direction      direction;             /* direction for searching free extent */
+
+} OM_BlkLdTableEntry;
+
+
+/*@
+ * Global Variables 
+ */
+#define OM_BLKLD_TABLE(_handle)      perThreadTable[_handle].omDS.omBlkLdTable
+
+
+/*@
+ * Function Prototypes
+ */
+
+
+Four om_BlkLdAllocExtent(Four, XactTableEntry_T*, DataFileInfo*, PhysicalFileID ,PageID*, Four*, Four, PageID*, PageNo*, Direction*, LogParameter_T*); 
+Four om_BlkLdFlushBuffer(Four, XactTableEntry_T*, Four, char*, PageID*, Four, LogParameter_T*);
+Four om_BlkLdInitDataFileBuffer(Four, XactTableEntry_T*, Four, PageID*, Four, PageID*, SlottedPage*, PageID, LogParameter_T*);
+
+Four OM_InitBulkLoad(Four, XactTableEntry_T*, VolID, DataFileInfo*, SortKeyDesc*, omGetKeyAttrsFuncPtr_T, void*, Boolean,Two , Two, PageID*, LogParameter_T*); 
+Four OM_NextBulkLoad(Four, XactTableEntry_T*, Four, char*, Four, Boolean, ObjectID*, LogParameter_T*);
+Four OM_NextBulkLoadWriteLOT(Four, XactTableEntry_T*, Four, Four, Four, char*, Boolean, ObjectID*, LogParameter_T*);
+Four OM_FinalBulkLoad(Four, XactTableEntry_T*, Four, LogParameter_T*);
+
+#define BULKLD_NDEBUG
+
+#endif /* _BL_OM_H_ */
+
+
+

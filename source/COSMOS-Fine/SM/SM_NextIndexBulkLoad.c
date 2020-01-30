@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,102 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_NextIndexBulkLoad.c
+ *
+ * Description :
+ *  Next phase of B+ tree index bulkload.
+ *
+ * Exports:
+ *  Four SM_NextIndexBulkLoad(Four, KeyValue*, ObjectID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util_Sort.h"
+#include "BtM.h"
+#include "SM.h"
+#include "BL_SM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+
+
+
+/*@===========================
+ * SM_NextIndexBulkLoad()
+ *===========================*/
+/*
+ * Function: Four SM_NextIndexBulkLoad(Four, KeyValue*, ObjectID*)
+ *
+ * Description:
+ *  Put given <key, oid> into sort stream for B+ tree index bulkload.
+ *
+ * Returns:
+ *  error code
+ *    eBADPARAMETER
+ *    some errors caused by function calss
+ *
+ * Side Effects:
+ *
+ */
+Four SM_NextIndexBulkLoad (
+    Four		    handle,
+    Four                    indexBlkLdId,           /* IN index bulkload id */
+    KeyValue                *key,                   /* IN key value of the inseted ObjectID */
+    ObjectID                *oid)                   /* IN ObjectID to insert */
+{
+    Four                    e;                      /* error number */
+    SortStreamTuple         sortTuples;             /* tuple for sort stream */
+    char                    tuples[2*MAXKEYLEN];    /* buffer for temporary object */
+    SM_IdxBlkLdTableEntry*  blkLdEntry;             /* entry in which information about bulkload is saved */
+    LogParameter_T          logParam;
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+            ("SM_NextIndexBulkLoad(indexBlkLdId=%ld, key=%P, oid=%P)",
+            indexBlkLdId, key, oid));
+
+
+    /*
+    **  O. Check parameters
+    */
+
+    if (indexBlkLdId < 0)   ERR(handle, eBADPARAMETER);
+
+    if (key == NULL)        ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL)        ERR(handle, eBADPARAMETER);
+
+
+    /*
+    **  I. set entry for fast access
+    */
+    blkLdEntry = &SM_IDXBLKLD_TABLE(handle)[indexBlkLdId];
+
+
+    /*
+    **  II. Make sortTuples which will be inserted into SortStream
+    */
+
+    sortTuples.len  = key->len + sizeof(ObjectID);
+    sortTuples.data = &tuples[0];
+    memcpy(&sortTuples.data[0], &key->val, key->len);
+    memcpy(&sortTuples.data[key->len], oid, sizeof(ObjectID));
+
+
+    /*
+    **  III. Put sortTuples into sort stream
+    */
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, FALSE);
+
+    e = Util_PutTuplesIntoSortStream(handle, MY_XACT_TABLE_ENTRY(handle), blkLdEntry->streamId, 1, &sortTuples, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return eNOERROR;
+
+}   /* SM_NextIndexBulkLoad() */

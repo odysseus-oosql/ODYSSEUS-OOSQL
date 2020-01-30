@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,141 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOT_Test.c
+ *
+ * Description:
+ *
+ * Exports:
+ *  Four LOT_LengthCheck(Four, PageID*)
+ *  Four LOT_StructCheck(Four, PageID*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * LOT_LengthCheck( )
+ *================================*/
+/*
+ * Function: Four LOT_LengthCheck(Four, PageID*)
+ *
+ * Description:
+ *
+ * Returns:
+ *
+ */
+Four LOT_LengthCheck(
+    Four 		handle,
+    PageID 		*root)		/* IN root of a large object tree */
+{
+    Four 		e;
+    L_O_T_INode 	*anode;
+    Buffer_ACC_CB 	*anode_BCBP;
+    Four 		i;
+    PageID 		pid;
+    Four 		count, len;
+
+
+    e = BfM_getAndFixBuffer(handle, root, M_FREE, &anode_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    anode = (L_O_T_INode *)anode_BCBP->bufPagePtr;
+
+    if (anode->header.height > 1) {
+
+	for (i = 0; i < anode->header.nEntries; i++) {
+
+	    MAKE_PAGEID(pid, root->volNo, anode->entry[i].spid);
+
+	    if ((len = LOT_LengthCheck(handle, &pid)) == -1) {
+		LOT_DumpInternal(handle, root);
+		ERRB1(handle, -1, anode_BCBP, PAGE_BUF);
+	    } else if (len != lot_GetCount(handle, anode, i)) {
+		printf("The %ldth-subtree length is wrong!!!\n", i);
+		LOT_DumpTree(handle, root);
+		ERRB1(handle, -1, anode_BCBP, PAGE_BUF);
+	    }
+	}
+    }
+
+    count = anode->entry[anode->header.nEntries-1].count;
+
+    e = BfM_unfixBuffer(handle, anode_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(count);
+
+} /* LOT_LengthCheck() */
+
+
+
+/*@================================
+ * LOT_StructCheck( )
+ *================================*/
+/*
+ * Function: Four LOT_StructCheck(Four, PageID*, Four)
+ *
+ * Description:
+ *  Check if there is an underflowed node
+ *
+ * Returns:
+ *
+ * Side effects:
+ */
+Four LOT_StructCheck(
+    Four handle,
+    PageID *root,		/* IN root PageID */
+    Four isroot)		/* IN  */
+{
+    Four e;
+    L_O_T_INode *anode;
+    Buffer_ACC_CB *anode_BCBP;
+    Four i;
+    Four count;
+    PageID pid;
+
+
+    e = BfM_getAndFixBuffer(handle, root, M_FREE, &anode_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    anode = (L_O_T_INode *)anode_BCBP->bufPagePtr;
+
+    if (anode->header.nEntries < LOT_HALFENTRIES) {
+	if (!(isroot && anode->header.nEntries >= 2)) {
+	    printf("There is an underflowed anode\n");
+	    e = LOT_DumpTree(handle, root);
+	    if (e < eNOERROR) ERRB1(handle, e, anode_BCBP, PAGE_BUF);
+	}
+    }
+
+    for(i = 0; i < anode->header.nEntries; i++) {
+	if (anode->header.height == 1) {
+	    count = lot_GetCount(handle, anode, i);
+	    if (count < LOT_LNODE_HALFFREE) {
+		printf("There is an underflowed node\n");
+		e = LOT_DumpTree(handle, root);
+		if (e < eNOERROR) ERRB1(handle, e, anode_BCBP, PAGE_BUF);
+	    }
+	} else {
+	    MAKE_PAGEID(pid, root->volNo, anode->entry[i].spid);
+	    e = LOT_StructCheck(handle, &pid, 0);
+	    if (e < eNOERROR) ERRB1(handle, e, anode_BCBP, PAGE_BUF);
+	}
+    }
+
+    e = BfM_unfixBuffer(handle, anode_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+} /* LOT_StructCheck( ) */

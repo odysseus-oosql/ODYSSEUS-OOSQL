@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,132 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_InitLogVolume.c
+ *
+ * Description:
+ *  Initialize a log volume.
+ *
+ * Exports:
+ *  Four LOG_InitLogVolume(Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four LOG_InitLogVolume(Four, Four)
+ *
+ * Description:
+ *  initialize the given volume as a log volume.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_InitLogVolume(
+    Four 		handle,
+    Four 		volNo)		/* IN volume to format */
+{
+    Four 		e;		/* error code */
+    log_LogMasterPage_T masterPage; 	/* a log master page */
+    LOG_LogMaster_T 	*logMaster;
+    RDsM_VolumeInfo_T 	volumeInfo;   	/* volume information */
+    PageID 		pid;            /* page id */
+    Four 		i, j;
+    log_LogPage_T 	*pagesBufPtr; 	/* pointer to buffer of pages */ 
+    Four 		nRemainedPages; 
+    Four		nPagesInBuffer; 
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_InitLogVolume(volNo=%lD)"));
+
+
+    /*
+     * Get the volume information.
+     */
+    e = RDsM_GetVolumeInfo(handle, volNo, &volumeInfo);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * Initialize the master page.
+     */
+    pid.volNo = volNo;
+    pid.pageNo = LOG_MASTER_PAGE_NO;
+
+    LOG_INIT_LOG_MASTER_PAGE(&masterPage, pid);
+
+    logMaster = &masterPage.master;
+    logMaster->volNo = volNo;
+    logMaster->logMasterPageNo = LOG_MASTER_PAGE_NO;
+    logMaster->firstPageNoOfFirstLogFile = logMaster->logMasterPageNo + 1;
+    logMaster->headWrapCount = LSN_STARTING_WRAP_COUNT;
+    logMaster->headPageNo = 0;
+    logMaster->tailWrapCount = LSN_STARTING_WRAP_COUNT;
+    logMaster->tailPageNo = 0;
+    logMaster->nLogFiles = NUM_LOG_FILES_IN_LOG_VOLUME;
+    logMaster->numPages = ((volumeInfo.numExts - (volumeInfo.numDevices*NUM_EXTS_OF_SYS_PAGES_FOR_LOG_VOLUME)) * volumeInfo.extSize - 1 - logMaster->firstPageNoOfFirstLogFile + 1) / logMaster->nLogFiles;
+    logMaster->numBytes = logMaster->numPages *	LOG_GET_SPACE_SIZE_FROM_OFFSET_IN_PAGE(0);
+    logMaster->numBytesRemained = logMaster->numBytes;
+    logMaster->nextLsn.wrapCount = LSN_STARTING_WRAP_COUNT;
+    logMaster->nextLsn.offset = 0;
+    logMaster->checkpointLsn = common_perThreadDSptr->nilLsn;
+    logMaster->logRecordCount = 0;
+
+
+    /*
+     * Write the log master page into the volume.
+     */
+    e = RDsM_WriteTrain(handle, (char*)&masterPage, &pid, PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * for all the log pages, set their wrapCount fields to LSN_STARTING_WRAP_COUNT
+     */
+    nPagesInBuffer = volumeInfo.extSize*VOLUME_FORMAT_WRITEBUFFERSIZE_IN_EXTENTS;
+    pagesBufPtr = (log_LogPage_T*)malloc(sizeof(log_LogPage_T)*nPagesInBuffer);
+    if (pagesBufPtr == NULL) ERR(handle, eMEMORYALLOCERR);
+
+    pid.volNo = volNo;
+    pid.pageNo = logMaster->firstPageNoOfFirstLogFile;
+
+    for (i = 0; i < nPagesInBuffer; i++) {
+        /* initialize a log page */
+        LOG_INIT_LOG_PAGE(&pagesBufPtr[i], pid, common_perThreadDSptr->nilLsn.offset, common_perThreadDSptr->nilLsn.wrapCount);
+
+        pid.pageNo++;
+    }
+
+    for (nRemainedPages = logMaster->nLogFiles * logMaster->numPages;
+         nRemainedPages > 0;
+         nRemainedPages -= nPagesInBuffer) {
+
+        e = RDsM_WriteTrains(handle, (char*)pagesBufPtr, &(pagesBufPtr[0].hdr.pid),
+                             ((nRemainedPages >= nPagesInBuffer) ? nPagesInBuffer:nRemainedPages),
+                             PAGESIZE2);
+        if (e < eNOERROR) {
+            free(pagesBufPtr);
+            ERR(handle, e);
+        }
+
+        for (i = 0; i < nPagesInBuffer; i++)
+            pagesBufPtr[i].hdr.pid.pageNo += nPagesInBuffer;
+    }
+
+    free(pagesBufPtr);
+
+
+    return(eNOERROR);
+
+} /* LOG_InitLogVolume() */

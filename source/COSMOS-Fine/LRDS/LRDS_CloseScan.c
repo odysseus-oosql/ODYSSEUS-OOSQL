@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,96 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_CloseScan.c
+ *
+ * Description:
+ *  Close a scan. It first colse the SM level scan. And then deallocates
+ *  the used spaces for the given scan.
+ *
+ * Exports:
+ *  Four LRDS_CloseScan(Four, Four)
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    some erros caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+#include <unistd.h>
+
+
+Four LRDS_CloseScan(
+    Four handle,
+    Four scanId)		/* In scan to close */
+{
+    Four e;			/* error code */
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_CloseScan(scanId=%ld)", scanId));
+
+
+    /* check parameters */
+    if (!LRDS_VALID_SCANID(handle, scanId)) ERR(handle, eBADPARAMETER);
+
+    /* Close the SM level scan. */
+    e = SM_CloseScan(handle, LRDS_SCANTABLE(handle)[scanId].smScanId);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* Deallocates the memory used for boolean expressions table. */
+    if (LRDS_SCANTABLE(handle)[scanId].nBools != 0) {
+	e = Util_freeArrayToLocalHeap(handle, &LRDS_BOOLTABLEHEAP(handle), LRDS_SCANTABLE(handle)[scanId].bool);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    /* Unmark the scan table entry. */
+    LRDS_SCANTABLE(handle)[scanId].orn = NIL; /* not used */
+
+    return(eNOERROR);
+
+} /* LRDS_CloseScan( ) */
+
+Four LRDS_CloseAllScans(
+    Four    handle)
+{
+    Four e;         /* error code */
+    Four scanId;        /* loop index */
+
+    /* pointer for LRDS Data Structure of perThreadTable */
+    LRDS_PerThreadDS_T *lrds_perThreadDSptr = LRDS_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_CloseAllScans()"));
+
+
+    for (scanId = 0; scanId < lrds_perThreadDSptr->lrdsScanTable.nEntries; scanId++) {
+	if (LRDS_SCANTABLE(handle)[scanId].orn == NIL) continue;
+
+	/* Close the SM level scan. */
+	e = SM_CloseScan(handle, LRDS_SCANTABLE(handle)[scanId].smScanId);
+	if (e < eNOERROR) ERR(handle, e);
+
+	/* Deallocates the memory used for boolean expressions table. */
+	if (LRDS_SCANTABLE(handle)[scanId].nBools != 0) {
+	    e = Util_freeArrayToLocalHeap(handle, &LRDS_BOOLTABLEHEAP(handle), LRDS_SCANTABLE(handle)[scanId].bool);
+	    if (e < eNOERROR) ERR(handle, e);
+	}
+
+	/* Unmark the scan table entry. */
+	LRDS_SCANTABLE(handle)[scanId].orn = NIL; /* not used */
+    }
+
+    return(eNOERROR);
+
+} /* LRDS_CloseAllScans( ) */

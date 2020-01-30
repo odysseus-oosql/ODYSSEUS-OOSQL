@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,75 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: bfm_flushBuffer.c
+ *
+ * Description :
+ *  Write a train specified by 'anEntry->key' into the disk.
+ *
+ * Exports:
+ *  Four bfM_flushBuffer(TrainID *, Four)
+ *
+ * CAUTION :: For Concurrency Control, bfm_flushBuffer( ) is called
+ *             after bfm_lock(handle, &bufEntry->key, type) is called.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "SHM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * bfm_flushBuffer( )
+ *================================*/
+/*
+ * Function: Four bfm_flushBuffer(Four, BufBLEntry*, Four)
+ *
+ * Description :
+ *  Write a train specified by 'anEntry->key' into the disk.
+ *  Force it out to the disk using RDsM, especially RDsM_WriteTrain( ).
+ *
+ * Returns :
+ *  error codes
+ */
+Four bfm_flushBuffer(
+    Four 		handle,
+    BufTBLEntry 	*anEntry,	/* IN buffer table entry to be flushed */
+    Four   		type)		/* IN buffer type */
+{
+    Four 		e;		/* for errors */
+    PageHdr_T 		*pageHdr;       /* page header */
+
+
+    TR_PRINT(handle, TR_BFM, TR1, ("bfm_flushBuffer(handle,  anEntry=%P, type=%ld )", anEntry, type));
+
+
+    /*@ check parameters */
+    if (!anEntry) ERR(handle, eBADBUFTBLENTRY_BFM);
+
+    /* If the buffer is not dirty, return successfully */
+    if (!(anEntry->dirtyFlag) || anEntry->invalidFlag) return(eNOERROR);
+
+     /* Implements Write-Ahead-Logging: flush log records. */
+    pageHdr = (PageHdr_T*)BI_BUFFER(type, anEntry);
+    e = LOG_FlushLogRecords(handle, &pageHdr->lsn, pageHdr->logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*@ write a train into the disk */
+    e = RDsM_WriteTrain(handle, BI_BUFFER(type, anEntry), (PageID *)&anEntry->key, BI_BUFSIZE(type) );
+    if (e < eNOERROR) ERR(handle,  e );
+
+    /*@ clear the dirty bit */
+    anEntry->dirtyFlag = FALSE;
+
+    return( eNOERROR );
+
+}  /* bfm_flushBuffer */

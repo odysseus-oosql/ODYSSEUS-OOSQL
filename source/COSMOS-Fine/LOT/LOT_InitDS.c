@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,86 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOT_InitDS.c
+ *
+ * Description :
+ *  Initialize data structures used in large object manager.
+ *
+ * Exports:
+ *  Four LOT_InitSharedDS(Four)
+ *  Four LOT_InitLocalDS(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "Util.h"
+#include "trace.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@================================
+ * Four LOT_InitSharedDS( )
+ *================================*/
+/*
+ * Function: Four LOT_InitSharedDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four LOT_InitSharedDS(
+    Four    handle)
+{
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_InitSharedDS()"));
+
+    return(eNOERROR);
+
+} /* LOT_InitSharedDS() */
+
+
+
+/*@================================
+ * Four LOT_InitLocalDS( )
+ *================================*/
+/*
+ * Function: Four LOT_InitLocalDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four LOT_InitLocalDS(
+    Four    handle)
+{
+    Four e;             /* error number */
+
+    /* pointer for BfM Data Structure of perThreadTable */
+    LOT_PerThreadDS_T *lot_perThreadDSptr = LOT_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LOT, TR1, ("LOT_InitLocalDS()"));
+
+    e = Util_initVarArray(handle, &(lot_perThreadDSptr->lot_pageidArray), sizeof(PageID), INIT_SIZE_LOT_PAGEID_ARRAY);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_initVarArray(handle, &(lot_perThreadDSptr->lot_entryArray[0]), sizeof(L_O_T_INodeEntry), INIT_SIZE_LOT_ENTRY_ARRAY);
+    if (e < 0) {
+        Util_finalVarArray(handle, &(lot_perThreadDSptr->lot_pageidArray));
+        ERR(handle, e);
+    }
+
+    e = Util_initVarArray(handle, &(lot_perThreadDSptr->lot_entryArray[1]), sizeof(L_O_T_INodeEntry), INIT_SIZE_LOT_ENTRY_ARRAY);
+    if (e < 0) {
+        Util_finalVarArray(handle, &(lot_perThreadDSptr->lot_pageidArray));
+        Util_finalVarArray(handle, &(lot_perThreadDSptr->lot_entryArray[0]));
+        ERR(handle, e);
+    }
+
+    lot_perThreadDSptr->lot_entryArraySwitch = 0;
+
+    return(eNOERROR);
+
+} /* LOT_InitLocalDS() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,101 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_InitDS.c
+ *
+ * Description:
+ *  Initialize data structures used in the log manager.
+ *
+ * Exports:
+ *  Four LOG_InitSharedDS(Four)
+ *  Four LOG_InitLocalDS(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Global Data Structure
+ */
+
+
+/*
+ * Function: Four LOG_InitSharedDS(Four)
+ *
+ * Description:
+ *  Initialize the log manager.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_InitSharedDS(
+    Four    	handle)
+{
+    Four	e;		/* returned error code */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_InitSharedDS()"));
+
+
+    /* This is the only one process; no concurrency control is needed. */
+
+
+    /*
+     *	invalidate the contents of the logMaster
+     */
+    LOG_LOGMASTER.volNo = NIL;
+
+
+    /*
+     * Initialize the latches.
+     */
+    e = SHM_initLatch(handle, &LOG_LATCH4HEAD);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = SHM_initLatch(handle, &LOG_LATCH4TAIL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = SHM_initLatch(handle, &LOG_LATCH4LOGFILESWITCH);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     * Initialize log write buffers.
+     */
+    e = log_BufInit(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LOG_Init() */
+
+
+
+/*
+ * Function: Four LOG_InitLocalDS(Four)
+ *
+ * Description:
+ *  Initialize local data structures used in the log manager.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_InitLocalDS(
+    Four    	handle)
+{
+    Four	e;		/* returned error code */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_InitLocalDS()"));
+
+
+    return(eNOERROR);
+
+} /* LOG_InitLocalDS() */

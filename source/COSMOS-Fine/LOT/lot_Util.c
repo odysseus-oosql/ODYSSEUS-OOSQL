@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,47 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lot_Util.c
+ *
+ * Description:
+ *  includes the small functions needed in this level.
+ *
+ * Exporrts:
+ *  Four lot_GetCount(Four, L_O_T_INode*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * lot_GetCount( )
+ *================================*/
+/*
+ * Function: Four lot_GetCount(Four, L_O_T_INode*, Four)
+ *
+ * Description:
+ *  Get the count of the subtree
+ *
+ * Returns:
+ *
+ */
+Four lot_GetCount(
+    Four handle,
+    L_O_T_INode *nodePtr,	/* IN pointer to the internal node */
+    Four idx)			/* IN index of the subtree in parent */
+{
+    TR_PRINT(handle, TR_LOT, TR1, ("lot_GetCount(nodePtr=%P, idx=%ld)", nodePtr, idx));
+
+    return (nodePtr->entry[idx].count - ((idx == 0) ? 0:nodePtr->entry[idx-1].count));
+
+} /* lot_GetCount() */

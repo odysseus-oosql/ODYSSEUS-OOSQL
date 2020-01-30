@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,56 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_Action.c.c
+ *
+ * Description:
+ *    Release all shred locks.
+ *
+ * Exports:
+ *  Four SM_BeginAction( )
+ *  Four SM_EndAction( )
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+Four SM_BeginAction(
+    Four	handle
+)
+{
+    Four 	e;
+
+    if(MY_XACT_TABLE_ENTRY(handle)){
+	e = LM_beginAction(handle, &MY_XACTID(handle), USER_ACTION); 
+	if(e < eNOERROR) ERR(handle, e);
+    }
+    else ERR(handle, eXACTNOTSTARTED_SM); 
+
+    return(eNOERROR);
+}
+
+Four SM_EndAction(
+    Four    	handle)
+{
+    Four 	e;
+
+    if(MY_XACT_TABLE_ENTRY(handle)){
+	e = LM_endAction(handle, &MY_XACTID(handle), USER_ACTION); 
+	if(e < eNOERROR) ERR(handle, e);
+    }
+    else ERR(handle, eXACTNOTSTARTED_SM); 
+
+    return(eNOERROR);
+}

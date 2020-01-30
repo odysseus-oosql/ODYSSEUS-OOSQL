@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,137 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_WriteTrains.c
+ *
+ * Description:
+ *
+ *
+ * Exports:
+ *  Four RDsM_WriteTrains(Four, char*, PageID*, Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "SHM.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*@================================
+ * RDsM_WriteTrains()
+ *================================*/
+/*
+ * Function: Four RDsM_WriteTrains(Four, char*, PageID*, Four, Four)
+ *
+ * Description:
+ *  Given the ID of the train, read it from a disk into a main memory buffer
+ *
+ * Returns:
+ *  error code
+ *    eNULLPIDPTR_RDsM - null pageid pointer
+ *    eNULLBUFPTR_RDsM - null buffer pointer
+ *    eVOLNOTMOUNTED_RDSM - volume not mounted
+ *    eINVALIDPID_RDSM - invalid page identifier
+ *    eLSEEKFAIL_RDSM - lseek operation is failed
+ *    eWRITEFAIL_RDSM - write operation is failed
+ *
+ * Side Effects:
+ *  a train is brought into memory
+ */
+Four RDsM_WriteTrains(
+    Four          handle,            /* IN    handle */
+    char      	  *bufPtr,           /* IN a pointer for a buffer of trains */
+    PageID        *startTrainId,     /* IN identifier of the train */
+    Four          numTrains,         /* IN number of trains to write */
+    Four          sizeOfTrain)       /* IN the size of a train in pages */
+{
+    Four          e;                   /* error code */
+    Four          i;                   /* loop index */
+    Four          devNo;               /* device number in which given train is located */
+    Four          startTrainOffset;    /* physical offset of given train in the device */
+    Four          numWritePages;       /* size of write trains (in # of pages) */
+    Four          entryNo;             /* entry number of volume table entry */
+    RDsM_VolumeInfo_T *volInfo;        /* volume information in volume table entry */
+    RDsM_DevInfo  *devInfo; 
+    Four          numTotalWritePages; 
+    Four          startPageNo; 
+    Four          numPagesInDevice;
+
+
+
+    TR_PRINT(handle, TR_RDSM, TR1,
+         ("RDsM_WriteTrains(bufPtr=%P, startTrainId=%P, sizeOfTrain=%lD)", bufPtr, startTrainId, sizeOfTrain));
+
+
+    /*
+     *  if numTrains is zero, just return
+     */
+    if (numTrains == 0) return(eNOERROR);
+
+
+    /*
+     *  Check input parameters
+     */
+
+    if (startTrainId == NULL) ERR(handle, eBADPARAMETER);
+    if (bufPtr == NULL)  ERR(handle, eBADPARAMETER);
+    if (numTrains < 0)  ERR(handle, eBADPARAMETER);
+    if (sizeOfTrain != PAGESIZE2 && sizeOfTrain != TRAINSIZE2) ERR(handle, eINVALIDTRAINSIZE_RDSM);
+
+
+    /*
+     *  get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, startTrainId->volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * points to the volume information
+     */
+    volInfo = &RDSM_VOLTABLE[entryNo].volInfo;
+
+
+    /*
+     *  Validate the TrainId
+     */
+    if (startTrainId->volNo < 0 || startTrainId->pageNo < 0 || startTrainId->pageNo >= volInfo->numExts*volInfo->extSize)
+        ERR(handle, eBADPAGEID);
+
+    /*
+     *  Write trains to disk
+     */
+    numTotalWritePages = numTrains * sizeOfTrain;
+    startPageNo = startTrainId->pageNo;
+    while (numTotalWritePages > 0) {
+        /* get physical information about given train */
+        e = rdsm_GetPhysicalInfo(handle, volInfo, startPageNo, &devNo, &startTrainOffset); 
+        if (e < eNOERROR) ERR(handle, e);
+
+        devInfo = PHYSICAL_PTR(volInfo->devInfo); 
+
+        numPagesInDevice = devInfo[devNo].numExtsInDevice * volInfo->extSize; 
+
+        /* calculate 'numWritePages' */
+        numWritePages = (startTrainOffset + numTotalWritePages  <= numPagesInDevice) ?
+                        numTotalWritePages : (numPagesInDevice - startTrainOffset);
+
+        /* write the train into the buffer */
+        e = rdsm_WriteTrain(handle, OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[devNo], startTrainOffset, bufPtr, numWritePages);
+        if (e < eNOERROR) ERR(handle, e);
+
+        bufPtr += numWritePages*PAGESIZE;
+        startPageNo += numWritePages;
+        numTotalWritePages -= numWritePages;
+    }
+
+    return(eNOERROR);
+
+} /* RDsM_WriteTrains() */

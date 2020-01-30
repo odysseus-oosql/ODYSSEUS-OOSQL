@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,105 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include <stdio.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <sys/timeb.h>
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+#include "THM_cosmosThread.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/* perProcess Data Structure */
+PerProcessDS_T          perProcessDS;
+
+/* perThread Table Structure */
+PerThreadTableEntry_T   perThreadTable[MAXTHREADS];
+Four                    previousHandle;
+
+
+/* For fast access */
+SM_PerProcessDS_T   *sm_perProcessDSptr     =   SM_PER_PROCESS_DS_PTR;
+LM_PerProcessDS_T   *lm_perProcessDSptr     =   LM_PER_PROCESS_DS_PTR;
+SHM_PerProcessDS_T  *shm_perProcessDSptr    =   SHM_PER_PROCESS_DS_PTR;
+
+
+/* cosmos thread attrubute */
+cosmos_thread_mutex_attr_t      cosmos_thread_mutex_attr_default;
+cosmos_thread_cond_attr_t       cosmos_thread_cond_attr_default;
+cosmos_thread_attr_t            cosmos_thread_attr_default;
+
+
+Four THM_InitPerProcess(void)
+{
+    Four                handle = -1;
+    Four 		e;
+    Four 		i;
+
+
+    /* SM Data Structure */
+    perProcessDS.smDS.sm_sysTablesDataFileIdIndexKdesc = sm_sysTablesDataFileIdIndexKdesc;
+    perProcessDS.smDS.sm_sysIndexesDataFileIdIndexKdesc = sm_sysIndexesDataFileIdIndexKdesc;
+    perProcessDS.smDS.sm_sysIndexesIndexIdIndexKdesc = sm_sysIndexesIndexIdIndexKdesc;
+
+
+    /* LM_PerProcessDS Initialize */
+    ARRAYCOPY(perProcessDS.lmDS.LOCK_conversion, LOCK_conversion, sizeof(LOCK_conversion));
+    ARRAYCOPY(perProcessDS.lmDS.LOCK_compatible, LOCK_compatible, sizeof(LOCK_compatible));
+    ARRAYCOPY(perProcessDS.lmDS.LOCK_supreme, LOCK_supreme, sizeof(LOCK_supreme));
+    ARRAYCOPY(perProcessDS.lmDS.LOCK_super, LOCK_super, sizeof(LOCK_super));
+    ARRAYCOPY(perProcessDS.lmDS.LOCK_hierarchy, LOCK_hierarchy, sizeof(LOCK_hierarchy));
+
+
+    for (i=0; i<MAXTHREADS; i++) {
+ 	perThreadTable[i].used = FALSE;
+    }
+
+    NUM_OF_THREADS_IN_PROCESS = 0;
+
+
+
+    /* Initialization for thread. Initialization must be done on every beginning of process. */
+    e = pthread_mutexattr_init(&cosmos_thread_mutex_attr_default);
+    if (e < eNOERROR) ERR(handle, e);
+    e = pthread_mutexattr_setpshared(&cosmos_thread_mutex_attr_default, PTHREAD_PROCESS_SHARED);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = pthread_condattr_init(&cosmos_thread_cond_attr_default);
+    if (e < eNOERROR) ERR(handle, e);
+    e = pthread_condattr_setpshared(&cosmos_thread_cond_attr_default, PTHREAD_PROCESS_SHARED);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = pthread_attr_init(&cosmos_thread_attr_default);
+    if (e < eNOERROR) ERR(handle, e);
+    e = pthread_attr_setscope(&cosmos_thread_attr_default, PTHREAD_SCOPE_SYSTEM);
+    if (e < eNOERROR) ERR(handle, e);
+    e = pthread_attr_setdetachstate(&cosmos_thread_attr_default, PTHREAD_CREATE_JOINABLE);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return (eNOERROR);
+}
+
+
+Four THM_FinalPerProcess(void)
+{
+    Four    handle = -1;
+    Four    e;
+
+
+    /* Finalization for thread. Finalization must be done on every termination of process. */
+    e = pthread_mutexattr_destroy(&cosmos_thread_mutex_attr_default);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = pthread_condattr_destroy(&cosmos_thread_cond_attr_default);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = pthread_attr_destroy(&cosmos_thread_attr_default);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return (eNOERROR);
+}

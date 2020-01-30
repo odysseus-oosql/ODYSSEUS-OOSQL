@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,102 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_OM_WriteSmallobject.c
+ *
+ * Description:
+ *  Undo writing new data on some porttion of a small object.
+ *
+ * Exports:
+ *  Four Undo_OM_WriteSmallObject(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "OM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_OM_WriteSmallObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing a small object */
+{
+    Four e;			/* error code */
+    SlottedPage	*aPage;		/* pointer to a slotted buffer page */
+    Object      *obj;		/* pointer to an object */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Lsn_T lastLsn;		/* last lsn of the current transaction */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_OM_ObjDataInPage_T *objDataInfoPtr; /* specify some portion of an object data */
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_OM_WriteSmallObject(aPage_BCBP=%P, logRecInfo=%P)", aPage_BCBP, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	set pointers pointing to respective images
+     */
+    objDataInfoPtr = (LOG_Image_OM_ObjDataInPage_T*)(logRecInfo->imageData[0]);
+
+
+    /*
+     *	set a slotted page pointer pointing to the buffer
+     */
+    aPage = (SlottedPage*) aPage_BCBP->bufPagePtr;
+
+
+    /*
+     *  set an object pointer pointing to a position where the written object is placed
+     */
+    obj = (Object*)&(aPage->data[aPage->slot[-(objDataInfoPtr->slotNo)].offset]);
+
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_OM_WRITE_SMALL_OBJECT, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          logRecInfo->imageSize[2], logRecInfo->imageData[2]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->header.lsn = lsn;
+    aPage->header.logRecLen = logRecLen;
+
+
+    /*
+     *	undo wrting of small object
+     */
+    memcpy(&(obj->data[objDataInfoPtr->start]), logRecInfo->imageData[2], logRecInfo->imageSize[2]);
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_OM_WriteSmallObject( ) */

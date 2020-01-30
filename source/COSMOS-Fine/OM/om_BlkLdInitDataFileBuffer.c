@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,119 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: om_BlkLdInitDataFileBuffer.c
+ *
+ * Description:
+ *  Initialize the data file bulk load buffer.
+ *
+ * Exports:
+ *  Four om_BlkLdInitDataFileBuffer(PageID*, Four, PageID*, SlottedPage*, PageID)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <string.h>
+#include "common.h"
+#include "param.h"
+#include "RDsM.h"
+#include "BfM.h" /* TTT */
+#include "OM.h"
+#include "BL_OM.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "error.h"
+#include "latch.h"
+#include "LOG.h"
+
+#include "perThreadDS.h"
+#include "perProcessDS.h"
+
+/*@========================================
+ *  om_BlkLdInitDataFileBuffer()
+ * =======================================*/
+/*
+ * Function : Four om_BlkLdInitDataFileBuffer()
+ *
+ * Description :
+ *  Initialize the data file bulk load buffer.
+ *
+ * Return Values :
+ *  error code.
+ *
+ * Side Effects :
+ *  0)
+ *
+ */
+
+Four om_BlkLdInitDataFileBuffer(
+    Four	        handle,
+    XactTableEntry_T*   xactEntry,           /* IN  entry of transaction table */
+    Four                blkLdId,             /* IN  bulkload ID */
+    PageID              *pid,                /* IN  page id for allocate extent in which contains that page */
+    Four                bufSize,             /* IN  size of data file bulk load buffer by page */
+    PageID              *pageIdAry,          /* IN  page id array of allocated data file bulk load buffer */
+    SlottedPage         *dataFileBuffer,     /* IN  data file bulk load buffer */
+    PageID             	lastAllocatedPageId, /* IN  last allocated page array  */
+    LogParameter_T*     logParam)            /* IN  log parameter */
+{
+
+    Four        	e;                   /* error number */
+    Four        	i;                   /* index variable */
+    Unique      	unique;              /* space for the returned unique number */
+    Four        	num;                 /* number of unique numbers newly allocated */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    /* initialize each slotted page in data file bulk load buffer */
+    for (i = 0; i < bufSize; i++) {
+
+        /* Slotted page header setting */
+        dataFileBuffer[i].header.pid    = pageIdAry[i];
+        dataFileBuffer[i].header.fid    = OM_BLKLD_TABLE(handle)[blkLdId].fid;
+        dataFileBuffer[i].header.nSlots = 0;
+        dataFileBuffer[i].header.free   = 0;
+        dataFileBuffer[i].header.unused = 0;
+
+        /* set unique */
+        e = RDsM_GetUnique(handle, xactEntry, &(dataFileBuffer[i].header.pid), &unique, &num, logParam);
+        if (e < eNOERROR) ERR(handle, e);
+        dataFileBuffer[i].header.unique = unique;
+        dataFileBuffer[i].header.uniqueLimit = unique + num;
+
+        /* set previous page no */
+        if (i == 0) {
+            dataFileBuffer[i].header.prevPage = lastAllocatedPageId.pageNo;
+        } else {
+            dataFileBuffer[i].header.prevPage = pageIdAry[i-1].pageNo;
+        }
+
+        /* set next page no */
+        if (i == bufSize -1) {
+            dataFileBuffer[i].header.nextPage = NIL;
+        } else {
+            dataFileBuffer[i].header.nextPage = pageIdAry[i+1].pageNo;
+        }
+
+	/* forTest : macro에서 pageFlag라고 해야할 것을 flag라고 잘못 적은 것 같다 */
+	/* forTest : I think it is a mistake using 'falg' in the macro, so "flag" must be replace with "pageFlag". */ 
+        SET_PAGE_TYPE(&(dataFileBuffer[i]), SLOTTED_PAGE_TYPE);
+        RESET_TEMP_PAGE_FLAG(&(dataFileBuffer[i]));
+
+        /* Slotted page slot setting */
+        dataFileBuffer[i].slot[0].offset = EMPTYSLOT;
+
+        dataFileBuffer[i].header.lsn = common_perThreadDSptr->nilLsn;
+        dataFileBuffer[i].header.logRecLen = 0;
+
+#ifdef CCRL
+        dataFileBuffer[i].header.totalFreeSpace = PAGESIZE - SP_FIXED;
+        dataFileBuffer[i].header.rsvd = 0;
+        dataFileBuffer[i].header.trsvd = 0;
+        SET_NIL_XACTID(dataFileBuffer[i].header.trans);
+#endif /* CCRL */
+
+    }
+
+    return(eNOERROR);
+
+} /* om_BlkLdInitDataFileBuffer() */

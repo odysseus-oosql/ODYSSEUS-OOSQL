@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,66 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_MLGF_InsertObjectsIntoOverflowPage.c
+ *
+ * Description:
+ *  redo inserting a sequence of objects into overflow page
+ *
+ * Exports:
+ *  Four Redo_MLGF_InsertObjectsIntoOverflowPage(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_MLGF_InsertObjectsIntoOverflowPage(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing the small object */
+{
+    mlgf_OverflowPage *aPage = anyPage;
+    Four objectItemLen;
+    LOG_Image_MLGF_ObjectsInOverflow_T *objsInfo;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_MLGF_InsertObjectsIntoOverflowPage()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+    /* Get the length of an object item. */
+    objectItemLen = MLGF_LEAFENTRY_OBJECTITEM_LEN(aPage->hdr.extraDataLen);
+
+    /* get images */
+    objsInfo = (LOG_Image_MLGF_ObjectsInOverflow_T*)logRecInfo->imageData[0];
+
+    /* reserve space for the inserted objects */
+    MLGF_INSERT_OBJECTS_SPACE_INTO_OBJECT_ARRAY(
+        MLGF_OVERFLOW_ITH_OBJECTITEM(objectItemLen, aPage, 0),
+        aPage->hdr.nObjects, objsInfo->startObjArrayElemNo, objsInfo->nObjects,
+        objectItemLen);
+
+    /* copy the objects */
+    MLGF_WRITE_OBJECTS_IN_OBJECT_ARRAY(
+        MLGF_OVERFLOW_ITH_OBJECTITEM(objectItemLen, aPage, 0),
+        objsInfo->startObjArrayElemNo, objsInfo->nObjects,
+        logRecInfo->imageData[1], objectItemLen);
+
+    /* increase the # of objects */
+    aPage->hdr.nObjects += objsInfo->nObjects;
+
+    return(eNOERROR);
+
+} /* Redo_MLGF_InsertObjectsIntoOverflowPage( ) */

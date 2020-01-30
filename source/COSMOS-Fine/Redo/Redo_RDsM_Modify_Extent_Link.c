@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,62 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_RDsM_Modify_Extent_Link.c
+ *
+ * Description:
+ *  redo update extent link
+ *
+ * Exports:
+ *  Four Redo_RDsM_Modify_Extent_Link(SlottedPage*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RDsM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Four Redo_RDsM_Modify_Extent_Link(
+    Four                                        handle,                 /* IN  handle */
+    void 					*anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T 				*logRecInfo) 		/* IN operation information for creating the small object */
+{
+    ExtentMapPage_T 				*aPage = anyPage;
+    Four					index;                  /* index of extent map entry array */
+    LOG_Image_RDsM_Modify_ExtentLink_T 		*updateExtentLink;	/* bitmap update image */
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_RDsM_Modify_Extent_Link(aPage=%P, logRecInfo=%P)", aPage, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	redo update extent fill factor
+     *
+     *  logRecInfo->imageData[0] : offset of the extent map entry in the page
+     *  logRecInfo->imageData[1] : new extent map entry info
+     *  logRecInfo->imageData[2] : old extent map entry info
+     */
+    index       	= *(Four*)logRecInfo->imageData[0];
+    updateExtentLink 	= (LOG_Image_RDsM_Modify_ExtentLink_T*)logRecInfo->imageData[1];
+
+    if (updateExtentLink->prevExt != NO_OP)
+    	aPage->entry[index].prevExt = updateExtentLink->prevExt;
+    if (updateExtentLink->nextExt != NO_OP)
+    	aPage->entry[index].nextExt = updateExtentLink->nextExt;
+
+    return(eNOERROR);
+
+} /* Redo_RDsM_Modify_Extent_Link() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,131 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#include "common.h"
+#include "error.h"
+#include "TM.h"
+#include "LM.h"
+#include "RM.h"
+#include "OM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+Four TM_AbortTransaction(
+    Four 		handle,
+    XactID 		*xactId)             	/* IN transaction to abort */
+{
+    Four  		e;
+    DeallocListElem 	*dlElem, prevdlElem;
+    XactTableEntry_T 	*xactEntry;
+    Lsn_T 		lsn;                  	/* lsn of the newly written log record */
+    Four 		logRecLen;             	/* log record length */
+    LOG_LogRecInfo_T 	logRecInfo; 		/* log record information */
+    Four                i, j;                   /* loop index */
+
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    xactEntry = MY_XACT_TABLE_ENTRY(handle);
+
+    if(!xactEntry) ERR(handle, eWRONGXACTABORT_TM); 
+
+    if (!XACTID_CMP_EQ(*xactId, MY_XACTID(handle)))
+	return(eWRONGXACTID_TM);
+
+    if (common_shmPtr->recoveryFlag) {
+        /*
+         * Write the abort log reocrd.
+         */
+        LOG_FILL_LOGRECINFO_0(logRecInfo, xactEntry->xactId, LOG_TYPE_TRANSACTION,
+                              LOG_ACTION_XACT_ABORT_TRANSACTION, LOG_NO_REDO_UNDO,
+                              common_perThreadDSptr->nilPid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERR(handle, e);
+
+        e = LOG_FlushLogRecords(handle, &lsn, logRecLen);
+        if (e < eNOERROR) ERR(handle, e);
+
+#ifdef USE_PDL 
+        /*
+         * Flushes the data written into the cache of a storage device immediately out to the devices
+         */
+
+        /* For the devices of the data volumes, call fsync() */
+        for (i = 0; i < MAXNUMOFVOLS; i++) {
+            if (RDSM_USERVOLTABLE(handle)[i].volNo != NOVOL && RDSM_VOLTABLE[i].volInfo.type == VOLUME_TYPE_DATA) {
+
+                assert(RDSM_USERVOLTABLE(handle)[i].volNo == RDSM_VOLTABLE[i].volInfo.volNo);
+
+                for (j = 0; j < RDSM_USERVOLTABLE(handle)[i].numDevices; j++) {
+#ifndef WIN32
+                    if (Util_fsync(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[i].openFileDesc)[j]) == -1) ERR(handle, eDEVICECLOSEFAIL_RDSM);
+#else
+                    if (FlushFileBuffer(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[i].openFileDesc)[j]) == 0) ERR(handle, eDEVICECLOSEFAIL_RDSM);
+#endif /* WIN32 */
+                }
+            }
+        }
+
+        /* For the devices of the log volumes, call fsync() */
+        for (i = 0; i < MAXNUMOFVOLS; i++) {
+            if (RDSM_USERVOLTABLE(handle)[i].volNo != NOVOL && RDSM_VOLTABLE[i].volInfo.type == VOLUME_TYPE_RAW) {
+
+                assert(RDSM_USERVOLTABLE(handle)[i].volNo == RDSM_VOLTABLE[i].volInfo.volNo);
+
+                for (j = 0; j < RDSM_USERVOLTABLE(handle)[i].numDevices; j++) {
+#ifndef WIN32
+                    if (fsync(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[i].openFileDesc)[j]) == -1) ERR(handle, eDEVICECLOSEFAIL_RDSM);
+#else
+                    if (FlushFileBuffer(OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[i].openFileDesc)[j]) == 0) ERR(handle, eDEVICECLOSEFAIL_RDSM);
+#endif /* WIN32 */
+                }
+            }
+        }
+#endif 
+    }
+
+    xactEntry->status = X_ABORT;
+
+    /*
+    ** Rollback this transaction.
+    */
+    e = RM_Rollback(handle, xactEntry, &(common_perThreadDSptr->nilLsn)); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* release all the manual duration locks */
+    e = LM_releaseXactManualFlatLock(handle, xactId);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* release storage used for tree latch */
+    e = BtM_ReleaseAllTreeLatchPtr(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* release all my latches */
+    e = SHM_releaseMyLatches(handle, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* release all granted lock */
+    e = LM_releaseXactLock(handle, xactId);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* free xaction bucket */
+    e = LM_dropXactBucket(handle, xactId);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = TM_XT_FinalXactTableEntry(handle, xactEntry);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = TM_XT_FreeXactTableEntry(handle, xactId);
+    if (e < eNOERROR) ERR(handle, e);
+
+    MY_XACT_TABLE_ENTRY(handle) = NULL;
+
+
+
+    return(eNOERROR);
+
+} /* TM_AbortTransaction() */

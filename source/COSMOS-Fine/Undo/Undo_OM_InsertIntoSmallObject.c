@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,111 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_OM_InsertIntoSmallObject.c
+ *
+ * Description:
+ *  Undo inserting some data into small object
+ *
+ * Exports:
+ *  Four Undo_OM_InsertIntoSmallObject(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "OM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_OM_InsertIntoSmallObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN log record information */
+{
+    Four e;			/* error code */
+    SlottedPage	*aPage;		/* pointer to a slotted buffer page */
+    Object      *obj;		/* pointer to an object */
+    Four slotNo;		/* slot no of the updated object */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_OM_ObjDataInPage_T *objDataInfoPtr; /* specify some portion of an object data */
+    Four alignedOrigLen;	/* aligned length of original length */
+    Four alignedNewLen;         /* aligned length of new length */
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_OM_InsertIntoSmallObject(aPage_BCBP=%P,logRecInfo=%P)", aPage_BCBP, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	set a slotted page pointer pointing to the buffer
+     */
+    aPage = (SlottedPage *) aPage_BCBP->bufPagePtr;
+
+
+    /*
+     * get the images
+     */
+    objDataInfoPtr = logRecInfo->imageData[0];
+
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_1(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_OM_DELETE_FROM_SMALL_OBJECT, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->header.lsn = lsn;
+    aPage->header.logRecLen = logRecLen;
+
+
+    /*
+     *	undo inserting some data into a small object
+     */
+    /* points to the object */
+    obj = (Object*)&(aPage->data[aPage->slot[-(objDataInfoPtr->slotNo)].offset]);
+    alignedOrigLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(obj->header.length));
+    alignedNewLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(obj->header.length-objDataInfoPtr->length));
+
+    /* delete the inserted data */
+    memmove(&(obj->data[objDataInfoPtr->start]),
+            &(obj->data[objDataInfoPtr->start + objDataInfoPtr->length]),
+            obj->header.length - objDataInfoPtr->start - objDataInfoPtr->length);
+
+    /* Change the size of the object data part */
+    e = om_ChangeObjectSize(handle, &logRecInfo->xactId, aPage, objDataInfoPtr->slotNo, alignedOrigLen, alignedNewLen, TRUE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    obj->header.length -= objDataInfoPtr->length;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_OM_InsertIntoSmallObject( ) */

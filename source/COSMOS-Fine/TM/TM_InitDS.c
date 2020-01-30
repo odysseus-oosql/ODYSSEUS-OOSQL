@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,98 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: TM_InitDS.c
+ *
+ * Description :
+ *  Initialize data structures used in transaction manager.
+ *
+ * Exports:
+ *  Four TM_InitSharedDS(Four)
+ *  Four TM_InitLocalDS(Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "Util.h"
+#include "trace.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+
+
+/*@================================
+ * Four TM_InitSharedDS( )
+ *================================*/
+/*
+ * Function: Four TM_InitSharedDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four TM_InitSharedDS(
+    Four	handle)
+{
+    Four 	e;                     	/* error code */
+    XactID 	xactIdCounter;		/* next transaction id to alloc  */
+
+
+    TR_PRINT(handle, TR_TM, TR1, ("TM_InitSharedDS()"));
+
+
+    /* Initialize the transaction id counter */
+    SET_STARTING_XACTID(xactIdCounter);
+    TM_SetXactIdCounter(handle, &xactIdCounter);
+
+    e = SHM_initLatch(handle, &tm_shmPtr->latch_xactIdCounter); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = TM_XT_InitTable(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = Util_initPool(handle, &TM_GLOBALXACTIDPOOL, sizeof(GlobalXactID), TM_INIT_GLOBAL_XACTID_POOL_SIZE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* TM_InitSharedDS() */
+
+
+
+/*@================================
+ * Four TM_InitLocalDS( )
+ *================================*/
+/*
+ * Function: Four TM_InitLocalDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four TM_InitLocalDS(
+    Four	handle)
+{
+    Four 	e;             /* error number */
+
+    /* pointer for TM Data Structure of perThreadTable */
+    TM_PerThreadDS_T *tm_perThreadDSptr = TM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_TM, TR1, ("TM_InitLocalDS()"));
+
+
+    MY_XACT_LOG_FLAG(handle) = FALSE;
+    MY_XACT_TABLE_ENTRY(handle) = NULL;
+
+    /* Initialize the dealloctedPageList Pool. */
+    e = Util_initLocalPool(handle, &(tm_perThreadDSptr->tm_dlPool), sizeof(DeallocListElem), INITDPLPOOL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* TM_InitLocalDS() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,98 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_AllocContigTrainsInExt.c
+ *
+ * Description:
+ *  Allocate trains in the extent that pointed by 'startTrainID' and the new allocated extent.
+ *
+ * Note:
+ *  Allocated trains in a extent are contiguous. But All trains allocated are not contiguous.
+ *
+ * Exports:
+ *  Four RDsM_AllocContigTrainsInExt(XactTableEntry_T*, Four, SegmentID_T*, PageID*, Four*, Four, Four, PageID*, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four RDsM_AllocContigTrainsInExt(XactTableEntry_T*, Four, SegmentID_T*, PageID*, Four*, Four, Four, PageID*, LogParameter_T*)
+ *
+ * Description:
+ *  Allocate trains in the extent that pointed by 'startTrainID' and the new allocated extent.
+ *
+ * Note:
+ *  Allocated trains in a extent are contiguous. But All trains allocated are not contiguous.
+ *
+ * Returns:
+ *  Error code
+ */
+Four RDsM_AllocContigTrainsInExt(
+    Four                        handle,                 /* IN    handle */
+    XactTableEntry_T  		*xactEntry,         	/* IN    transaction table entry */
+    Four              		volNo,              	/* IN    volume number in question */
+    SegmentID_T        		*segmentID,    		/* IN    segment identifier */
+    PageID            		*startTrainID,      	/* IN    start train ID of contiguous allocated trains in the extent */
+    Four              		*numOfTrains,       	/* INOUT number of allocated trains */
+    Four              		sizeOfTrain,        	/* IN    size of a train to be allocated */
+    Four              		eff,                	/* IN    number of pages in an extent to keep filled */
+    PageID            		*trainIDs,          	/* OUT   array for train ID which allocated */
+    LogParameter_T    		*logParam          	/* IN    log parameter */
+)
+{
+    Four        		e;             		/* returned error code */
+    Four                        i = 0;
+    Four                        numOfPagesToAlloc;
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_AllocContigTrainsInExt(xactEntry=%P, volNo=%lD, segmentID=%P, sizeOfTrain=%lD, logParam=%p)",
+    	     xactEntry, volNo, segmentID, sizeOfTrain, logParam));
+
+
+    /*
+     * check parameters
+     */
+    if (segmentID->firstExtent == NIL) ERR(handle, eBADPARAMETER);
+    if (segmentID->sizeOfTrain != sizeOfTrain) ERR(handle, eBADPARAMETER);
+
+
+    /* set 'numOfPagesToAlloc' */
+    numOfPagesToAlloc = *numOfTrains;
+
+
+    /* check 'startTrainID' is NULL or not */
+    if (startTrainID != NULL) {
+
+        /* allocated the trains in the extent pointed by 'startTrainID' */
+	e = rdsm_AllocContigTrainsInExt(handle, xactEntry, volNo, segmentID, startTrainID, numOfTrains, sizeOfTrain, eff,
+					trainIDs, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+
+	numOfPagesToAlloc -= *numOfTrains;
+    }
+    else {
+
+        /* allocated the trains in the new extent */
+	e = rdsm_AllocContigTrainsInExt(handle, xactEntry, volNo, segmentID, (PageID*)NULL, numOfTrains, sizeOfTrain, eff,
+				        trainIDs, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+
+	numOfPagesToAlloc -= *numOfTrains;
+    }
+
+
+    return (eNOERROR);
+}
+
+

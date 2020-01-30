@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,38 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifdef _LRDS_DUMMY_FOR_PORTING_H_
+/* 
+ * for porting 
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+typedef Heap LocalHeap;
+typedef Pool LocalPool;
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+Four Util_initLocalHeap(LocalHeap*, Four, Four);
+Four Util_getArrayFromLocalHeap(LocalHeap*, Four, void*);
+Four Util_freeArrayToLocalHeap(LocalHeap*, void*);
+Four Util_finalLocalHeap(LocalHeap*);
+
+Four Util_finalLocalPool(LocalPool*);
+Four Util_freeElementToLocalPool(LocalPool*, void*);
+Four Util_initLocalPool(LocalPool*, Four, Four);
+Four Util_getElementFromLocalPool(LocalPool*, void*);
+
+
+/* Note!! this global variable is located in 'SM_ThinLayer.c' */
+extern XactID dummy;
+#define MY_XACTID dummy
+
+Four LM_getFlatPageLock(XactID*, PageID*, LockMode, LockDuration, LockConditional, LockReply*);
+Four LM_releaseFlatPageLock(XactID*, PageID*, LockDuration);
+Four LM_getFileLock(XactID*, FileID*, LockMode, LockDuration, LockConditional, LockReply*);
+Four LM_releaseFileLock(XactID*, FileID*, LockDuration);
+
+/* Use physical address. */
+#define LOGICAL_PTR_TYPE(_type) _type
+#define LOGICAL_PTR(_p) (_p)
+#define PHYSICAL_PTR(_p) (_p)
+#define NULL_LOGICAL_PTR NULL
+
+#endif /* _LRDS_DUMMY_FOR_PORTING_H_ */

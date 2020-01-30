@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,111 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_BtM_DeleteInternalEntriesWithoutMoreUpdate.c
+ *
+ * Description:
+ *  Undo deleting a sequence of internal entries
+ *
+ * Exports:
+ *  Four Undo_BtM_DeleteInternalEntriesWithoutMoreUpdate(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "LOG.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_BtM_DeleteInternalEntriesWithoutMoreUpdate(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing a small object */
+{
+    Four e;			/* error code */
+    BtreeInternal *aPage;		/* pointer to a slotted buffer page */
+    Four alignedKlen;		/* aligen length of the key length */
+    btm_InternalEntry *entry;       /* the updated internal entry */
+    Four sum;                   /* sum of the space size for the deleted entries */
+    Four entryLen;              /* entry length */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_BtM_SpecifyEntries_T *entriesInfo;
+    char buf[PAGESIZE];         /* for storing the deleted entries in the contiguous space */
+    Four i;
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_BtM_DeleteInternalEntriesWithoutMoreUpdate(aPage_BCBP=%P, logRecInfo=%P)", aPage_BCBP, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage_BCBP == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	get images
+     */
+    aPage = (BtreeInternal*)aPage_BCBP->bufPagePtr;
+    entriesInfo = (LOG_Image_BtM_SpecifyEntries_T*)logRecInfo->imageData[0];
+
+    /* reserve slot space */
+    BTM_INSERT_SLOTS_IN_BTREE_PAGE(aPage, entriesInfo->startSlotNo, entriesInfo->nEntries);
+    aPage->hdr.nSlots += entriesInfo->nEntries;
+
+    /* copy the slot contents */
+    BTM_WRITE_SLOTS_IN_BTREE_PAGE(aPage, entriesInfo->startSlotNo, entriesInfo->nEntries, logRecInfo->imageData[1]);
+
+    /* calculate the space size used for the deleted entries */
+    sum = 0;
+    for (i = entriesInfo->startSlotNo; i < entriesInfo->startSlotNo+entriesInfo->nEntries; i++) {
+        entry = (btm_InternalEntry*)&aPage->data[aPage->slot[-i]];
+        entryLen = BTM_INTERNAL_ENTRY_LENGTH(entry->klen);
+
+        /* copy the entry */
+        memcpy(&buf[sum], entry, entryLen);
+        sum += entryLen;
+    }
+
+    /* allocate again the space used by the deleted entries */
+    /* You should sure that you increased 'unused' instead of decreasing 'free'
+     * when deleting the entries.
+     */
+    aPage->hdr.unused -= sum;
+
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_BTM_INSERT_INTERNAL_ENTRIES, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          sum, buf);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->hdr.lsn = lsn;
+    aPage->hdr.logRecLen = logRecLen;
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+    return(eNOERROR);
+
+} /* Undo_BtM_DeleteInternalEntriesWithoutMoreUpdate( ) */

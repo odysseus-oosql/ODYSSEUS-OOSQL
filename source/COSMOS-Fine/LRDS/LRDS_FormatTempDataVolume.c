@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,77 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_FormatTempDataVolume.c
+ *
+ * Description:
+ *  Format a file or a raw device so that it can be used as the volume of our
+ *  storage system. This format is for LRDS Manager level.
+ *
+ * Exports:
+ *  Four LRDS_FormatTempDataVolume(char*, char*, Four, Four, Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <stdio.h>
+#include <limits.h>
+#include <stdlib.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*@================================
+ * LRDS_FormatTempDataVolume()
+ *================================*/
+/*
+ * Function: Four LRDS_FormatTempDataVolume(char*, char*, Four, Four, Four, Four)
+ *
+ * Description:
+ *  Format a file or a raw device so that it can be used as the volume of our
+ *  storage system. This format is for LRDS Manager level.
+ *
+ * Returns:
+ *  exit status
+ */
+Four LRDS_FormatTempDataVolume(
+    Four handle,                /* IN handle */
+    Four numDevices,            /* IN number of devices in formated volume */
+    char **devNames,            /* IN array of device name */
+    char *title,                /* IN volume title */
+    Four volId,                 /* IN volume number */
+    Four extSize,               /* IN number of pages in an extent */
+    Four *numPagesInDevice,     /* IN array of extents' number */
+    Four segmentSize)           /* IN # of pages in an segment */
+{
+    Four e;			/* error number */
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_FormatTempDataVolume(numDevices=%lD, devNames=%P, title=%P, volId=%ld, extSize=%ld, numPagesInDevice=%P, segmentSize=%ld)", numDevices, devNames, title, volId, extSize, numPagesInDevice, segmentSize));
+
+
+    /* parameter check */
+    if (volId < 0 || volId > MAX_VOLUME_NUMBER) ERR(handle, eBADPARAMETER);
+    if (extSize < 1) ERR(handle, eBADPARAMETER);
+    if (segmentSize < extSize) ERR(handle, eBADPARAMETER);
+
+    /* format the volume for the sublayer */
+    e = SM_FormatTempDataVolume(handle, numDevices, devNames, title, volId, extSize, numPagesInDevice, segmentSize);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* format the volume for the lrds layer */
+    e = lrds_FormatDataVolume(handle, numDevices, devNames, title, volId, extSize, numPagesInDevice, segmentSize);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LRDS_FormatTempDataVolume() */

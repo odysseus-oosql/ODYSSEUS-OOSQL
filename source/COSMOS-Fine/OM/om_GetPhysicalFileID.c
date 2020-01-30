@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,148 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : om_GetPhysicalFileID.c
+ *
+ * Description :
+ *  Get physical file ID of given file
+ *
+ * Exports :
+ *  Four om_GetPhysicalFileID(Four, XactTableEntry_T*, DataFileInfo*, PhysicalFileID*, LockParameter*, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"              /* for tracing : TR_PRINT(handle, ) macro */
+#include "latch.h"
+#include "LOG.h"
+#include "BfM.h"                /* for the buffer manager call */
+#include "OM.h"
+#include "LM.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/* ========================================
+ *  om_GetPhysicalFileID( )
+ * =======================================*/
+
+/*
+ * Function om_GetPhysicalFileID(XactTableEntry_T*, DataFileInfo*, PhysicalFileID*, LockParameter*, LogParameter_T*)
+ *
+ * Description :
+ *  Sort a data file.
+ *
+ * Return Values :
+ *  Error Code.
+ *
+ * Side Effects :
+ *  None
+ */
+Four om_GetPhysicalFileID(
+    Four 	       handle,
+    XactTableEntry_T*  xactEntry,       /* IN  transaction table entry */
+    DataFileInfo*      finfo,           /* IN  information of file */
+    PhysicalFileID*    pFid,            /* OUT physical file ID */
+    LockParameter*     lockup)          /* IN  request lock or not  */
+{
+    Four               e;               /* error code */
+    Boolean            checkFlag;       /* TRUE when we should do the check */
+    LockReply          lockReply;       /* lock reply */
+    LockMode           oldMode;
+    PhysicalFileID     tmp_pFid;
+    Buffer_ACC_CB*     catPage_BCBP;    /* buffer access control block holding catalog data */
+    SlottedPage*       catPage;         /* pointer to buffer containing the catalog */
+    sm_CatOverlayForData* catEntry;     /* pointer to data file catalog information */
+
+
+    /* get physical file ID */
+    if (finfo->tmpFileFlag) {
+        /* temporary file */
+        MAKE_PHYSICALFILEID(*pFid, finfo->fid.volNo, finfo->catalog.entry->data.firstPage);
+    } else {
+
+        /* ordinary file; get the first page from the catalog table */
+#ifdef CCPL
+        for (checkFlag = FALSE; ; checkFlag = TRUE) {
+
+            /* Request X lock on the page where the catalog entry resides. */
+            if (lockup != NULL) {
+                e = LM_getFlatPageLock(handle, &xactEntry->xactId, (PageID*)&finfo->catalog.oid,
+                                       L_S, L_MANUAL, L_UNCONDITIONAL, &lockReply, &oldMode);
+                if (e < eNOERROR) ERR(handle, e);
+
+                if (lockReply == LR_DEADLOCK) {
+                    ERR(handle, eDEADLOCK); /* deadlock */
+                }
+            }
+
+            /* get the first page in catalog */
+            e = BfM_getAndFixBuffer(handle, (TrainID*)&finfo->catalog.oid, M_FREE, &catPage_BCBP, PAGE_BUF);
+            if (e < eNOERROR) ERR(handle, e);
+
+            catPage = (SlottedPage *)catPage_BCBP->bufPagePtr;
+            GET_PTR_TO_CATENTRY_FOR_DATA(finfo->catalog.oid.slotNo, catPage, catEntry);
+
+            /* get the physical file ID */
+            MAKE_PHYSICALFILEID(*pFid, finfo->fid.volNo, catEntry->firstPage);
+
+            e = BfM_unfixBuffer(handle, catPage_BCBP, PAGE_BUF);
+            if(e < eNOERROR) ERR(handle, e);
+
+            /* Release the lock on the catalog page. */
+            if (lockup != NULL) {
+                e = LM_releaseFlatPageLock(handle, &xactEntry->xactId, (PageID*)&finfo->catalog.oid, L_MANUAL);
+                if (e < eNOERROR) ERR(handle, e);
+            }
+
+            if (checkFlag) {
+                /* Be sure we get the correct first page. */
+                /* The confirmation is required because we released the latch. */
+                if(EQUAL_PHYSICALFILEID(*pFid, tmp_pFid)) break;
+
+                if(lockup){
+                    e = LM_releasePageLock(handle, &xactEntry->xactId, &tmp_pFid, L_MANUAL);
+                    if (e < eNOERROR) ERR(handle, e);
+                }
+            }
+
+            tmp_pFid = *pFid;
+
+            if(lockup){
+                e = LM_getPageLock(handle, &xactEntry->xactId, &tmp_pFid, &finfo->fid,
+                                   L_S, L_MANUAL, L_UNCONDITIONAL, &lockReply, &oldMode);
+                if (e < eNOERROR) ERR(handle, e);
+
+                if(lockReply == LR_DEADLOCK){
+                    ERR(handle, eDEADLOCK); /* deadlock */
+                }
+            }
+        } /* end of for loop */
+#endif /* CCPL */
+
+#ifdef CCRL
+        /* get the last page in catalog */
+        e = BfM_getAndFixBuffer(handle, (TrainID*)&finfo->catalog.oid, M_SHARED, &catPage_BCBP, PAGE_BUF);
+        if (e < eNOERROR) ERR(handle, e);
+
+        catPage = (SlottedPage *)catPage_BCBP->bufPagePtr;
+        GET_PTR_TO_CATENTRY_FOR_DATA(finfo->catalog.oid.slotNo, catPage, catEntry);
+
+        /* get the physical file ID */
+        MAKE_PHYSICALFILEID(*pFid, finfo->fid.volNo, catEntry->firstPage);
+
+        e = SHM_releaseLatch(handle, catPage_BCBP->latchPtr, procIndex);
+        if (e < eNOERROR) ERRB1(handle, e, catPage_BCBP, PAGE_BUF);
+
+        e = BfM_unfixBuffer(handle, catPage_BCBP, PAGE_BUF);
+        if(e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+        /* Now, we got the physical file ID */
+    }
+
+
+    return(eNOERROR);
+}

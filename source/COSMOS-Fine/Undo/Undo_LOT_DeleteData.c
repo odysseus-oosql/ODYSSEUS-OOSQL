@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,96 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_LOT_DeleteData.c
+ *
+ * Description:
+ *  Undo deletign data from a leaf node.
+ *
+ * Exports:
+ *  Four Undo_LOT_DeleteData(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_LOT_DeleteData(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing a small object */
+{
+    Four e;			/* error code */
+    L_O_T_LNode	*anode;		/* pointer to a leaf node */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Lsn_T lastLsn;		/* last lsn of the current transaction */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_LOT_ModifyLeafData_T *modifyLeafDataInfo;
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_LOT_DeleteData()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    anode = (L_O_T_LNode*)aPage_BCBP->bufPagePtr;
+    modifyLeafDataInfo = (LOG_Image_LOT_ModifyLeafData_T*)logRecInfo->imageData[0];
+
+
+    /*
+     * undo deleting data
+     */
+    /* reserve space */
+    memmove(&anode->data[modifyLeafDataInfo->start + modifyLeafDataInfo->length],
+            &anode->data[modifyLeafDataInfo->start],
+            modifyLeafDataInfo->oldTotalLength - modifyLeafDataInfo->start - modifyLeafDataInfo->length); 
+
+    /* copy old data */
+    memcpy(&anode->data[modifyLeafDataInfo->start],
+           logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+
+
+    /*
+     *  make the compensation log record
+     */
+    modifyLeafDataInfo->oldTotalLength -= modifyLeafDataInfo->length; 
+
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_LOT_INSERT_DATA, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          sizeof(LOG_Image_LOT_ModifyLeafData_T), modifyLeafDataInfo,
+                          logRecInfo->imageSize[1], logRecInfo->imageData[1]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    anode->header.lsn = lsn;
+    anode->header.logRecLen = logRecLen;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_LOT_DeleteData( ) */

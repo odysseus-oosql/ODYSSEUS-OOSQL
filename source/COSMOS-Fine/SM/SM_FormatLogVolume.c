@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,94 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_FormatLogVolume.c
+ *
+ * Description:
+ *  format a log volume.
+ *
+ * Exports:
+ *  Four SM_FormatLogVolume(Four, Four, char**, char*, Four, Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <limits.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "RDsM.h"
+#include "LOG.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four SM_FormatLogVolume(
+    Four   handle,
+    Four   numDevices,              /* IN number of devices in formated volume */
+    char   **devNames,              /* IN array of device name */
+    char   *title,                  /* IN volume title */
+    Four   volId,                   /* IN volume number */
+    Four   extSize,                 /* IN number of pages in an extent */
+    Four   *numPagesInDevice)       /* IN array of extents' number */
+{
+    Four   e;                       /* error code */
+    Four   dummyVolId;              /* volume identifier */
+    double deviceSize;              /* device size in bytes */
+    Four   i;
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_FormatLogVolume(numDevices=%lD, devNames=%P, title=%P, volId=%ld, extSize=%ld, numPagesInDevices=%P)",
+                          numDevices, devNames, title, volId, extSize, numPagesInDevice));
+
+
+    /*
+     * Check parameters
+     */
+    if (devNames == NULL || title == NULL || volId < 0 || extSize < 0) ERR(handle, eBADPARAMETER);
+
+
+    for (i = 0; i < numDevices; i++) {
+        deviceSize = (double)numPagesInDevice[i] * PAGESIZE;
+        if (deviceSize > MAX_RAW_DEVICE_OFFSET) ERR(handle, eBADPARAMETER);
+    }
+
+
+    /*
+     * Format as a raw volume.
+     *
+     * last parameter means where this volume is temporary or not.
+     */
+    e = RDsM_Format(handle, numDevices, devNames, title, volId, extSize, numPagesInDevice, VOLUME_TYPE_RAW, 0); 
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * Mount the newly formatted volume.
+     */
+    e = RDsM_Mount(handle, numDevices, devNames, &dummyVolId, FALSE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    assert(volId == dummyVolId);
+
+
+    /*
+     * Initialize the log volume.
+     */
+    e = LOG_InitLogVolume(handle, volId);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * Dismount the volume.
+     */
+    e = RDsM_Dismount(handle, volId, FALSE);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* SM_FormatLogVolume() */
+
+

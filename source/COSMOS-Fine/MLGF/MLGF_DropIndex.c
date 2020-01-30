@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,80 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: MLGF_DropIndex.c
+ *
+ * Description:
+ *  Drop the given MLGF index.
+ *
+ * Exports:
+ *  Four MLGF_DropIndex(Four, IndexID*, MLGF_KeyDesc*, LocalPool*, DeallocListElem*)
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "RDsM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Funciton: Four MLGF_DropIndex(Four, PageID*, MLGF_KeyDesc*, Boolean)
+ *
+ * Description:
+ *  Drop the given MLGF index. It uses the auxiary fucntion mlgf_FreePages().
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ */
+Four MLGF_DropIndex(
+    Four                        handle,                 /* IN handle */
+    XactTableEntry_T 		*xactEntry, 		/* IN transaction table entry */
+    IndexID			*iid, 			/* IN logical index id */
+    PhysicalIndexID             *pIid,           	/* IN MLGF index ID */
+    SegmentID_T			*pageSegmentID,		/* IN page segment ID concerned with the mlfg */
+    Boolean 			immediateFlag,      	/* IN TRUE if drop immediately */
+    LogParameter_T 		*logParam) 		/* IN log parameter */
+{
+    Four e;			/* error code */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("MLGF_DropIndex(xactEntry=%P, pIid=%P, pageSegmentID=%P, immediateFlag=%lD, logParam=%P",
+	     xactEntry, pIid, pageSegmentID, immediateFlag, logParam));
+
+
+    /* check parameters */
+    if (pIid == NULL) ERR(handle, eBADPARAMETER); 
+
+    e = mlgf_IdMapping_DeleteEntry(handle, iid);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if (immediateFlag == TRUE) {
+        /* Drop the page segment concerned with the mlgf */
+        e = RDsM_DropSegment(handle, xactEntry, pIid->volNo, pageSegmentID, pageSegmentID->sizeOfTrain, immediateFlag, logParam);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+    else {
+	/* Add the segment identification to dealloc list */
+	e = TM_XT_AddToDeallocList(handle, xactEntry, pIid, pageSegmentID, NULL, DL_MLGFINDEX);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* MLGF_DropIndex() */

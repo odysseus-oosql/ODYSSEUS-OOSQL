@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,100 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: TM_EnterTwoPhaseCommit.c
+ *
+ * Description:
+ *  Indicate to the storage manager that this transaction is a member
+ *  of a global transaction.
+ *
+ * Exports:
+ *  Four TM_EnterTwoPhaseCommit(XactID*, GlobalXactID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "SHM.h"  
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four TM_EnterTwoPhaseCommit(XactID*, GlobalXactID*)
+ *
+ * Description:
+ *  Indicate to the storage manager that this transaction is a member
+ *  of a global transaction.
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ */
+Four TM_EnterTwoPhaseCommit(
+    Four   		handle,
+    XactID 		*xactId,             	/* IN transaction to enter 2pc */
+    GlobalXactID 	*globalXactId) 		/* IN global transaction id */
+{
+    Four 		e;			/* error code */
+    XactTableEntry_T 	*xactEntry;
+    Boolean 		flag; 
+
+
+    TR_PRINT(handle, TR_TM, TR1, ("TM_EnterTwoPhaseCommit(xactId=%P, globalXactId=%P)", xactId, globalXactId));
+
+
+    /* check parameters */
+    if (MY_XACT_TABLE_ENTRY(handle) == NULL || !EQUAL_XACTID(*xactId, MY_XACTID(handle))) ERR(handle, eWRONGXACTID_TM);
+
+    xactEntry = MY_XACT_TABLE_ENTRY(handle);
+
+    assert(xactEntry->status == X_NORMAL);
+
+
+    /* acquire the latch for the transaction table */
+    e = SHM_getLatch(handle, &(TM_XACTTBL.latch), procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*@
+     * Check if the transaction had entered 2pc.
+     */
+    if (xactEntry->globalXactId != NULL) ERR(handle, e2PCTRANSACTION_TM);
+
+    /*
+     * Check if the global transaction id is duplicated.
+     */
+
+    e = TM_IsDuplicatedGXID(handle, globalXactId, &flag);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if (flag == TRUE) {
+
+        /* release latch */
+        e = SHM_releaseLatch(handle, &(TM_XACTTBL.latch), procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+        return (eDUPLICATEDGTID_TM);
+    }
+
+    /*
+     * Set the global transaction id.
+     */
+    e = Util_getElementFromPool(handle, &TM_GLOBALXACTIDPOOL, &xactEntry->globalXactId);
+    if (e < eNOERROR) ERR(handle, e);
+
+    memcpy(xactEntry->globalXactId, globalXactId, sizeof(GlobalXactID));
+
+    /* release latch */
+    e = SHM_releaseLatch(handle, &(TM_XACTTBL.latch), procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* TM_EnterTwoPhaseCommit() */

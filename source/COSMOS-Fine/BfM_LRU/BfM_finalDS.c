@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,141 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BfM_finalDS.c
+ *
+ * Description :
+ *  Finalize the buffer manager. The finalization is divided into two.
+ *
+ * Exports:
+ *  Four BfM_finalSharedDS( )
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * BfM_finalSharedDS( )
+ *================================*/
+/*
+ * Function: Four BfM_finalSharedDS(Four)
+ *
+ * Description :
+ *  Finalize the buffer manager. The finalization is divided into two.
+ *  1) For each buffer pool, flush all dirty pages in the buffer pool.
+ *  2) For each buffer pool, finalize the BufferInfo structure.
+ *
+ * Returns:
+ *  error Code
+ *
+ * Side effects:
+ *  1) Dirty buffers are flushed.
+ *  2) Memory is freed.
+ */
+Four BfM_finalSharedDS(
+    Four    handle
+)
+{
+    Four e;			/* error */
+    BufTBLEntry *anEntry;	/* a Buffer Table Entry */
+    Four type;			/* buffer type */
+    Four i;			/* loop index */
+
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_finalSharedDS()"));
+
+
+    /* For each buffer pool */
+    for (type = 0; type < NUM_BUF_TYPES; type++) {
+
+	/*@ flush the dirty buffer */
+	/* Flush the dirty buffer in the current buffer pool. */
+	for( anEntry = PHYSICAL_PTR(BI_BUFTABLE(type)), i = 0;
+	      i < BI_NBUFS(type); anEntry++, i++ )  {
+
+	    if( anEntry->dirtyFlag ) { /* This buffer is the dirty one. */
+		e = bfm_flushBuffer(handle,  anEntry, type );
+		if (e < eNOERROR) ERR(handle,  e );
+	    }
+	}
+
+	/* finalize the data structure 'BufferInfo' */
+	e = bfm_finalBufferInfo(handle, type);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return( eNOERROR );
+
+}  /* BfM_finalSharedDS */
+
+
+
+/*@================================
+ * bfm_finalLocalDS()
+ *================================*/
+/*
+ * Function: Four bfm_finalLocalDS(void)
+ *
+ * Description:
+ *  Finalize the local(not shared) data structure.
+ *
+ * Returns:
+ *  error code
+ */
+Four BfM_finalLocalDS(
+    Four    handle
+)
+{
+    Four e;
+
+    /* pointer for BfM Data Structure of perThreadTable */
+    BfM_PerThreadDS_T *bfm_perThreadDSptr = BfM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_finalLocalDS()"));
+
+    e = Util_finalLocalPool(handle, &(bfm_perThreadDSptr->BACB_pool));
+    if ( e < eNOERROR ) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* bfm_finalLocalDS() */
+
+
+
+/*@================================
+ * bfm_finalBufferInfo( )
+ *================================*/
+/*
+ * Function: void bfm_finalBufferInfo(handle, Four)
+ *
+ * Description:
+ *  Finalize the BufferInfo data structure.
+ *
+ * Returns:
+ *  error code
+ */
+Four bfm_finalBufferInfo(
+    Four handle,
+    Four type)			/* IN buffer type */
+{
+
+    /* free all the allocated memory */
+
+    ERROR_PASS(handle, SHM_free(handle, (char *)PHYSICAL_PTR(BI_BUFTABLE(type)), procIndex));
+    ERROR_PASS(handle, SHM_free(handle, (char *)PHYSICAL_PTR(BI_BUFFERPOOL(type)), procIndex));
+    ERROR_PASS(handle, SHM_free(handle, (char *)PHYSICAL_PTR(BI_HASHTABLE(type)), procIndex));
+    ERROR_PASS(handle, SHM_free(handle, (char *)PHYSICAL_PTR(BI_LOCKHASHTABLE(type)), procIndex));
+
+
+    return(eNOERROR);
+
+} /* bfm_finalBufferInfo() */
+

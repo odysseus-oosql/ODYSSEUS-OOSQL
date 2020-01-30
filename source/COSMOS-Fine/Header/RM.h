@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,37 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __RM_H__
+#define __RM_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "xactTable.h"
+#include "dirtyPageTable.h"
+
+
+
+/*
+ * Function Prototypes
+ */
+/*
+ * External Function Prototypes
+ */
+Four RM_InitLocalDS(Four);
+Four RM_InitSharedDS(Four);
+Four RM_FinalLocalDS(Four);
+Four RM_FinalSharedDS(Four);
+Four RM_Restart(Four, char*);
+Four RM_Rollback(Four, XactTableEntry_T*, Lsn_T*);
+Four RM_Checkpoint(Four);
+Four RM_SetSavepoint(Four, XactTableEntry_T*, Lsn_T*);
+Four RM_RollbackSavepoint(Four, XactTableEntry_T*, Lsn_T*);
+Four rm_Analysis(Four, DirtyPageTable_T*, Lsn_T*);
+Four rm_Redo(Four, Lsn_T*, DirtyPageTable_T*);
+Four RM_DPT_InitTable(Four, DirtyPageTable_T*, Four, Four);
+Boolean RM_DPT_GetEntry(Four, DirtyPageTable_T*, PageID*, Four, Lsn_T*);
+Four RM_DPT_InsertEntry(Four, DirtyPageTable_T*, PageID*, Four, Lsn_T*);
+Four RM_DPT_DeleteEntries(Four, DirtyPageTable_T*, Four);
+Four RM_DPT_GetMinRecLsn(Four, DirtyPageTable_T*, Lsn_T*);
+Four RM_DPT_FinalTable(Four, DirtyPageTable_T*);
+Four rm_Undo(Four);
+#endif /* __RM_H__ */

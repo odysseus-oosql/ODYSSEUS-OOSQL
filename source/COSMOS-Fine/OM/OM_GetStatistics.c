@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,86 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: OM_GetStatistics.c
+ *
+ * Description:
+ *  Get Statistics Information
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "OM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+Four OM_GetStatistics_DataFilePageInfo(
+    Four 	      handle,
+    XactTableEntry_T* xactEntry,           /* IN transaction table entry */
+    DataFileInfo*     finfo,               /* IN file information */
+    PageID*           startPid,            /* IN  */
+    Four*             numPinfoArray,       /* INOUT */
+    sm_PageInfo*      pinfoArray,          /* OUT */
+    LockParameter*    lockup)              /* IN  */
+{
+    Four            e;
+    Four            i;
+    PageID          curPid;
+    PageNo          nextPno;
+    Buffer_ACC_CB*  aPage_BCBP;            /* buffer access control block for a data page */
+    SlottedPage*    aPage;
+    SlottedPage*    catPage;               /* pointer to buffer containing the catalog */
+    sm_CatOverlayForData* catEntry;        /* pointer to data file catalog information */
+    PhysicalFileID  pFid;                  /* physical file ID */
+
+    TR_PRINT(handle, TR_OM, TR1,
+             ("OM_GetStatistics_DataFilePageInfo(handle, xactEntry=%P, finfo=%P, startPid=%P, numPinfoArray=%P, pinfoArray=%P, lockup=%P)",
+              xactEntry, finfo, startPid, numPinfoArray, pinfoArray, lockup));
+
+
+    /* get physical file ID */
+    e = om_GetPhysicalFileID(handle, xactEntry, finfo, &pFid, lockup);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* initialize 'curPid' */
+    if(startPid == NULL) curPid = pFid;
+    else                 curPid = *startPid;
+
+    /* for each page, get page infomation */
+    for(i = 0; i < *numPinfoArray && curPid.pageNo != NIL; i++) {
+
+        /* fix current page */
+        e = BfM_getAndFixBuffer(handle, &curPid, M_FREE, &aPage_BCBP, PAGE_BUF);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* get page pointer */
+        aPage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+        /* error check */
+        if(!EQUAL_FILEID(aPage->header.fid, finfo->fid)) return(eBADFILEID); 
+
+        /* set pinfoArray */
+        pinfoArray[i].type = aPage->header.pageFlags & PAGE_TYPE_VECTOR_MASK;
+        pinfoArray[i].nSlots = aPage->header.nSlots;
+        pinfoArray[i].free = aPage->header.free;
+        pinfoArray[i].unused = aPage->header.unused;
+
+        /* get 'nextPno' */
+        nextPno = aPage->header.nextPage;
+
+        /* unfix current page */
+        e = BfM_unfixBuffer(handle, aPage_BCBP, PAGE_BUF);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* update 'curPid' */
+        curPid.pageNo = nextPno;
+    }
+
+    /* update 'numPinfoArray' if needed */
+    if(i < *numPinfoArray) *numPinfoArray = i;
+
+    return eNOERROR;
+}

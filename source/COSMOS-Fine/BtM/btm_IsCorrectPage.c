@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,145 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_IsCorrectPage.c
+ *
+ * Description:
+ *  Check if the given page is the correct btree page. The given page is the
+ *  relatched page after releasing its latch for avoiding deadlocks.
+ *
+ * Exports:
+ *  Boolean_btm_IsCorrectInternal(handle, BtreeInternal*, KeyDesc*, KeyValue*, IndexID*, LSN*)
+ *  Boolean_btm_IsCorrectLeaf(handle, BtreeLeaf*, KeyDesc*, KeyValue*, IndexID*, LSN*)
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+/*
+ * Function: Boolean btm_IsCorrectInternal(Four, BtreeInternal*, KeyDesc*, KeyValue*,
+ *                                         IndexID*, LSN*)
+ *
+ * Description:
+ *  Check if the given page is the correct internal page.
+ *  The given page was a Btree internal page releasing its latch and
+ *  now it is relatched.
+ *
+ * Returns:
+ *  TRUE: if the page is a correct internal page.
+ *  FALSE: otherwise
+ */
+Boolean btm_IsCorrectInternal(
+    Four handle,
+    BtreeInternal *apage,	/* IN candidate internal page */
+    KeyDesc *kdesc,		/* IN key descriptor */
+    KeyValue *kval,		/* IN key value */
+    IndexID *iid,		/* IN old IndexID value */
+    Lsn_T *oldLsn)		/* IN old LSN value */
+{
+    Four cmp1;			/* result of key comparison */
+    Four cmp2;			/* result of key comparison */
+    btm_InternalEntry *entry;	/* a leaf entry of Btree */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("btm_IsCorrectInternal(handle, apage=%P, kdesc=%P, kval=%P, iid=%P, oldLsn=%P)",
+	      apage, kdesc, kval, iid, oldLsn));
+
+
+    /* if LSN is unchanged then this page is correct */
+    if (oldLsn != NULL && LSN_CMP_EQ(apage->hdr.lsn, *oldLsn)) return(TRUE);
+
+    /* Check if this page remains a leaf page of the given index. */
+    if (apage->hdr.iid.serial != iid->serial || !(apage->hdr.type & INTERNAL)) return(FALSE);
+
+    /* If kdesc is NULL,
+     * There is no way to prove the correctness of this internal page
+     */
+    if (kdesc == NULL) return(FALSE);
+
+
+    /* comparison is possible when # of slot is greater than 0 */
+    if (apage->hdr.nSlots == 0) return(FALSE);
+
+    /* Compare the inserted key with the first key on the leaf. */
+    entry = (btm_InternalEntry*)&apage->data[apage->slot[0]];
+    cmp1 = btm_KeyCompare(handle, kdesc, (KeyValue*)&entry->klen, kval);
+
+    /* Compare the inserted key with the last key on the leaf. */
+    entry = (btm_InternalEntry*)&apage->data[apage->slot[-(apage->hdr.nSlots-1)]];
+    cmp2 = btm_KeyCompare(handle, kdesc, (KeyValue*)&entry->klen, kval);
+
+    return( (cmp1 == GREAT || cmp2 == LESS) ? FALSE:TRUE );
+
+} /* btm_IsCorrectInternal() */
+
+
+
+/*
+ * Function: Boolean btm_IsCorrectLeaf(Four, BtreeLeaf*, KeyDesc*, KeyValue*,
+ *                                     IndexID*, LSN*)
+ *
+ * Description:
+ *  Check if the given page is the correct leaf page.
+ *  The given page was a btree leaf page releasing its latch and
+ *  now it is relatched.
+ *
+ * Returns:
+ *  TRUE: if the page is a correct leaf page.
+ *  FALSE: otherwise
+ */
+Boolean btm_IsCorrectLeaf(
+    Four handle,
+    BtreeLeaf *apage,		/* IN candidate leaf page */
+    KeyDesc *kdesc,		/* IN key descriptor */
+    KeyValue *kval,		/* IN key value */
+    IndexID *iid,		/* IN old IndexID value */
+    Lsn_T *oldLsn)		/* IN old LSN value */
+{
+    Four cmp1;			/* result of key comparison */
+    Four cmp2;			/* result of key comparison */
+    btm_LeafEntry *entry;	/* a leaf entry of Btree */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("btm_IsCorrectLeaf(handle, apage=%P, kdesc=%P, kval=%P, iid=%P, oldLsn=%P)",
+	      apage, kdesc, kval, iid, oldLsn));
+
+    /* if LSN is unchanged then this page is correct */
+    if (oldLsn != NULL && LSN_CMP_EQ(apage->hdr.lsn, *oldLsn)) return(TRUE); 
+
+    /* Check if this page remains a leaf page of the given index. */
+    if (apage->hdr.iid.serial != iid->serial || !(apage->hdr.type & LEAF)) return(FALSE);
+
+    /* If kdesc is NULL, then skip the key comparison part.
+    *  In this case the correctness will be proved by the calling function
+    */
+    if (kdesc == NULL) return(TRUE);
+
+    if (apage->hdr.nSlots == 0) return(FALSE);
+
+    /* Compare the inserted key with the first key on the leaf. */
+    entry = (btm_LeafEntry*)&apage->data[apage->slot[0]];
+    cmp1 = btm_KeyCompare(handle, kdesc, (KeyValue*)&entry->klen, kval);
+
+    /* Compare the inserted key with the last key on the leaf. */
+    entry = (btm_LeafEntry*)&apage->data[apage->slot[-(apage->hdr.nSlots-1)]];
+    cmp2 = btm_KeyCompare(handle, kdesc, (KeyValue*)&entry->klen, kval);
+
+    return( (cmp1 == GREAT || cmp2 == LESS) ? FALSE:TRUE );
+
+} /* btm_isCorrectLeaf() */
+
+
+
+
+
+

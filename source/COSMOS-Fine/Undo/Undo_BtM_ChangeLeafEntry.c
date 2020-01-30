@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,113 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_BtM_ChangeLeafEntry.c
+ *
+ * Description:
+ *  Undo changing leaf entry
+ *
+ * Exports:
+ *  Four Undo_BtM_ChangeLeafEntry(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_BtM_ChangeLeafEntry(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN log record information */
+{
+    Four e;			/* error code */
+    BtreeLeaf *aPage;           /* pointer to a leaf page */
+    btm_LeafEntry *entry;       /* pointer to an entry */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_BtM_ChangeLeafEntry_T *changeLeafEntryInfo;
+    Four alignedKlen;		/* aligned length of the key length */
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_BtM_ChangeLeafEntry()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	set a slotted page pointer pointing to the buffer
+     */
+    aPage = (BtreeLeaf *) aPage_BCBP->bufPagePtr;
+
+
+    /*
+     * get the images
+     */
+    changeLeafEntryInfo = (LOG_Image_BtM_ChangeLeafEntry_T*)logRecInfo->imageData[0];
+
+
+    /* points to the entry */
+    entry = (btm_LeafEntry*)&(aPage->data[aPage->slot[-changeLeafEntryInfo->slotNo]]);
+
+    alignedKlen = ALIGNED_LENGTH(entry->klen);
+
+    /*
+     *	undo changing leaf entry
+     */
+    /* Change the size of the entry */
+    btm_ChangeLeafEntrySize(handle, aPage, changeLeafEntryInfo->slotNo,
+                                BTM_LEAF_ENTRY_LENGTH(entry->klen, entry->nObjects) - changeLeafEntryInfo->deltaOfObjectArrayAreaSize);
+
+    /* In btm_ChangeLeafEntrySize( ), obj may be moved to someplace. */
+    entry = (btm_LeafEntry*)&(aPage->data[aPage->slot[-changeLeafEntryInfo->slotNo]]);
+
+    entry->nObjects -= changeLeafEntryInfo->deltaInNumOfObjects;
+
+    memcpy(&entry->kval[alignedKlen], logRecInfo->imageData[2], logRecInfo->imageSize[2]);
+
+
+    /*
+     *  make the compensation log record
+     */
+    changeLeafEntryInfo->deltaOfObjectArrayAreaSize *= -1;
+    changeLeafEntryInfo->deltaInNumOfObjects *= -1;
+
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_OM_CHANGE_OBJECT, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          logRecInfo->imageSize[2], logRecInfo->imageData[2]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->hdr.lsn = lsn;
+    aPage->hdr.logRecLen = logRecLen;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_BtM_ChangeLeafEntry( ) */

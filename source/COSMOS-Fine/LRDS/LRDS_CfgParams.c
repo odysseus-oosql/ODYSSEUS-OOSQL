@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,64 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_CfgParams.c
+ *
+ * Description:
+ *  Manages the configuration parameters.
+ *
+ * Exports:
+ *  Four LRDS_SetCfgParam(char*, char*)
+ *  char* LRDS_GetCfgParam(char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@
+ * Global Variable
+ */
+
+
+
+/*@================================
+ * LRDS_SetCfgParam()
+ *================================*/
+Four LRDS_SetCfgParam(
+    Four handle,
+    char *name,                 /* IN configuration parameter name */
+    char *value)                /* IN configuration parameter value */
+{
+    Four e;                     /* error code */
+
+    TR_PRINT(handle, TR_SM, TR1, ("LRDS_SetCfgParam(name=%P, value=%P)", name, value));
+
+    e = SM_SetCfgParam(handle, name, value);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LRDS_SetCfgParam() */
+
+/*@================================
+ * LRDS_GetCfgParam()
+ *================================*/
+char* LRDS_GetCfgParam(
+    Four	handle,
+    char        *name)                 /* IN configuration parameter name */
+{
+    Four e;                     /* error code */
+
+    TR_PRINT(handle, TR_SM, TR1, ("LRDS_GetCfgParam(name=%P)", name));
+
+    return SM_GetCfgParam(handle, name);
+
+} /* LRDS_GetCfgParam() */

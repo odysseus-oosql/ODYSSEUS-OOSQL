@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,124 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_MLGF_InsertIndexEntry.c
+ *
+ * Description:
+ *  Insert the given ObjectID 'oid' into the given MLGF index. The MLGF index is
+ *  specified by its IndexID 'index' and its key descriptor 'kdesc'.
+ *
+ * Exports:
+ *  Four SM_MLGF_InsertIndexEntry(Four, IndexID*, MLGF_KeyDesc*, MLGF_HashValue*,
+ *                                ObjectID*, void*, LockParameter*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"	
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "MLGF.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_MLGF_InsertIndexEntry( )
+ *================================*/
+/*
+ * Function: Four SM_MLGF_InsertIndexEntry(Four, IndexID*, MLGF_KeyDesc*, MLGF_HashValue*,
+ *                                ObjectID*, void*, LockParameter*)
+ *
+ * Description:
+ *  Insert the given ObjectID 'oid' into the given MLGF index. The MLGF index is
+ *  specified by its IndexID 'index' and its key descriptor 'kdesc'.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eNOTMOUNTEDVOLUME_SM
+ *    some errors caused by function calls
+ */
+Four SM_MLGF_InsertIndexEntry(
+    Four handle,
+    IndexID  *iid,		/* IN MLGF index where the given ObjectID is inserted */
+    MLGF_KeyDesc  *kdesc,	/* IN key descriptor of the given MLGF index */
+    MLGF_HashValue *kval,	/* IN hash values of the inseted ObjectID */
+    ObjectID *oid,		/* IN ObjectID to insert */
+    void *data,			/* IN additional data to store */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four e;			/* error number */
+    Four v;			/* index for the used volume on the mount table */
+    ObjectID catObjForFile;	/* catalog object of B+ tree file */
+    LockParameter *realLockup;
+    LogParameter_T logParam;
+    PhysicalIndexID pIid;	/* physical index ID */
+    MLGFIndexInfo mlgf_iinfo;   /* MLGF index info */
+    FileID fid;                 /* file id concerned with MLGF index */
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_MLGF_InsertIndexEntry(handle, iid=%P, kdesc=%P, kval=%P, oid=%P, data=%P, lockup=%P)",
+	      iid, kdesc, kval, oid, data, lockup));
+
+    /*@ check parameters */
+    if (iid == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kdesc == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kval == NULL) ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == iid->volNo) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+    /* check the lockup parameter */
+    realLockup = NULL;
+    if(lockup){
+	if (lockup->mode != L_X) ERR(handle, eEXCLUSIVELOCKREQUIRED_SM);
+	if(lockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+
+	realLockup = lockup;
+    }
+
+
+    /* Get the catalog object for the given MLGF index. */
+    e = sm_GetCatalogEntryFromIndexId(handle, v, iid, &catObjForFile, &pIid); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, ((catObjForFile.pageNo == NIL) ? TRUE:FALSE));
+
+    /*@ Insert the given ObjectID into the MLGF index. */
+    e = sm_mlgf_GetIndexInfoFromIndexId(handle, v, iid, &mlgf_iinfo, &fid); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = MLGF_InsertObject(handle, MY_XACT_TABLE_ENTRY(handle), &mlgf_iinfo, kdesc, kval, oid, data, realLockup, &logParam); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* SM_MLGF_InsertIndexEntry( ) */

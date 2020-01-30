@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,121 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_Savepoint.c
+ *
+ * Description:
+ *  Close the given scan. The scan cannot be used any more.
+ *
+ * Exports:
+ *  Four SM_SetSavepoint(Four, SavepointID *)
+ *  Four SM_RollbackSavepoint(Four, SavepointID)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RM.h"
+#include "SM.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_SetSavepoint( )
+ *================================*/
+/*
+ * Function: Four SM_SetSavepoint(Four, SavepointID *)
+ *
+ * Description:
+ *  Set Savepoint
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ */
+Four SM_SetSavepoint(
+    Four handle,
+    SavepointID* spID)		/* OUT scan to close */
+{
+    Four         e;		/* error code */
+    Four         i;		/* index variable */
+
+    /* pointer for SM Data Structure of perThreadTable */
+    SM_PerThreadDS_T *sm_perThreadDSptr = SM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_SetSavepoint(SavepointID=%P)", spID));
+
+
+    /* check any scan is opened */
+    for (i = 0; i < sm_perThreadDSptr->smScanTable.nEntries; i++)
+        if (SM_SCANTABLE(handle)[i].scanType != NIL) ERR(handle, eSCANOPENATSAVEPOINT);
+
+    /* check any temporary file exists */
+    /* Note!! temporary index cannot exist alone */
+    for (i = 0; i < SM_NUM_OF_ENTRIES_OF_ST_FOR_TMP_FILES(handle); i++ )
+        if (!SM_IS_UNUSED_ENTRY_OF_ST_FOR_TMP_FILES(SM_ST_FOR_TMP_FILES(handle)[i])) ERR(handle, eTMPFILEEXISTATSAVEPOINT_SM);
+
+    /* get spID */
+    e = RM_SetSavepoint(handle, MY_XACT_TABLE_ENTRY(handle), (Lsn_T *) spID);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* SM_SetSavepoint() */
+
+
+
+/*@================================
+ * SM_RollbackSavepoint( )
+ *================================*/
+/*
+ * Function: Four SM_RollbackSavepoint(Four, SavepointID)
+ *
+ * Description:
+ *  Rollback to given savepoint
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ */
+Four SM_RollbackSavepoint(
+    Four handle,
+    SavepointID  spID)		/* OUT scan to close */
+{
+    Four         e;		/* error code */
+    Four         i;		/* index variable */
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_RollbackSavepoint()"));
+
+
+    /* close all scan */
+    e = SM_CloseAllScan(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* delete all entries from temporary file & index catalog */
+    /* Note!! destroy of temporary file & index in disk is done during disk recovery */
+    for (i = 0; i < SM_NUM_OF_ENTRIES_OF_ST_FOR_TMP_FILES(handle); i++ ) {
+        if (!SM_IS_UNUSED_ENTRY_OF_ST_FOR_TMP_FILES(SM_ST_FOR_TMP_FILES(handle)[i])) {
+            SM_SET_TO_UNUSED_ENTRY_OF_ST_FOR_TMP_FILES(SM_ST_FOR_TMP_FILES(handle)[i]);
+        }
+    }
+    for (i = 0; i < SM_NUM_OF_ENTRIES_OF_SI_FOR_TMP_FILES(handle); i++) {
+        if (!SM_IS_UNUSED_ENTRY_OF_SI_FOR_TMP_FILES(SM_SI_FOR_TMP_FILES(handle)[i])) {
+            SM_SET_TO_UNUSED_ENTRY_OF_SI_FOR_TMP_FILES(SM_SI_FOR_TMP_FILES(handle)[i]);
+        }
+    }
+
+    /* rollback disk state */
+    e = RM_RollbackSavepoint(handle, MY_XACT_TABLE_ENTRY(handle), (Lsn_T *) &spID);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* SM_RollbackSavepoint() */

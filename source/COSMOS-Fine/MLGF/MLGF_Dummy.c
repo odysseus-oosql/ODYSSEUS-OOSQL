@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,133 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+Four MLGF_CreateIndex(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 	/* IN transaction table entry */
+    IndexID		*iid,		/* IN allocated index ID for new MLGF */
+    MLGF_KeyDesc 	*kdesc,		/* IN key descriptor of the new MLGF index */
+    PageID 		*rootPid,	/* OUT PageID of root of newly created index */
+    LogParameter_T 	*logParam)   	/* IN log parameter */
+{
+    printf("MLGF_CreateIndex() not implemented\n");
+    return(eNOERROR);
+}
+
+
+Four MLGF_DeleteObject(
+    Four 		handle,
+    PageID 		*rootPid,	/* IN PageID of the root page */
+    MLGF_KeyDesc 	*kdesc,		/* IN key descriptor for MLGF index */
+    MLGF_HashValue 	*keys,		/* IN hash values of keys */
+    ObjectID 		*oid,		/* IN object to delete */
+    LockParameter 	*lockup,      	/* IN request lock or not */
+    LogParameter_T 	*logParam) 	/* IN log parameter */
+{
+    printf("MLGF_DeleteObject() not implemented\n");
+    return(eNOERROR);
+}
+
+
+Four MLGF_DropIndex(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 	/* IN transaction table entry */
+    PageID 		*rootPid,	/* IN root page of the dropped MLGF index */
+    Boolean 		immediateFlag,  /* IN TRUE if drop immediately */
+    LogParameter_T 	*logParam) 	/* IN log parameter */
+{
+    printf("MLGF_DropIndex() not implemented\n");
+    return(eNOERROR);
+}
+
+
+
+Four MLGF_Fetch(
+    Four 		handle,
+    PageID 		*rootPid,	/* IN PageID of the root page */
+    MLGF_KeyDesc 	*kdesc,		/* IN key descriptor of this index */
+    MLGF_HashValue 	*lowerBound,	/* IN lower bound of region to fetch */
+    MLGF_HashValue 	*upperBound,	/* IN upper bound of region to fetch */
+    MLGF_Cursor 	*cursor,	/* OUT return the position of fetched object */
+    char 		*data,		/* OUT return the extra data */
+    LockParameter 	*lockup)      	/* IN request lock or not */
+{
+    printf("MLGF_Fetch() not implemented\n");
+    return(eNOERROR);
+}
+
+
+
+Four MLGF_FetchNext(
+    Four 		handle,
+    PageID 		*rootPid,	/* IN PageID of the root page */
+    MLGF_KeyDesc 	*kdesc,		/* IN key descriptor of this index */
+    MLGF_HashValue 	*lowerBound,	/* IN lower bound of region to fetch */
+    MLGF_HashValue 	*upperBound,	/* IN upper bound of region to fetch */
+    MLGF_Cursor 	*cursor,	/* INOUT return the position of fetched object */
+    char 		*data,		/* OUT return the extra data */
+    LockParameter 	*lockup)      	/* IN request lock or not */
+{
+    printf("MLGF_FetchNext() not implemented\n");
+    return(eNOERROR);
+}
+
+
+
+Four MLGF_InitSharedDS()
+{
+    printf("MLGF_InitSharedDS() not implemented\n");
+    return(eNOERROR);
+}
+
+
+Four MLGF_InitLocalDS()
+{
+    printf("MLGF_InitLocalDS() not implemented\n");
+    return(eNOERROR);
+}
+
+
+
+Four MLGF_InsertObject(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 	/* IN transaction table entry */
+    PageID 		*rootPid,	/* IN root page of MLGF */
+    MLGF_KeyDesc 	*kdesc,		/* IN key descriptor of MLGF */
+    MLGF_HashValue 	*keys,		/* IN hash values of keys */
+    ObjectID 		*oid,		/* IN Object to insert */
+    char 		*data,		/* IN additional data to store */
+    LockParameter 	*lockup,      	/* IN request lock or not */
+    LogParameter_T 	*logParam) 	/* IN log parameter */
+{
+    printf("MLGF_InsertObject() not implemented\n");
+    return(eNOERROR);
+}
+
+
+Four MLGF_SearchNearObject(
+    Four 		handle,
+    PageID        	*rootPid,	/* IN root of a MLGF index */
+    MLGF_KeyDesc   	*kdesc,		/* IN key descriptor of a MLGF index */
+    MLGF_HashValue 	keys[],		/* IN hash values of the new object */
+    ObjectID       	*oid,		/* OUT found near object */
+    LockParameter 	*lockup)      	/* IN request lock or not */
+{
+    printf("MLGF_SearchNearObject() not implemented\n");
+    return(eNOERROR);
+}

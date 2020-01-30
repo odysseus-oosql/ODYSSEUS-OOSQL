@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,96 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_WriteTrain.c
+ *
+ * Description:
+ *  Write a train from a main memory buffer to a disk.
+ *
+ * Exports:
+ *  Four RDsM_WriteTrain(Four, char*, PageID*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*
+ * Function: Four RDsM_WriteTrain(Four, char*, PageID*, Four)
+ *
+ * Description:
+ *   Write a train from a main memory buffer to a disk.
+ *
+ * Returns:
+ *  Error code
+ */
+
+Four RDsM_WriteTrain(
+    Four              handle,              /* IN    handle */
+    char              *bufPtr,             /* IN a pointer for a buffer page */
+    PageID            *trainId,            /* IN identifier of the train */
+    Four              sizeOfTrain)         /* IN the size of a train in pages */
+{
+    Four              e;                   /* error returned */
+    Four              entryNo;             /* entry no of volume table entry corresponding to the given volume */
+    Four              devNo;               /* device no. in volume */
+    Four              trainOffset;         /* offset of train in device (unit = # of page) */
+    RDsM_VolumeInfo_T *volInfo;            /* volume information in volume table entry */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_WriteTrain(bufPtr=%P, trainId=%P, sizeOfTrain=%ld)",
+                            trainId, bufPtr, sizeOfTrain));
+
+
+    /*
+     *	check input parameters
+     */
+    if (trainId == NULL || bufPtr == NULL) ERR(handle, eBADPARAMETER);
+    if (sizeOfTrain != PAGESIZE2 && sizeOfTrain != TRAINSIZE2) ERR(handle, eINVALIDTRAINSIZE_RDSM);
+
+
+    /*
+     *	get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, trainId->volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * points to the volume information
+     */
+    volInfo = &RDSM_VOLTABLE[entryNo].volInfo;
+
+
+    /*
+     *	validate the trainId
+     */
+    if (trainId->volNo < 0 || trainId->pageNo < 0 || trainId->pageNo >= volInfo->numExts*volInfo->extSize)
+	ERR(handle, eBADPAGEID);
+
+
+    /*
+     *  Get physical information about location of given train
+     */
+    e = rdsm_GetPhysicalInfo(handle, volInfo, trainId->pageNo, &devNo, &trainOffset);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * Write the train into the disk.
+     */
+    e = rdsm_WriteTrain(handle, OPENFILEDESC_ARRAY(RDSM_USERVOLTABLE(handle)[entryNo].openFileDesc)[devNo], trainOffset, bufPtr, sizeOfTrain);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* RDsM_WriteTrain() */

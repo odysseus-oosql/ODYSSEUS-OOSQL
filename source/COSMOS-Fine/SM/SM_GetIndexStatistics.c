@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,81 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_GetIndexStatistics.c
+ *
+ * Description:
+ *  Get the statistics about the given index.
+ *
+ * Exports:
+ *  Four SM_GetIndexStatistics(IndexID*, Four*)
+ *
+ * Notes:
+ *  This is an expedient so that we support the query language; distinct count(*)
+ *  There is no concurrency control; we should consider later.
+ *  We count only the number of different key values; we should consider later.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/* created this module for the query language support */
+
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_GetIndexStatistics()
+ *================================*/
+/*
+ * Function: Four SM_GetIndexStatistics(IndexID*, Four*)
+ *
+ * Description:
+ *  Get the statistics about the given index.
+ *
+ * Returns:
+ *  Error code
+ */
+Four SM_GetIndexStatistics(
+    Four     handle,
+    IndexID  *iid,		/* IN B+ tree where the given ObjectID is inserted */
+    Four     *nKvals)		/* OUT number of different key values */
+{
+    Four e;			/* error number */
+    Four v;			/* index for the used volume on the mount table */
+    ObjectID catObjForIdx;	/* catalog entry in SYS_INDEXES */
+    PhysicalIndexID pIid;	/* physical index ID */ 
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_GetIndexStatistics(iid=%P, nKvals=%lD)", iid, nKvals));
+
+
+    /*@ check parameters */
+    if (iid == NULL) ERR(handle, eBADPARAMETER);
+
+    if (nKvals == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == iid->volNo) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+    /* Get the catalog object for the given B+ tree file. */
+    e = sm_GetCatalogEntryFromIndexId(handle, v, iid, &catObjForIdx, &pIid);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*@ Insert the given ObjectID into the B+ tree. */
+    e = BtM_GetStatistics(handle, (PageID*)&pIid, nKvals);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* SM_GetIndexStatistics() */

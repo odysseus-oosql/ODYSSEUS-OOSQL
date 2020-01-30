@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,104 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: om_Unique.c
+ *
+ * Description:
+ *  Manages the unique value. The unique value is used when an object is
+ *  created. Its ObjectID contains a unique value which is different
+ *  any objects in the same volume.
+ *
+ * Exports:
+ *  Four om_GetUnique(Four, PageID*, Unique*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "BfM.h"		/* for the buffer manager call */
+#include "OM.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four om_GetUnique(Four, PageID*, Unique*)
+ *
+ * Description:
+ *  Return the unique number. Unique number is requested when a new object
+ *  is created.
+ *
+ * Return value:
+ *  unique value
+ */
+Four om_GetUnique(
+    Four 			handle,
+    XactTableEntry_T 		*xactEntry, 		/* IN transaction table entry */
+    Buffer_ACC_CB 		*aPage_BCBP,  		/* INOUT buffer access control block */
+    Unique 			*unique,		/* OUT space for the returned unique number */
+    LogParameter_T 		*logParam) 		/* IN log parameter */
+{
+    Four 			e;			/* error number */
+    Four 			num;			/* number of unique numbers newly allocated */
+    SlottedPage 		*apage;			/* pointer to buffer holding a slotted page */
+    Lsn_T 			lsn;                  	/* lsn of the newly written log record */
+    Four 			logRecLen;             	/* log record length */
+    LOG_LogRecInfo_T 		logRecInfo; 		/* log record information */
+    LOG_Image_OM_GetUniques_T 	uniqueInfo; 		/* after-image of unique numbers */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_OM, TR1, ("om_GetUnique(unique=%P)", unique));
+
+    apage = (SlottedPage *)aPage_BCBP->bufPagePtr;
+
+
+    /* If the unique numbers in this page is exhausted, */
+    /* then request new unique numbers. */
+    if (apage->header.unique > apage->header.uniqueLimit) {
+	e = RDsM_GetUnique(handle, xactEntry, &apage->header.pid, unique, &num, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+
+	/*
+	 * Write log record.
+	 */
+        if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+
+	    uniqueInfo.unique = *unique;
+	    uniqueInfo.uniqueLimit = *unique + num - 1;
+
+	    LOG_FILL_LOGRECINFO_1(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                                  LOG_ACTION_OM_GET_UNIQUES, LOG_REDO_ONLY,
+                                  apage->header.pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                                  sizeof(LOG_Image_OM_GetUniques_T), &uniqueInfo);
+
+	    e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+	    if (e < eNOERROR) ERR(handle, e);
+
+	    /*
+	     * mark the lsn in the page
+	     */
+	    apage->header.lsn = lsn;
+	    apage->header.logRecLen = logRecLen;
+	}
+
+	apage->header.unique = *unique;
+	apage->header.uniqueLimit = *unique + num - 1;
+    }
+
+    /* Allocate a new unique number. */
+    /* Redo/Undo for allocation of a unique number is accomated into the object creation. */
+    *unique = apage->header.unique++;
+
+    aPage_BCBP->dirtyFlag = 1;	/* for pid */
+
+    return(eNOERROR);
+
+} /* om_GetUnique() */

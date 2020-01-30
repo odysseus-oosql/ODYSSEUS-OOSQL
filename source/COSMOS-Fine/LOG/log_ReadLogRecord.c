@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,164 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: log_ReadLogRecord.c
+ *
+ * Description:
+ *  Read a given log record from the log file.
+ *
+ * Exports:
+ *  Four Four log_ReadLogRecord(Four, Lsn_T*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four log_ReadLogRecord(Four, Lsn_T*, LOG_LogRecInfo_T*)
+ *
+ * Description:
+ *  Read a given log record from the log file. The log record
+ *  consists of a log record header and a set of images.
+ *
+ * Returns:
+ *  error code
+ */
+Four log_ReadLogRecord(
+    Four 		handle,
+    Lsn_T 		*lsn,                 	/* IN log record to be read */
+    LOG_LogRecInfo_T 	*logRecInfo) 		/* OUT log record info */
+{
+    Four 		e;                     	/* returned error code */
+    log_LogPage_T 	*logPage;     		/* pointer to a log page */
+    Four 		subRead;               	/* sub-read size of a part in a log record */
+    Four 		spaceLeft;            	/* left space in a log page */
+    Four 		wrapCount;             	/* wrapcount of the log page */
+    Four 		offset;			/* offset of a log record in a log page */
+    PageNo 		pageNo;              	/* page no of the log page */
+    char		*basePtrTo;             /* base pointer to which something is copied */
+    Four 		nBytes;                	/* log image size */
+    Four 		i;
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("log_ReadLogRecord(lsn=%P, logRecInfo=%P)",
+			   lsn, logRecInfo));
+
+
+    /*
+     *  check input parameters
+     */
+    if (lsn == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     * calculate the wrap counter, the page number and the position of
+     * this log record in the log page
+     */
+    wrapCount = lsn->wrapCount;
+    pageNo = LOG_GET_PAGE_NO_FROM_LSN_OFFSET(lsn->offset);
+    offset = LOG_GET_PAGE_OFFSET_IN_PAGE_FROM_LSN_OFFSET(lsn->offset);
+
+    /* calculate the space left in the log page */
+    spaceLeft = LOG_GET_SPACE_SIZE_FROM_OFFSET_IN_PAGE(offset);
+
+
+    /* get a log page from the buffer */
+    e = log_GetAndFixBuffer(handle, wrapCount, pageNo, &logPage);
+    if(e == eENDOFLOG_LOG) return eENDOFLOG_LOG; if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * A trick: Initially set a logRecHdr->nImages to 1.
+     *          The value will be updated from the log when reading the log
+     *          record header.
+     */
+    logRecInfo->nImages = 0;
+    for (i = 0; i < logRecInfo->nImages+1; i++) {
+
+	/*
+	 * get a starting address of the destination and the number of bytes
+	 * to be read
+	 */
+	if (i == 0) {		/* read the log record header */
+	    basePtrTo = (char*)logRecInfo;
+	    nBytes = OFFSET_OF(LOG_LogRecInfo_T, imageData[0]);
+	} else {		/* read the images */
+	    basePtrTo = (char*)logRecInfo->imageData[i-1];
+	    nBytes = logRecInfo->imageSize[i-1];
+	}
+
+
+	for ( ; nBytes > 0; ) {
+
+	    /* calculate the amount of bytes that can be read in this log page */
+	    subRead = MIN(nBytes, spaceLeft);
+
+            /*
+             * check whether this is the part of a valid log record
+             */
+            if (LOG_GET_PAGE_NO_FROM_LSN_OFFSET(logPage->hdr.lsn.offset) == pageNo &&
+                offset + subRead > LOG_GET_PAGE_OFFSET_IN_PAGE_FROM_LSN_OFFSET(logPage->hdr.lsn.offset)) {
+                e = log_UnfixBuffer(handle);
+                if (e < eNOERROR) ERR(handle, e);
+
+                return eENDOFLOG_LOG;
+            }
+
+	    memcpy(basePtrTo, &logPage->data[offset], subRead);
+
+	    /* adjust variable nBytes and basePtrTo */
+	    nBytes -= subRead;
+	    basePtrTo += subRead;
+	    spaceLeft -= subRead;
+            offset += subRead;
+
+	    /*
+	     * when the nBytes wanted-to-read spans more than a log page,
+	     * an additional log page should be gotten
+	     */
+	    if (nBytes > 0) {
+
+		/* free the current log buffer page */
+		e = log_UnfixBuffer(handle);
+		if (e < eNOERROR) ERR(handle, e);
+
+		/* get the next log page id */
+		if ((pageNo + 1) == LOG_LOGMASTER.numPages) {
+		    wrapCount++;
+		    pageNo = 0;
+
+		} else {
+		    pageNo++;
+		}
+
+		/* get the next log page from the buffer */
+		e = log_GetAndFixBuffer(handle, wrapCount, pageNo, &logPage);
+		if (e < eNOERROR) ERR(handle, e);
+
+		/* adjust variables */
+                offset = 0;
+		spaceLeft = LOG_GET_SPACE_SIZE_FROM_OFFSET_IN_PAGE(0);
+
+	    }	/* end if */
+	}
+    } /* end while */
+
+
+    /* free the current log buffer page */
+    e = log_UnfixBuffer(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* log_ReadLogRecord() */
+

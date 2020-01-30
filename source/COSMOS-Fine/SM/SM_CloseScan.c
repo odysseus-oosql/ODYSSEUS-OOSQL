@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,87 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_CloseScan.c
+ *
+ * Description:
+ *  Close the given scan. The scan cannot be used any more.
+ *
+ * Exports:
+ *  Four SM_CloseScan(Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "OM.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_CloseScan( )
+ *================================*/
+/*
+ * Function: Four SM_CloseScan(Four, Four)
+ *
+ * Description:
+ *  Close the given scan. The scan cannot be used any more.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ */
+Four SM_CloseScan(
+    Four handle,
+    Four scanId)		/* IN scan to close */
+{
+    Four e;			/* error code */
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_CloseScan(scanId=%ld)", scanId));
+
+
+    /*@ check parameter */
+    if (!VALID_SCANID(handle, scanId)) ERR(handle, eBADPARAMETER);
+
+    if (SM_SCANTABLE(handle)[scanId].scanType == MLGFINDEX) {
+	e = Util_finalVarArray(handle, &SM_SCANTABLE(handle)[scanId].cursor.mlgf.path);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    /* The scan isn't accessible any more. */
+    SM_SCANTABLE(handle)[scanId].scanType = NIL;
+
+    return(eNOERROR);
+
+} /* SM_CloseScan() */
+
+
+
+/*@================================
+ * SM_CloseAlScan()
+ *================================*/
+Four SM_CloseAllScan(
+    Four	handle)      /* IN scan to close */
+{
+    Four scanId;        /* smScanTable index */
+
+    /* pointer for SM Data Structure of perThreadTable */
+    SM_PerThreadDS_T *sm_perThreadDSptr = SM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_CloseAllScan()"));
+
+    for (scanId = 0; scanId < sm_perThreadDSptr->smScanTable.nEntries; scanId++)
+	if (SM_SCANTABLE(handle)[scanId].scanType != NIL) {
+
+	    /* The scan isn't accessible any more. */
+	    SM_CloseScan(handle, scanId);
+	}
+
+    return(eNOERROR);
+
+} /* SM_CloseAllScan( ) */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,136 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_OpenScan.c
+ *
+ * Description:
+ *  Maintains a log scan, which is used for restart analysis and restart redo.
+ *
+ * Exports:
+ *  Four LOG_OpenScan(Four, LOG_Lsn_T*)
+ *  Four LOG_CloseScan( )
+ *  Four LOG_NextRecord(Four, LOG_Lsn_T*, LOG_LogRecInfo_T*, Four*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+
+/*
+ * Function: Four LOG_OpenScan(Four, LOG_Lsn_T*)
+ *
+ * Description:
+ *  Open a scan starting from the given log record.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_OpenScan(
+    Four 	handle,
+    Lsn_T 	*lsn)           /* IN starting log record */
+{
+    Four 	e;		/* error code */
+
+    /* pointer for LOG Data Structure of perThreadTable */
+    LOG_PerThreadDS_T *log_perThreadDSptr = LOG_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_OpenScan(lsn=%P)", lsn));
+
+
+    /* check parameters */
+    if (lsn == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Set the current lsn to the given lsn. */
+    log_perThreadDSptr->log_CurrentLsn = *lsn;
+
+
+    return(eNOERROR);
+
+} /* LOG_OpenScan() */
+
+
+
+/*
+ * Function: Four LOG_CloseScan( )
+ *
+ * Description:
+ *  Close the current scan.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_CloseScan(
+    Four	handle)
+{
+
+    /* pointer for LOG Data Structure of perThreadTable */
+    LOG_PerThreadDS_T *log_perThreadDSptr = LOG_PER_THREAD_DS_PTR(handle);
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    /* set the current lsn to NIL. */
+    log_perThreadDSptr->log_CurrentLsn = common_perThreadDSptr->nilLsn;
+
+    return(eNOERROR);
+
+} /* LOG_CloseScan() */
+
+
+
+/*
+ * Function: Four LOG_NextRecord(Four, LOG_Lsn_T*, LOG_LogRecInfo_T*, Four*)
+ *
+ * Description:
+ *  Returns the next log record.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_NextRecord(
+    Four 		handle,
+    Lsn_T 		*lsn,           /* OUT lsn of the returned log record */
+    LOG_LogRecInfo_T 	*logRecInfo, 	/* OUT log record information */
+    Four 		*logRecLen)     /* OUT log record length */
+
+{
+    Four 		e;		/* error code */
+    Lsn_T 		tmpLsn;
+
+    /* pointer for LOG Data Structure of perThreadTable */
+    LOG_PerThreadDS_T *log_perThreadDSptr = LOG_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_NextRecord(lsn=%P, logRecInfo=%P)", lsn, logRecInfo));
+
+
+    /* check parameters */
+    if (lsn == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+    *lsn = log_perThreadDSptr->log_CurrentLsn;
+
+    e = LOG_ReadLogRecord(handle, lsn, logRecInfo, logRecLen);
+    if (e == eENDOFLOG_LOG) {
+        tmpLsn.wrapCount = lsn->wrapCount + 1;
+        tmpLsn.offset = 0;
+
+        e = LOG_ReadLogRecord(handle, &tmpLsn, logRecInfo, logRecLen);
+        if (e == eNOERROR) log_perThreadDSptr->log_CurrentLsn = *lsn = tmpLsn;
+    }
+    if(e == eENDOFLOG_LOG) return eENDOFLOG_LOG; if (e < eNOERROR) ERR(handle, e);
+
+    /* Increase the current lsn. */
+    LOG_INCREASE_LSN(log_perThreadDSptr->log_CurrentLsn, log_GetLogRecordLength(handle, logRecInfo));
+
+    return(eNOERROR);
+
+} /* LOG_NextRecord() */

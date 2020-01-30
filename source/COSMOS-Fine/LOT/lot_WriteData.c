@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,106 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module :	lot_WriteData.c
+ *
+ * Description :
+ *  Write the data into the disk from the user supplied buffer.
+ *  The fuction is called by the lot_WriteObject( ).
+ *
+ * Exports :
+ *  Four lot_WriteData(Four, PageID*, Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "LOG.h"
+#include "BfM.h"
+#include "LOT.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * lot_WriteData( )
+ *================================*/
+/*
+ * Function: Four lot_WriteData(Four, PageID*, Four, Four, char*)
+ *
+ * Description :
+ *  Write the data into the disk from the user supplied buffer.
+ *  The fuction is called by the lot_WriteObject( ).
+ *
+ * Retruns :
+ *  Error codes
+ *    some errors caused by function calls
+ *
+ * Note :
+ *  Parameters are not checked.
+ */
+Four lot_WriteData(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    PageID *pid,		/* IN leaf node PageID */
+    Four   start,		/* IN starting offset to write */
+    Four   length,		/* IN amount of data to write */
+    char   *buf,		/* OUT user buffer to hold the data */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four e;			/* error number */
+    L_O_T_LNode *apage;		/* Large Object Data Page */
+    Buffer_ACC_CB *aPage_BCBP;
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T logRecInfo; /* log record information */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LOT, TR1, ("lot_WriteData(pid=%p, start=%p, length=%p, buf=%p",
+			 pid, start, length, buf));
+
+
+    /*@ Read the large object data page into the system buffer */
+    e = BfM_getAndFixBuffer(handle, pid, M_FREE, &aPage_BCBP, TRAIN_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    apage = (L_O_T_LNode *)aPage_BCBP->bufPagePtr;
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+
+        LOG_FILL_LOGRECINFO_3(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_LOT_WRITE_DATA, LOG_REDO_UNDO,
+                              *pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(Four), &start,
+                              length, buf,
+                              length, &apage->data[start]);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERRB1(handle, e, aPage_BCBP, TRAIN_BUF);
+
+        /* mark the lsn in the page */
+        apage->header.lsn = lsn;
+        apage->header.logRecLen = logRecLen;
+    }
+
+    /* write the data into the system buffer */
+    memcpy((char *)&apage->data[start], buf, length); 
+
+    aPage_BCBP->dirtyFlag = 1;
+
+    /*@ free the buffer */
+    e = BfM_unfixBuffer(handle, aPage_BCBP, TRAIN_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return (eNOERROR);
+
+} /* lot_WriteData( ) */

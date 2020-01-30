@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,116 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifdef COSMOS_S
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "Util_heap.h"
+#include "Util_pool.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+Four Util_initLocalHeap(
+    LocalHeap *aHeap,           /* INOUT heap to initialize */
+    Four elemSize,              /* IN element size */
+    Four subheapSize)           /* IN max elements in a subheap */
+{
+    return(Util_initHeap(aHeap, elemSize, subheapSize));
+}
+
+Four Util_getArrayFromLocalHeap(
+    LocalHeap *aHeap,           /* INOUT heap to use */
+    Four nElems,                /* IN number of elements to allocate */
+    void *array)                /* OUT allocated array */
+{
+    return(Util_getArrayFromHeap(aHeap, nElems, array));
+}
+
+Four Util_freeArrayToLocalHeap(
+    LocalHeap *aHeap,           /* IN a heap where the array is released */
+    void *array)                /* IN an array to free */
+{
+    return(Util_freeArrayToHeap(aHeap, array));
+}
+
+Four Util_finalLocalHeap(
+    LocalHeap *aHeap)           /* IN a heap to finalize */
+{
+    return(Util_finalHeap(aHeap));
+}
+
+
+Four Util_initLocalPool(
+    LocalPool *aPool,           /* INOUT pool to be initialized */
+    Four elemSize,              /* IN element size */
+    Four subpoolSize)           /* IN max elements in a subpool */
+{
+    return(Util_initPool(aPool, elemSize, subpoolSize));
+}
+
+Four Util_getElementFromLocalPool(
+    LocalPool *aPool,                /* IN pool to be used */
+    void *elem)                 /* OUT allocated element */
+{
+    return(Util_getElementFromPool(aPool, elem));
+}
+
+Four Util_freeElementToLocalPool(
+    LocalPool *aPool,           /* IN a pool where the element is released */
+    void *elem)                 /* IN an element to free */
+{
+    return(Util_freeElementToPool(aPool, elem));
+}
+
+Four Util_finalLocalPool(
+    LocalPool *aPool)           /* IN a pool to finalize */
+{
+    return(Util_finalPool(aPool));
+}
+
+Four SHM_initLatch(
+    LATCH_TYPE *latchPtr
+)
+{
+    return(eNOERROR);
+}
+
+Four SHM_getLatch(LATCH_TYPE *latchPtr, Four procIndex, Four reqMode,
+                  Four reqCondition, LATCH_TYPE *releasedLatchPtr)
+{
+    return(eNOERROR);
+}
+
+Four SHM_releaseLatch(LATCH_TYPE *latchPtr, Four procIndex)
+{
+    return(eNOERROR);
+}
+
+
+Four LM_getFlatPageLock(Four, XactID *xactID, PageID *pid, LockMode mode,
+                        LockDuration duration, LockConditional conditional, LockReply *lockReply, LockMode *oldMode)
+{
+    *lockReply = (LockReply) mode;
+    *oldMode = NULL;
+    return(eNOERROR);
+}
+
+Four LM_releaseFlatPageLock(Four, XactID *xactID, PageID *pid, LockDuration duration)
+{
+    return(eNOERROR);
+}
+
+Four LM_getFileLock(Four, XactID *xactID, FileID *fileID, LockMode mode,
+                    LockDuration duration, LockConditional conditional, LockReply *lockReply, LockMode *oldMode)
+{
+    *lockReply = (LockReply) mode;
+    return(eNOERROR);
+}
+
+Four LM_releaseFileLock(Four, XactID *xactID, FileID *fid, LockDuration duration)
+{
+    return(eNOERROR);
+}
+
+#endif /* COSMOS_S */

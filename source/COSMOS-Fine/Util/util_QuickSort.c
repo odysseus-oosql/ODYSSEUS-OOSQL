@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,124 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module : util_QuickSort.c
+ *
+ * Description :
+ *  sort given tuples by 'Quick Sort' method
+ *
+ * Exports :
+ *  Four util_QuickSort(void**,Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "Util_Sort.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*=========================================
+ * util_QuickSort()
+ *========================================*/
+/*
+ * Function : util_QuickSort(SortTupleDesc*, void**, Four)
+ *
+ * Description :
+ *  sort given tuples by 'Quick Sort' method
+ *
+ * Return Values :
+ *  Error codes
+ *
+ * Side effects :
+ *  contents of tuples will be sorted
+ */
+Four util_QuickSort(
+    Four           	handle,
+    SortTupleDesc* 	sortTupleDesc,            /* IN */
+    void**       	tuples,                   /* INOUT pointer array which points each object containg tuple */
+    Four         	numTuples)                /* IN number of tuples */
+{
+    Partition   	stack[MAXSTACKDEPTH];     /* stack for emulating recursive call */
+    Four        	stackPtr = 0;             /* index of 'stack' */
+    Four        	curStart, curEnd;         /* variables which indicate current sorting partition */
+    void*       	tmp;                      /* temporary variable for swapping */
+    Four        	i, j;                     /* index variable */
+    void*       	pivot;                    /* pivot which indicates split point */
+    static Seed         rand=0;                   /* varible for generating random variable */
+
+
+    /* initialize 'curStart' & 'curEnd' */
+    curStart = 0;
+    curEnd = numTuples - 1;
+
+    while (1) {
+
+        /* if partition size is smaller than limit value, other method will be used */
+        if (curEnd - curStart < QUICKSORTLIMIT) {
+
+            /* insertion sort!! */
+            for (i = curEnd; i > curStart; i-- ) {
+                pivot = tuples[i];
+                for (j = curStart; j < i; j++ ) {
+                    if (util_SortKeyCompare(handle, sortTupleDesc, pivot, tuples[j]) < 0) {
+                        tmp = tuples[j];
+                        tuples[j] = pivot;
+                        pivot = tmp;
+                    }
+                 }
+                 tuples[i] = pivot;
+            }
+
+            /* stack empty */
+            if (--stackPtr < 0) break;
+
+            /* pop!! */
+            curStart = stack[stackPtr].start;
+            curEnd = stack[stackPtr].end;
+            continue;
+        }
+
+        /* by random number, determine pivot!! */
+        rand = (rand*1103515245 +12345) & 0x7fffffff;
+        pivot = tuples[curStart+rand%(curEnd-curStart)];
+
+        /* split!! */
+        i = curStart; j = curEnd;
+        while (i <= j) {
+            while (util_SortKeyCompare(handle, sortTupleDesc, tuples[i], pivot) < 0) i++;
+            while (util_SortKeyCompare(handle, sortTupleDesc, pivot, tuples[j]) < 0) j--;
+            if (i < j) {
+                tmp = tuples[i]; tuples[i] = tuples[j]; tuples[j] = tmp;
+            }
+            if (i <= j) {
+                i++; j--;
+            }
+        }
+
+        /* push the 'larger' partition on stack */
+        if (j-curStart < curEnd-i) {
+            if (i < curEnd) {
+                stack[stackPtr].start = i;
+                stack[stackPtr++].end = curEnd;
+
+                /* error check */
+                if (stackPtr >= MAXSTACKDEPTH) ERR(handle, eOVERFLOWQUICKSORTSTACK_UTIL);
+            }
+            curEnd = j;
+        }
+        else {
+            if (curStart < j) {
+                stack[stackPtr].start = curStart;
+                stack[stackPtr++].end = j;
+            }
+            curStart = i;
+        }
+    }
+
+
+    return(eNOERROR);
+
+} /* util_QuickSort() */

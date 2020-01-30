@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,88 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: TM_BeginTransaction.c
+ *
+ * Description:
+ *  Begin a new transaction.
+ *
+ * Exports:
+ *  Four TM_BeginTransaction(Four, XactID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four TM_BeginTransaction(Four, XactID*)
+ *
+ * Description:
+ *  Begin a new transaction.
+ *
+ * Returns:
+ *  error code
+ *    eNOERROR
+ */
+Four TM_BeginTransaction(
+    Four 		handle,
+    XactID 		*xactId,	/* OUT transaction id of the newly started transaction */
+    ConcurrencyLevel 	ccLevel)   	/* IN  concurrency level of this transaction */
+{
+    Four 		e;		/* error code */
+    XactTableEntry_T 	*xactEntry;
+
+
+    /* pointer for TM Data Structure of perThreadTable */
+    TM_PerThreadDS_T *tm_perThreadDSptr = TM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_TM, TR1, ("TM_transBegin(xactId=%P)", xactId));
+
+
+    /*
+     * parameter check
+     */
+    /* Is it NULL pointer? */
+    if (xactId == NULL) ERR(handle, eNULLPTR);
+
+    /* Has a transaction already started? */
+    /* A process can have only one transaction; it is enough to check the */
+    /* process has a transaction, and we don't have to check */
+    /* that the max # of transactions is exceeded. */
+    if (MY_XACT_TABLE_ENTRY(handle) != NULL) ERR(handle, eWRONGTMSTART_TM);
+
+
+    tm_perThreadDSptr->myCCLevel = ccLevel;
+
+    /* first of all, assign transaction identifier */
+    e = tm_AllocXactId(handle, xactId);
+    if ( e < eNOERROR ) ERR(handle, e);
+
+
+    /*
+     * Insert a transacion table entry for this new transaction.
+     */
+    e = TM_XT_AllocAndInitXactTableEntry(handle, xactId, &xactEntry);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* allocate new xactBucket in LM */
+    e = LM_initXactBucket(handle, xactId, ccLevel);
+    if ( e < eNOERROR ) ERR(handle, e);
+
+    /* Set my transaction table entry pointer. */
+    MY_XACT_TABLE_ENTRY(handle) = xactEntry;
+
+
+    return(eNOERROR);
+
+} /* TM_BeginTransaction( ) */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,200 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_ExpandDataVolume.c
+ *
+ * Description:
+ *  Format a file or a raw device so that it can be used as the volume of our
+ *  storage system. This format is for Scan Manager level.
+ *
+ * Exports:
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdlib.h>
+#include <limits.h>
+#include <string.h>
+#include <stdio.h>
+#include "common.h"
+#include "trace.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+#define MAX_DEVICE_IN_VOLUME 20
+
+
+/*@
+ * Internal Function Prototypes
+ */
+void printUsage(char*);
+
+
+int main(int argc, char *argv[])
+{
+    Four    e;                                       /* error code */
+    Four    i;                                       /* index variable */
+    char    *title;                                  /* volume title */
+    Four    volId;                                   /* volume identifier */
+    Four    numDevices = 0;                          /* # of devices which consists volume before expansion */
+    Four    numAddDevices = 0;                       /* # of devices which will be added */
+    char    *devNames[MAX_DEVICE_IN_VOLUME];           /* existing device name */
+    char    *addDevNames[MAX_DEVICE_IN_VOLUME];        /* added device name */
+    Four    numPagesInAddDevices[MAX_DEVICE_IN_VOLUME];/* # of pages in the each devices */
+
+    Four    handle = 0;
+
+    /*
+     * If there is no arguments
+     */
+    if(argc < 2) {
+        printUsage(argv[0]);
+        exit(1);
+    }
+
+
+    /*
+     * Get argument
+     */
+
+    /* for each argument */
+    for (i = 1; i < argc; i++) {
+
+        /* get 'devNames' */
+        if (strcmp(argv[i], "-device") == 0)
+        {
+            i++;
+            if (i < argc)
+                devNames[numDevices] = argv[i];
+            else {
+                printUsage(argv[0]);
+                exit(1);
+            }
+
+            numDevices++;
+            if (numDevices + numAddDevices > MAX_DEVICE_IN_VOLUME) {
+                printf("Too Many devices in volume!!\n");
+                exit(1);
+            }
+        }
+        /* get 'addDevNames[]' & 'numPagesInAddDevices[]' */
+        else if (strcmp(argv[i], "-addDevice") == 0)
+        {
+            i++;
+            if (i < argc)
+                addDevNames[numAddDevices] = argv[i];
+            else {
+                printUsage(argv[0]);
+                exit(1);
+            }
+
+            i++;
+            if (i < argc)
+                numPagesInAddDevices[numAddDevices] = atol(argv[i]);
+            else {
+                printUsage(argv[0]);
+                exit(1);
+            }
+
+            numAddDevices++;
+            if (numDevices + numAddDevices > MAX_DEVICE_IN_VOLUME) {
+                printf("Too Many devices in volume!!\n");
+                exit(1);
+            }
+        }
+        /* invalid arguments */
+        else {
+            printUsage(argv[0]);
+            exit(1);
+        }
+    }
+
+
+    /*
+     *  error check
+     */
+
+    if (numDevices <= 0 || numAddDevices <= 0) {
+        printUsage(argv[0]);
+	exit(1);
+    }
+
+
+    /*
+     *  Initialize the storage system
+     */
+
+    e = LRDS_Init( );
+    if (e < eNOERROR) {
+	printf("FILE:%s LINE:%ld\n", __FILE__, __LINE__);
+	exit(1);
+    }
+
+    e = LRDS_AllocHandle(&handle);
+    if (e < eNOERROR) {
+	printf("FILE:%s LINE:%ld\n", __FILE__, __LINE__);
+	exit(1);
+    }
+
+    /*
+     *  Mount existing volume
+     */
+    e = LRDS_Mount(handle, numDevices, devNames, &volId);
+    if (e < eNOERROR) {
+	printf("FILE:%s LINE:%ld :: %s\n", __FILE__, __LINE__, LRDS_Err(handle, e));
+        LRDS_FreeHandle(handle);
+        LRDS_Final( );
+        exit(1);
+    }
+
+
+    /*
+     *  Format volume
+     */
+    e = LRDS_ExpandDataVolume(handle, volId, numAddDevices, addDevNames, numPagesInAddDevices);
+    if (e < eNOERROR) {
+	printf("FILE:%s LINE:%ld :: %s\n", __FILE__, __LINE__, LRDS_Err(handle, e));
+        LRDS_FreeHandle(handle);
+        LRDS_Final( );
+        exit(1);
+    }
+
+
+    /*
+     *  Dismount expanded volume
+     */
+    e = LRDS_Dismount(handle, volId);
+    if (e < eNOERROR) {
+	printf("FILE:%s LINE:%ld :: %s\n", __FILE__, __LINE__, LRDS_Err(handle, e));
+        LRDS_FreeHandle(handle);
+        LRDS_Final( );
+        exit(1);
+    }
+
+
+    /*
+     *  Finalize the storage system.
+     */
+    e = LRDS_FreeHandle(handle);
+    if (e < 0) {
+	printf("FILE:%s LINE:%ld\n", __FILE__, __LINE__);
+	exit(1);
+    }
+    e = LRDS_Final( );
+    if (e < 0) {
+	printf("FILE:%s LINE:%ld\n", __FILE__, __LINE__);
+	exit(1);
+    }
+
+
+    return(0);
+
+} /* main() */
+
+
+void printUsage(
+    char *cmdName)              /* IN command name */
+{
+    fprintf(stderr, "Usage: %s [-device <device path>]+ [-addDevice <device path> <number of page>]+\n", cmdName);
+} /* printUsage() */

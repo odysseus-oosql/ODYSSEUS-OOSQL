@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,92 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: log_FlushLogBuffers.c
+ *
+ * Description:
+ *  Flush log buffers.
+ *
+ * Exports:
+ *  Four log_FlushLogBuffers(Four, Four, Boolean)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four log_FlushLogBuffers(Four, Four, Boolean)
+ *
+ * Description:
+ *  Flush log buffers.
+ *
+ * Returns:
+ *  error code
+ *
+ * Assumption:
+ *  The caller is holding the latch LOG_LATCH4TAIL.
+ */
+Four log_FlushLogBuffers(
+    Four 	handle,
+    Four 	lastLogBufIdx,		/* IN the last log buffer to be flushed */
+    Boolean 	lastLogBufKeepFlag)	/* IN TRUE if we keep the last buffer after flushing */
+{
+    Four 	e;                     	/* error code */
+    Lsn_T 	tailLsn;              	/* log sequence number of the first byte of the page pointed by LOG_LBI_TAIL */
+    PageID 	pid;                 	/* page identifier */
+    Four 	old_LOG_LBI_HEAD;	/* temporary value */
+    Four 	i;
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("log_FlushLogBuffers(lastLogBufIdx=%lD, lastLogBufKeepFlag=%P)",
+			   lastLogBufIdx, lastLogBufKeepFlag));
+
+
+    /* Set the log volume no. */
+    pid.volNo = LOG_LOGMASTER.volNo;
+
+
+    for (i = LOG_LBI_TAIL; ; i = (i+1) % NUM_WRITE_LOG_BUFS) {
+
+	/*
+	 * flush the buffer page indexed by variable 'i'.
+	 */
+	pid.pageNo = LOG_GET_PHYSICAL_PAGENO(LOG_LOGMASTER, LOG_LBT_WRAPCOUNT(i), LOG_LBT_PAGENO(i));
+
+	e = RDsM_WriteTrain(handle, (char*)&LOG_LOGBUFFERPAGE[i], &pid, PAGESIZE2);
+	if (e < eNOERROR) ERR(handle, e);
+
+	if (i == lastLogBufIdx) {
+
+	    if (lastLogBufKeepFlag) {
+
+		LOG_LBI_TAIL = i;
+
+	    } else {
+		/* set NIL the page number and wrapcount of the buffer page indexed by LOG_LBI_TAIL */
+		LOG_LBT_PAGENO(i) = NIL;
+		LOG_LBT_WRAPCOUNT(i) = NIL;
+
+		LOG_LBI_TAIL = (i+1) % NUM_WRITE_LOG_BUFS;
+	    }
+
+	    return(eNOERROR);
+	}
+
+	/* set NIL the page number and wrapcount of the buffer page indexed by LOG_LBI_TAIL */
+	LOG_LBT_PAGENO(i) = NIL;
+	LOG_LBT_WRAPCOUNT(i) = NIL;
+    }
+
+    return(eNOERROR);		/* dummy return statement */
+
+} /* log_FlushLogBuffers() */

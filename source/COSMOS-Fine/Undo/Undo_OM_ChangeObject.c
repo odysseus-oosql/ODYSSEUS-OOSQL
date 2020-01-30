@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,135 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_OM_ChangeObject.c
+ *
+ * Description:
+ *  Undo changing object
+ *
+ * Exports:
+ *  Four Undo_OM_ChangeObject(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "BfM.h"
+#include "OM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_OM_ChangeObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN log record information */
+{
+    Four e;			/* error code */
+    SlottedPage	*aPage;		/* pointer to a slotted buffer page */
+    Object      *obj;		/* pointer to an object */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_OM_ChangeObject_T *changeObjInfo;
+    Four alignedOrigLen;	/* aligned length of original length */
+    Four alignedNewLen;         /* aligned length of new length */
+    Four infoSize;
+    void *infoPtr;
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_OM_ChangeObject()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	set a slotted page pointer pointing to the buffer
+     */
+    aPage = (SlottedPage *) aPage_BCBP->bufPagePtr;
+
+
+    /*
+     * get the images
+     */
+    changeObjInfo = (LOG_Image_OM_ChangeObject_T*)logRecInfo->imageData[0];
+
+
+    /* points to the object */
+    obj = (Object*)&(aPage->data[aPage->slot[-(changeObjInfo->any.slotNo)].offset]);
+    alignedOrigLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(logRecInfo->imageSize[2] + changeObjInfo->any.deltaOfDataAreaSize));
+    alignedNewLen = MAX(MIN_OBJECT_DATA_SIZE, ALIGNED_LENGTH(logRecInfo->imageSize[2]));
+
+
+    /*
+     *	undo changing object data area
+     */
+    /* Change the size of the object data part */
+    e = om_ChangeObjectSize(handle, &logRecInfo->xactId, aPage, changeObjInfo->any.slotNo, alignedOrigLen, alignedNewLen, TRUE);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* In om_ChangeObjectSize( ), obj may be moved to someplace. */
+    obj = (Object*)&(aPage->data[aPage->slot[-(changeObjInfo->any.slotNo)].offset]);
+
+    memcpy(obj->data, logRecInfo->imageData[2], logRecInfo->imageSize[2]);
+
+
+    /*
+     * undo updating the object header with making log image
+     */
+    changeObjInfo->any.deltaOfDataAreaSize *= -1;
+    switch(changeObjInfo->any.type) {
+      case CHANGE_OBJECT_TYPE_NONE:
+        break;
+
+      case CHANGE_OBJECT_TYPE_PROPERTIES:
+        obj->header.properties ^= changeObjInfo->p.propertiesXor;
+        break;
+
+      case CHANGE_OBJECT_TYPE_PROPERTIES_AND_LENGTH:
+        obj->header.properties ^= changeObjInfo->p_l.propertiesXor;
+        obj->header.length += -changeObjInfo->p_l.deltaInLengthField;
+        changeObjInfo->p_l.deltaInLengthField *= -1;
+        break;
+
+      default:
+        ERR(handle, eBADPARAMETER);
+    }
+
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_2(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_OM_CHANGE_OBJECT, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          logRecInfo->imageSize[2], logRecInfo->imageData[2]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->header.lsn = lsn;
+    aPage->header.logRecLen = logRecLen;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_OM_ChangeObject( ) */

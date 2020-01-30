@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,83 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: list.c
+ *
+ * Description:
+ *  Those routines in this module implements a general doubly linked list.
+ *
+ * Exports:
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "list.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * Util_initList()
+ *================================*/
+/*
+ * Function: void Util_initList(List)
+ *
+ * Description:
+ *  Initialize a list.
+ *
+ * Returns:
+ *  None.
+ */
+void Util_initList(
+    List head)			/* OUT a head of the list to be initialized */
+{
+    head = (ListElement*)NULL;
+
+} /* Util_initList() */
+
+
+
+/*@================================
+ * Util_addToList()
+ *================================*/
+/*
+ * Function: Four Util_addToList(List, ListElement*)
+ *
+ * Description:
+ *  Add an element to the given list. The element is inserted at front of the
+ *  list.
+ *
+ * Returns:
+ *  error code
+ */
+Four Util_addToList(
+    List head,			/* IN head of the list */
+    ListElement *elem)		/* IN element to be inserted */
+{
+    TR_PRINT(handle, TR_UTIL, TR1, ("Util_addToList(head=%P, elem=%P)", head, elem));
+
+    /*@ check parameters */
+    if (head == NULL) ERR(handle, eBADPARAMETER);
+
+    if (elem == NULL) ERR(handle, eBADPARAMETER);
+
+    /*@
+     * Insert the element at the front of the list.
+     */
+    elem->prev = NIL;		/* It is the new first element. */
+    elem->next = head;		/* new element points to the old first one. */
+
+    head->prev = elem;
+    head = elem;
+
+    return(eNOERROR);
+
+} /* Util_addToList() */
+
+
+

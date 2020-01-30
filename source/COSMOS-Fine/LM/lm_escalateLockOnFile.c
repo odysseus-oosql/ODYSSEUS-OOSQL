@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,161 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lm_escalateLockOnFile.c
+ *
+ * Description:
+ *   Escalate the lock for the given file.
+ *
+ * Exports:
+ *  lm_escalateLockOnFile(handle, xactID, fileID, mode, duration, conditional, lockReply)
+ *
+*/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four lm_escalateLockOnFile(
+    Four    		handle,
+    XactID 		*xactID,              	/* IN transaction identifier */
+    FileID 		*fileID,              	/* IN file id. to be locked */
+    LockMode 		mode,               	/* IN lock mode */
+    LockDuration 	duration,       	/* IN lock duration */
+    LockConditional 	conditional, 		/* IN conditional or unconditional ? */
+    LockReply 		*lockReply)        	/* OUT L_OK/LR_NOTOK/LR_DEADLOCK */
+{
+    Four                e, e2;
+    LockHashEntry	*lockHashEntryPtr;
+
+    XactBucket_Type     *xBucket;
+    LockBucket_Type     *lBucket;
+    LockBucket_Type     *flBucket;
+
+    RequestNode_Type	*aRequest, *nextRequest;
+    Four                releaseLockCounter = 0;
+    LockMode 		oldMode;           
+    Seed        	tempSeed;		/* temp seed */
+
+
+    /*@ get latch  */
+    /* get the lmLatch for deadlock detection */
+    e = SHM_getLatch(handle, &LM_LATCH, procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*@ get the file lock on the given file */
+    e = lm_getLock(handle, xactID, (TargetID*)fileID, L_FILE, NULL, mode, duration, conditional,
+                   TRUE, lockReply, &xBucket, &flBucket, &oldMode); 
+    if(e < eNOERROR) ERRL1(handle, e, &LM_LATCH);
+
+    switch(*lockReply){
+      case LR_NOTOK:
+        /*
+        ** Oh! I didn't escalate the lock on the given file..
+        ** Release the LM_LATCH and return
+        */
+        e = SHM_releaseLatch(handle, &LM_LATCH, procIndex);
+        if(e < eNOERROR) ERR(handle, e);
+
+		return(LR_NOTOK);
+      case LR_DEADLOCK:  ERRL1(handle, eDEADLOCK, &LM_LATCH);
+      default: break; /* go ahead */
+    }
+
+    /* Now, you already have the lock on the file with 'mode' */
+    /* Release all lower level locks */
+
+#ifdef CCRL
+    aRequest = PHYSICAL_PTR(xBucket->grantedList[L_OBJECT]);
+#elif CCPL
+    aRequest = PHYSICAL_PTR(xBucket->grantedList[L_PAGE]);
+#endif
+
+	while ( aRequest ) {
+
+	lBucket = PHYSICAL_PTR(aRequest->lockHDR);
+
+        if(PHYSICAL_PTR(lBucket->higherLock) != flBucket) {
+		aRequest = PHYSICAL_PTR(aRequest->nextGrantedEntry);
+		continue; /* This page is not belonged th the given file */
+        }
+
+	/* request latch for access the lockBucket */
+	e = SHM_getLatch(handle, &lBucket->latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+	if (e < eNOERROR) ERRL1(handle, e, &LM_LATCH);
+
+	/* save the pointer */
+	nextRequest = PHYSICAL_PTR(aRequest->nextGrantedEntry);
+
+#ifdef CCRL
+	xBucket->nUnlock[L_OBJECT]++;
+#elif CCPL
+	xBucket->nUnlock[L_PAGE]++;
+#endif
+
+        DELETE_FROM_REQUESTNODE_DLIST(lBucket->queue, aRequest);
+#ifdef CCRL
+        DELETE_FROM_REQUESTNODE_DLIST2(xBucket->grantedList[L_OBJECT], aRequest);
+#elif CCPL
+        DELETE_FROM_REQUESTNODE_DLIST2(xBucket->grantedList[L_PAGE], aRequest);
+#endif
+
+        ((RequestNode_Type*)PHYSICAL_PTR(aRequest->higherRequestNode))->nLowLocks--;
+        releaseLockCounter ++;
+
+
+	/* release Request Node */
+	FREE_REQUESTNODE(handle, aRequest);
+
+	aRequest = nextRequest;
+
+	e = wakeup_nextRequest(handle, lBucket);
+	if (e < 0) {
+
+	    e2 = SHM_releaseLatch(handle, &lBucket->latch, procIndex);
+	    if (e2 < 0) ERRL1(handle, e2, &LM_LATCH);
+
+	    /* release lmLatch */
+	    e2 = SHM_releaseLatch(handle, &LM_LATCH, procIndex);
+	    if (e2 < 0) ERR(handle, e2);
+
+	    ERR(handle, e);
+	}
+
+	if (PHYSICAL_PTR(lBucket->queue)) {
+
+	    e = SHM_releaseLatch(handle, &lBucket->latch, procIndex);
+	    if (e < eNOERROR) ERRL1(handle, e, &LM_LATCH);
+	}
+	else {			/* delete lBucket */
+
+	    /* delete bucket from linked list and free lockbucket */
+	    lockHashEntryPtr = &LM_LOCKHASHTABLE[LOCKTABLE_LOCKID_HASH(lBucket->target, tempSeed, L_OBJECT)];
+
+	    e = lm_deleteLockBucketFromChain(handle, lockHashEntryPtr, lBucket);
+	    if (e < eNOERROR) ERRL1(handle, e, &LM_LATCH);
+
+	}
+
+    }
+
+    /*@ release latch */
+    /* release lmLatch */
+    e = SHM_releaseLatch(handle, &LM_LATCH, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+

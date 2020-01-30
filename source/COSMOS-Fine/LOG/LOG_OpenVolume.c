@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,72 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_OpenVolume.c
+ *
+ * Description:
+ *  Open a log volume. Currently only one log volume is supported.
+ *
+ * Exports:
+ *  Four LOG_OpenVolume(Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_OpenVolume(Four, Four)
+ *
+ * Description:
+ *  Open a log volume.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_OpenVolume(
+    Four 		handle,
+    Four 		volNo)		/* IN log volume number where the log file exists */
+{
+    Four 		e;              /* returned error code */
+    Four 		i;              /* loop index */
+    log_LogMasterPage_T masterPage; 	/* master page */
+    PageID 		pid;            /* page id of the log master page */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_OpenVolume(volNo=%ld)", volNo));
+
+
+    /* This is the only one process; no concurrency control is needed. */
+
+
+    /*
+     * Check if a log volume is opened.
+     */
+    if (LOG_LOGMASTER.volNo != NIL) ERR(handle, eLOGVOLUMEALREADYOPENED_LOG);
+
+
+    /*
+     * Read the log master page.
+     */
+    pid.volNo = volNo;
+    /* log master page follows the volume master pages. */
+    pid.pageNo = LOG_MASTER_PAGE_NO;
+    e = RDsM_ReadTrain(handle, &pid, (char*)&masterPage, PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* Copy the log master content to the memory data structure. */
+    LOG_LOGMASTER = masterPage.master;
+
+
+    return(eNOERROR);
+
+} /* LOG_OpenVolume() */

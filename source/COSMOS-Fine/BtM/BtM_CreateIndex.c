@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,125 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module :	BtM_CreateIndex.c
+ *
+ * Description :
+ *  Create the new B+ tree Index.
+ *  We allocate the root page and initialize it.
+ *
+ * Exports:
+ *  Four BtM_CreateIndex(Four, Four, PageID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * BtM_CreateIndex( )
+ *================================*/
+/*
+ * Function: Four BtM_CreateIndex(Four, Four, PageID*)
+ *
+ * Description :
+ *  Create the new B+ tree Index.
+ *  We allocate the root page and initialize it.
+ *
+ * Returns :
+ *  Error code
+ *    some errors caused by function calls
+ *
+ * Side effects:
+ *  The parameter rootPid is filled with the new root page's PageID.
+ */
+Four BtM_CreateIndex(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Four volNo,			/* IN volume where the new B+tree is placed */
+    PageID *rootPid,		/* OUT root page of the newly created B+tree */
+    SegmentID_T *pageSegmentID, /* OUT page segment ID */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four e;			/* error number */
+    BtreeLeaf *rpage;           /* Page Pointer to the root page */
+    Buffer_ACC_CB *rpage_BCBP;	/* buffer access control block for root page */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T logRecInfo; /* log record information */
+    LOG_Image_BtM_InitLeafPage_T initLeafPageInfo;
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_BTM, TR1, ("BtM_CreateIndex(volNo=%P, rootPid=%P)", volNo, rootPid));
+
+
+    /*@ check parameters */
+    if (volNo < 0) ERR(handle, eBADPARAMETER);
+
+    if (rootPid == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Request the first page of the file */
+    e = RDsM_CreateSegment(handle, xactEntry, volNo, pageSegmentID, PAGESIZE2, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = RDsM_AllocTrains(handle, xactEntry, volNo, pageSegmentID, (PageID *)NULL, 1, PAGESIZE2, TRUE, rootPid, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = BfM_fixNewBuffer(handle, rootPid, M_EXCLUSIVE, &rpage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    rpage = (BtreeLeaf *)rpage_BCBP->bufPagePtr;
+
+    /* Initialize the page as a leaf and root(root : 6th parameter == TRUE) */
+    BTM_INIT_LEAF_PAGE(rpage, *((IndexID*)rootPid), *rootPid, NIL, NIL, TRUE);
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+
+        initLeafPageInfo.iid = rpage->hdr.iid;
+        initLeafPageInfo.rootFlag = TRUE;
+        initLeafPageInfo.prevPage = rpage->hdr.prevPage;
+        initLeafPageInfo.nextPage = rpage->hdr.nextPage;
+
+        LOG_FILL_LOGRECINFO_1(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_BTM_INIT_LEAF_PAGE, LOG_REDO_ONLY,
+                              *rootPid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(LOG_Image_BtM_InitLeafPage_T), &initLeafPageInfo);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERR(handle, e); 
+
+        rpage->hdr.lsn = lsn;
+        rpage->hdr.logRecLen = logRecLen;
+    } else {
+        INCREASE_LSN_BY_ONE(rpage->hdr.lsn);
+    }
+
+
+    rpage_BCBP->dirtyFlag = 1;
+
+    e = SHM_releaseLatch(handle, rpage_BCBP->latchPtr, procIndex);
+    if (e < eNOERROR) ERR(handle, e); 
+
+    e = BfM_unfixBuffer(handle, rpage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* BtM_CreateIndex() */

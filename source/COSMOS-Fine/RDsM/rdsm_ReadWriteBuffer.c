@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,166 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: rdsm_ReadWriteBuffer.c
+ *
+ * Description:
+ *  Manage a system read/write buffer
+ *
+ * Exports:
+ *  Four rdsm_InitReadWriteBuffer(Four, RDsM_ReadWriteBuffer_T*)
+ *  Four rdsm_reallocReadWriteBuffer(Four, RDsM_ReadWriteBuffer_T*, Four)
+ *  Four rdsm_FinalReadWriteBuffer(Four, RDsM_ReadWriteBuffer_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#ifndef WIN32
+#include <unistd.h>
+#else
+#include <windows.h>
+#endif
+
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "RDsM.h"
+
+
+#ifdef READ_WRITE_BUFFER_ALIGN_FOR_LINUX
+
+
+/*
+ * Function: Four rdsm_InitReadWriteBuffer(Four, RDsM_ReadWriteBuffer_T*)
+ *
+ * Description:
+ *   Initialize aligned system read/write buffer
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_InitReadWriteBuffer(
+    Four                                handle,                 /* handle */
+    RDsM_ReadWriteBuffer_T		*buffer			/* read/write buffer */
+)
+{
+    Four			offset;
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_InitReadWriteBuffer(buffer=%p)", buffer));
+
+
+    /* Parameter Check */
+    if (buffer == NULL) ERR(handle, eBADPARAMETER);
+
+    /* alloc read/write buffer */
+    buffer->size = RDSM_READ_WRITE_BUFFER_INIT_SIZE+RDSM_READ_WRITE_BUFFER_ALIGN_MASK;
+
+    buffer->ptr = (void*)malloc(buffer->size);
+    if (buffer->ptr == NULL) ERR(handle, eMEMORYALLOCERR);
+
+    /* align allocated read/write buffer */
+    if (((MEMORY_ALIGN_TYPE)(buffer->ptr) & RDSM_READ_WRITE_BUFFER_ALIGN_MASK) == 0)
+        offset = 0;
+    else
+        offset = (RDSM_READ_WRITE_BUFFER_ALIGN_MASK+0x00000001) - ((MEMORY_ALIGN_TYPE)(buffer->ptr) & RDSM_READ_WRITE_BUFFER_ALIGN_MASK);
+
+    if (offset > RDSM_READ_WRITE_BUFFER_ALIGN_MASK) ERR(handle, eINTERNAL);
+
+    buffer->alignedPtr  = (void*)((char*)(buffer->ptr) + offset);
+    buffer->alignedSize = buffer->size - offset;
+
+
+    return (eNOERROR);
+}
+
+/*
+ * Function: Four rdsm_reallocReadWriteBuffer(Four, RDsM_ReadWriteBuffer_T*, Four)
+ *
+ * Description:
+ *   Increase aligned system read/write buffer size
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_reallocReadWriteBuffer(
+    Four                        handle,                 /* handle */
+    RDsM_ReadWriteBuffer_T	*buffer,		/* read/write buffer */
+    Four			needSize		/* need size (Unit = byte) */
+)
+{
+    Four			allocSize;
+    Four			offset;
+    char			*tempPtr;
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_reallocReadWriteBuffer(buffer=%p, needSize=%ld)", buffer, needSize));
+
+
+    /* Parameter Check */
+    if (buffer == NULL) ERR(handle, eBADPARAMETER);
+    if (needSize <= 0) ERR(handle, eBADPARAMETER);
+
+    /* if needSize is less than or equal to RDSM_READ_WRITE_BUFFER_SIZE, do nothing */
+    if (needSize <= RDSM_READ_WRITE_BUFFER_SIZE(buffer)) return (eNOERROR);
+
+    /* calculate 'allocSize' */
+    allocSize = buffer->size - RDSM_READ_WRITE_BUFFER_ALIGN_MASK;
+
+    do {
+    	allocSize *= 2;
+    } while (allocSize < needSize);
+
+    /* alloc read/write buffer */
+    tempPtr = buffer->ptr;
+
+    buffer->size = allocSize+RDSM_READ_WRITE_BUFFER_ALIGN_MASK;
+
+    buffer->ptr = (void*)realloc(buffer->ptr, buffer->size);
+    if (buffer->ptr == NULL) {
+    	free(tempPtr);
+    	ERR(handle, eMEMORYALLOCERR);
+    }
+
+    /* align allocated read/write buffer */
+    if (((MEMORY_ALIGN_TYPE)(buffer->ptr) & RDSM_READ_WRITE_BUFFER_ALIGN_MASK) == 0)
+        offset = 0;
+    else
+        offset = (RDSM_READ_WRITE_BUFFER_ALIGN_MASK+0x00000001) - ((MEMORY_ALIGN_TYPE)(buffer->ptr) & RDSM_READ_WRITE_BUFFER_ALIGN_MASK);
+
+    if (offset > RDSM_READ_WRITE_BUFFER_ALIGN_MASK) ERR(handle, eINTERNAL);
+
+    buffer->alignedPtr  = (void*)((char*)(buffer->ptr)  + offset);
+    buffer->alignedSize = buffer->size - offset;
+
+
+    return(eNOERROR);
+}
+
+/*
+ * Function: Four rdsm_FinalReadWriteBuffer(Four, RDsM_ReadWriteBuffer_T*)
+ *
+ * Description:
+ *   Finalize aligned system read/write buffer
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_FinalReadWriteBuffer(
+    Four                                handle,                 /* handle */
+    RDsM_ReadWriteBuffer_T		*buffer			/* read/write buffer */
+)
+{
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_FinalReadWriteBuffer(buffer=%p)", buffer));
+
+
+    /* Parameter Check */
+    if (buffer == NULL) ERR(handle, eBADPARAMETER);
+
+    /* free read/write buffer */
+    free(buffer->ptr);
+
+
+    return (eNOERROR);
+}
+#endif /* READ_WRITE_BUFFER_ALIGN_FOR_LINUX */

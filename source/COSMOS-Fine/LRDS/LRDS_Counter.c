@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,174 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_Counter.c
+ *
+ * Description:
+ *  Implements a counter.
+ *
+ * Exports:
+ *  Four LRDS_CreateCounter(Four, Four, char*, Four, CounterID*)
+ *  Four LRDS_DestroyCounter(Four, Four, char*)
+ *  Four LRDS_GetCounterId(Four, Four, char*, CounterID*)
+ *  Four LRDS_SetCounterId(Four, CounterID*, Four)
+ *  Four LRDS_ReadCounter(Four, Four, CounterID*, Four*)
+ *  Four LRDS_GetCounterValues(Four, Four, CounterID*, Four, Four*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/*
+ * Function: Four LRDS_CreateCounter(Four, Four, char*, Four, CounterID*)
+ *
+ * Description:
+ *  Creates a counter as the given name.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_CreateCounter(
+    Four handle,
+    Four volId,                 /* IN volume id */
+    char *cntrName,             /* IN counter name */
+    Four initialValue,          /* IN initialize the counter as this value */
+    CounterID *cntrId)          /* OUT counter id */
+{
+    Four e;                     /* error code */
+
+    e = SM_CreateCounter(handle, volId, cntrName, initialValue, cntrId);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+
+
+/*
+ * Function: Four LRDS_DestroyCounter(Four, Four, char*)
+ *
+ * Description:
+ *  Destroy the given counter.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_DestroyCounter(
+    Four handle,
+    Four volId,                 /* IN volume id */
+    char *cntrName)             /* IN counter name */
+{
+    Four e;                     /* error code */
+
+    e = SM_DestroyCounter(handle, volId, cntrName);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+
+
+/*
+ * Function: Four LRDS_GetCounterId(Four, Four, char*, CounterID*)
+ *
+ * Description:
+ *  Returns the internal id of the given counter.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_GetCounterId(
+    Four handle,
+    Four volId,                 /* IN volume id */
+    char *cntrName,             /* IN counter name */
+    CounterID *cntrId)          /* OUT counter id */
+{
+    Four e;                     /* error code */
+
+    e = SM_GetCounterId(handle, volId, cntrName, cntrId);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+
+
+/*
+ * Function: Four LRDS_SetCounter(Four, Four, CounterID*, Four)
+ *
+ * Description:
+ *  Set the counter to the given value.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_SetCounter(
+    Four handle,
+    Four volId,                 /* IN volume id */
+    CounterID *cntrId,          /* IN counter id */
+    Four value)                 /* IN set the counter to this value */
+{
+    Four e;                     /* error code */
+
+    e = SM_SetCounter(handle, volId, cntrId, value);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+
+
+/*
+ * Function: Four LRDS_ReadCounter(Four, Four, CounterID*, Four*)
+ *
+ * Description:
+ *  Read the current value from the counter.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_ReadCounter(
+    Four handle,
+    Four volId,                 /* IN volume id */
+    CounterID *cntrId,          /* IN counter id */
+    Four *value)                /* OUT the current counter value */
+{
+    Four e;                     /* error code */
+
+    e = SM_ReadCounter(handle, volId, cntrId, value);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+
+
+/*
+ * Function: Four LRDS_GetCounterValues(Four, Four, CounterID*, Four, Four*)
+ *
+ * Description:
+ *  The counter allocates the given number of numbers to the user.
+ *  The numbers start from the startValue and contiguous.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_GetCounterValues(
+    Four handle,
+    Four volId,                 /* IN volume id */
+    CounterID *cntrId,          /* IN counter id */
+    Four nValues,               /* IN number of values to be allocated */
+    Four *startValue)           /* OUT allocated numbers start from this value */
+{
+    Four e;                     /* error code */
+
+    e = SM_GetCounterValues(handle, volId, cntrId, nValues, startValue);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+

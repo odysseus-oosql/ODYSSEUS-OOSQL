@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,50 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: XA_initDS.c
+ *
+ * Description:
+ *	initialize data structure
+ *
+ * Exports:
+ *	XA_InitLocalDS( )
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@================================
+ * Four XA_InitLocalDS( )
+ *================================*/
+/*
+ * Function: Four XA_InitLocalDS(Four)
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ */
+Four XA_InitLocalDS(
+    Four    handle)
+{
+    Four    e;             /* error number */
+
+    TR_PRINT(handle, TR_XA, TR1, ("XA_InitLocalDS()"));
+
+
+    COSMOS_XA_RMOPENSTATUS(handle)          = COSMOS_XA_UNINITIALIZED;
+    COSMOS_XA_RMASSOCIATIONSTATUS(handle)   = COSMOS_XA_NOTASSOCIATED;
+    COSMOS_XA_RMTRANSTATUS(handle)          = COSMOS_XA_NONTRANSACTION;
+
+    COSMOS_XA_SCANSTATUS(handle)            = COSMOS_XA_SCANENDED;
+    COSMOS_XA_PREPAREDNUM(handle)           = 0;
+    COSMOS_XA_PREPAREDLIST(handle)          = NULL;
+
+
+    return(eNOERROR);
+
+} /* XA_InitLocalDS() */

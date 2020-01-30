@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,42 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: sm_Catalog.c
+ *
+ * Description:
+ *  Includes the catalog related stuffs.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * key descriptors of the indexes on the catalog tables
+ */
+KeyDesc sm_sysTablesDataFileIdIndexKdesc = {
+    0,                          /* flag */
+    1,                          /* nparts */
+    {{SM_FILEID, 0, SM_FILEID_SIZE}}
+};
+
+KeyDesc sm_sysIndexesDataFileIdIndexKdesc = {
+    0,                          /* flag */
+    1,                          /* nparts */
+    {{SM_FILEID, 0, SM_FILEID_SIZE}}
+};
+
+KeyDesc sm_sysIndexesIndexIdIndexKdesc = {
+    0,                          /* flag */
+    1,                          /* nparts */
+    {{SM_INDEXID, 0, SM_INDEXID_SIZE}}
+};
+
+
+

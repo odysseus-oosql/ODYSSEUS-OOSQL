@@ -1,0 +1,61 @@
+.MAKE_VERSION:	VERSION-1.0
+../Header/errorcodes.h:
+	/usr/local/bin/perl ./Err_Error.pl Err_Error.dat
+	/bin/mv errorcodes.h ../Header
+	./update-cosmos_r.py
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseName.o:	../Header/common.h /usr/include/stdio.h /usr/include/sys/feature_tests.h /usr/include/sys/isa_defs.h /usr/include/sys/va_list.h /usr/include/stdio_tag.h /usr/include/stdio_impl.h ../Header/param.h ../Header/basictypes.h ../Header/primitivetypes.h ../Header/primitivetypes-NormalDatabase.h ../Header/Util_varArray.h ../Header/error.h ../Header/errorcodes.h ../Header/Util_errorLog.h ../Header/perProcessDS.h /usr/include/string.h ../Header/trace.h ../Header/latch.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseName.o:	../Header/THM_cosmosThread.h /usr/include/sys/types.h /usr/include/sys/machtypes.h /usr/include/sys/int_types.h /usr/include/sys/select.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/time_impl.h /usr/include/sys/stat.h /usr/include/fcntl.h /usr/include/sys/fcntl.h /usr/include/semaphore.h /usr/include/pthread.h /usr/include/sched.h /usr/include/errno.h /usr/include/sys/errno.h ../Header/SM.h ../Header/Util_pool.h ../Header/Util.h /usr/include/limits.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseName.o:	/usr/include/sys/int_limits.h ../Header/Util_heap.h ../Header/Util_Sort.h ../Header/xactTable.h ../Header/LM_LockMatrix.h ../Header/SHM.h /usr/include/sys/ipc.h ../Header/TM.h ../Header/LM.h ../Header/RDsM.h ../Header/BfM.h ../Header/OM.h ../Header/LOG.h /usr/include/assert.h ../Header/dirtyPageTable.h ../Header/logRecTbl.h ../Header/BtM.h ../Header/LRDS.h ../Header/perThreadDS.h ../Header/BL_OM.h ../Header/LOT.h ../Header/MLGF.h ../Header/BL_LRDS.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseName.o:	../Header/BL_BtM.h ../Header/RM.h ../Header/BL_SM.h ../Header/LRDS_XA.h /usr/include/stdlib.h ../Header/COSMOS_XA_ThinLayer.h ../Header/xa.h 
+	/opt/SUNWspro/bin/cc -mt -xO2 -KPIC -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED -c  Err_GetErrBaseName.c
+clean:
+	rm -f -f *.o *.ln *.i TAGS tags
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrName.o:	../Header/common.h /usr/include/stdio.h /usr/include/sys/feature_tests.h /usr/include/sys/isa_defs.h /usr/include/sys/va_list.h /usr/include/stdio_tag.h /usr/include/stdio_impl.h ../Header/param.h ../Header/basictypes.h ../Header/primitivetypes.h ../Header/primitivetypes-NormalDatabase.h ../Header/Util_varArray.h ../Header/error.h ../Header/errorcodes.h ../Header/Util_errorLog.h ../Header/perProcessDS.h /usr/include/string.h ../Header/trace.h ../Header/latch.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrName.o:	../Header/THM_cosmosThread.h /usr/include/sys/types.h /usr/include/sys/machtypes.h /usr/include/sys/int_types.h /usr/include/sys/select.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/time_impl.h /usr/include/sys/stat.h /usr/include/fcntl.h /usr/include/sys/fcntl.h /usr/include/semaphore.h /usr/include/pthread.h /usr/include/sched.h /usr/include/errno.h /usr/include/sys/errno.h ../Header/SM.h ../Header/Util_pool.h ../Header/Util.h /usr/include/limits.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrName.o:	/usr/include/sys/int_limits.h ../Header/Util_heap.h ../Header/Util_Sort.h ../Header/xactTable.h ../Header/LM_LockMatrix.h ../Header/SHM.h /usr/include/sys/ipc.h ../Header/TM.h ../Header/LM.h ../Header/RDsM.h ../Header/BfM.h ../Header/OM.h ../Header/LOG.h /usr/include/assert.h ../Header/dirtyPageTable.h ../Header/logRecTbl.h ../Header/BtM.h ../Header/LRDS.h ../Header/perThreadDS.h ../Header/BL_OM.h ../Header/LOT.h ../Header/MLGF.h ../Header/BL_LRDS.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrName.o:	../Header/BL_BtM.h ../Header/RM.h ../Header/BL_SM.h ../Header/LRDS_XA.h /usr/include/stdlib.h ../Header/COSMOS_XA_ThinLayer.h ../Header/xa.h 
+	/opt/SUNWspro/bin/cc -mt -xO2 -KPIC -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED -c  Err_GetErrName.c
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseMsg.o:	/usr/include/errno.h /usr/include/sys/errno.h ../Header/common.h /usr/include/stdio.h /usr/include/sys/feature_tests.h /usr/include/sys/isa_defs.h /usr/include/sys/va_list.h /usr/include/stdio_tag.h /usr/include/stdio_impl.h ../Header/param.h ../Header/basictypes.h ../Header/primitivetypes.h ../Header/primitivetypes-NormalDatabase.h ../Header/Util_varArray.h ../Header/error.h ../Header/errorcodes.h ../Header/Util_errorLog.h ../Header/perProcessDS.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseMsg.o:	/usr/include/string.h ../Header/trace.h ../Header/latch.h ../Header/THM_cosmosThread.h /usr/include/sys/types.h /usr/include/sys/machtypes.h /usr/include/sys/int_types.h /usr/include/sys/select.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/time_impl.h /usr/include/sys/stat.h /usr/include/fcntl.h /usr/include/sys/fcntl.h /usr/include/semaphore.h /usr/include/pthread.h /usr/include/sched.h ../Header/SM.h ../Header/Util_pool.h ../Header/Util.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseMsg.o:	/usr/include/limits.h /usr/include/sys/int_limits.h ../Header/Util_heap.h ../Header/Util_Sort.h ../Header/xactTable.h ../Header/LM_LockMatrix.h ../Header/SHM.h /usr/include/sys/ipc.h ../Header/TM.h ../Header/LM.h ../Header/RDsM.h ../Header/BfM.h ../Header/OM.h ../Header/LOG.h /usr/include/assert.h ../Header/dirtyPageTable.h ../Header/logRecTbl.h ../Header/BtM.h ../Header/LRDS.h ../Header/perThreadDS.h ../Header/BL_OM.h ../Header/LOT.h ../Header/MLGF.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrBaseMsg.o:	../Header/BL_LRDS.h ../Header/BL_BtM.h ../Header/RM.h ../Header/BL_SM.h ../Header/LRDS_XA.h /usr/include/stdlib.h ../Header/COSMOS_XA_ThinLayer.h ../Header/xa.h 
+	/opt/SUNWspro/bin/cc -mt -xO2 -KPIC -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED -c  Err_GetErrBaseMsg.c
+.BUILT_LAST_MAKE_RUN:
+Err_Init.o:	/usr/include/stdio.h /usr/include/sys/feature_tests.h /usr/include/sys/isa_defs.h /usr/include/sys/va_list.h /usr/include/stdio_tag.h /usr/include/stdio_impl.h ../Header/common.h ../Header/param.h ../Header/basictypes.h ../Header/primitivetypes.h ../Header/primitivetypes-NormalDatabase.h ../Header/Util_varArray.h ../Header/error.h ../Header/errorcodes.h ../Header/Util_errorLog.h ../Header/perProcessDS.h /usr/include/string.h ../Header/trace.h ../Header/latch.h
+.BUILT_LAST_MAKE_RUN:
+Err_Init.o:	../Header/THM_cosmosThread.h /usr/include/sys/types.h /usr/include/sys/machtypes.h /usr/include/sys/int_types.h /usr/include/sys/select.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/time_impl.h /usr/include/sys/stat.h /usr/include/fcntl.h /usr/include/sys/fcntl.h /usr/include/semaphore.h /usr/include/pthread.h /usr/include/sched.h /usr/include/errno.h /usr/include/sys/errno.h ../Header/SM.h ../Header/Util_pool.h ../Header/Util.h /usr/include/limits.h
+.BUILT_LAST_MAKE_RUN:
+Err_Init.o:	/usr/include/sys/int_limits.h ../Header/Util_heap.h ../Header/Util_Sort.h ../Header/xactTable.h ../Header/LM_LockMatrix.h ../Header/SHM.h /usr/include/sys/ipc.h ../Header/TM.h ../Header/LM.h ../Header/RDsM.h ../Header/BfM.h ../Header/OM.h ../Header/LOG.h /usr/include/assert.h ../Header/dirtyPageTable.h ../Header/logRecTbl.h ../Header/BtM.h ../Header/LRDS.h ../Header/perThreadDS.h ../Header/BL_OM.h ../Header/LOT.h ../Header/MLGF.h ../Header/BL_LRDS.h
+.BUILT_LAST_MAKE_RUN:
+Err_Init.o:	../Header/BL_BtM.h ../Header/RM.h ../Header/BL_SM.h ../Header/LRDS_XA.h /usr/include/stdlib.h ../Header/COSMOS_XA_ThinLayer.h ../Header/xa.h err_InitVariables.i 
+	/opt/SUNWspro/bin/cc -mt -xO2 -KPIC -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED -c  Err_Init.c
+.BUILT_LAST_MAKE_RUN:
+Err.o:
+	echo ld -r ~~~~ -o Err.o
+	ld -r Err_Init.o Err_GetErrName.o Err_GetErrMsg.o Err_GetErrBaseName.o Err_GetErrBaseMsg.o   -o Err.o
+	chmod -x Err.o
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrMsg.o:	/usr/include/errno.h /usr/include/sys/errno.h /usr/include/string.h /usr/include/sys/feature_tests.h /usr/include/sys/isa_defs.h ../Header/common.h /usr/include/stdio.h /usr/include/sys/va_list.h /usr/include/stdio_tag.h /usr/include/stdio_impl.h ../Header/param.h ../Header/basictypes.h ../Header/primitivetypes.h ../Header/primitivetypes-NormalDatabase.h ../Header/Util_varArray.h ../Header/error.h ../Header/errorcodes.h ../Header/Util_errorLog.h ../Header/perProcessDS.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrMsg.o:	../Header/trace.h ../Header/latch.h ../Header/THM_cosmosThread.h /usr/include/sys/types.h /usr/include/sys/machtypes.h /usr/include/sys/int_types.h /usr/include/sys/select.h /usr/include/sys/time.h /usr/include/time.h /usr/include/sys/time_impl.h /usr/include/sys/stat.h /usr/include/fcntl.h /usr/include/sys/fcntl.h /usr/include/semaphore.h /usr/include/pthread.h /usr/include/sched.h ../Header/SM.h ../Header/Util_pool.h ../Header/Util.h /usr/include/limits.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrMsg.o:	/usr/include/sys/int_limits.h ../Header/Util_heap.h ../Header/Util_Sort.h ../Header/xactTable.h ../Header/LM_LockMatrix.h ../Header/SHM.h /usr/include/sys/ipc.h ../Header/TM.h ../Header/LM.h ../Header/RDsM.h ../Header/BfM.h ../Header/OM.h ../Header/LOG.h /usr/include/assert.h ../Header/dirtyPageTable.h ../Header/logRecTbl.h ../Header/BtM.h ../Header/LRDS.h ../Header/perThreadDS.h ../Header/BL_OM.h ../Header/LOT.h ../Header/MLGF.h ../Header/BL_LRDS.h
+.BUILT_LAST_MAKE_RUN:
+Err_GetErrMsg.o:	../Header/BL_BtM.h ../Header/RM.h ../Header/BL_SM.h ../Header/LRDS_XA.h /usr/include/stdlib.h ../Header/COSMOS_XA_ThinLayer.h ../Header/xa.h 
+	/opt/SUNWspro/bin/cc -mt -xO2 -KPIC -I../Header -I/proj1/ladyhawk/early/source/flexlm/machind  -DSOLARIS2 -D__SVR4 -DCCRL -DLICENSE -DNDEBUG -DDEMON_PROCESS -DUSEMUTEX -D_LARGEFILE64_SOURCE=1 -D_REENTRANT -DLRDS_INCLUDED -c  Err_GetErrMsg.c
+err_InitVariables.i:
+	/usr/local/bin/perl ./Err_Error.pl Err_Error.dat
+	/bin/mv errorcodes.h ../Header
+	./update-cosmos_r.py

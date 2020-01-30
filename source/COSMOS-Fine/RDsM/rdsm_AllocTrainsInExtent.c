@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,93 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: rdsm_AllocTrainsInExtent.c
+ *
+ * Description:
+ *  Allocate the trains in a extent.
+ *
+ * Exports:
+ *  Four rdsm_AllocTrainsInExtent(rdsm_AllocTrainsInExtent*, RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*, Four, Four, Four, Four, PageID*, Four*, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four rdsm_AllocTrainsInExtent(rdsm_AllocTrainsInExtent*, RDsM_VolumeInfo_T*, AllocAndFreeExtentInfo_T*, Four, Four, Four, Four, Page ID*, Four*, LogParameter_T*)
+ *
+ * Description:
+ *  Allocate the trains in a extent.
+ *
+ * Returns:
+ *  Error code
+ */
+Four rdsm_AllocTrainsInExtent(
+    Four                        handle,                 /* IN    handle */
+    XactTableEntry_T		*xactEntry,		/* IN  transaction table entry */
+    RDsM_VolumeInfo_T		*volInfo,		/* IN  volume information */
+    AllocAndFreeExtentInfo_T	*extent,		/* IN  extent information data structure */
+    Four			sizeOfTrain,		/* IN  size of train */
+    Four                        pos,			/* IN  offset in a extent */
+    Four                        numOfTrain,		/* IN  # of train to require */
+    Four                        eff,			/* IN  extent fill factor */
+    PageID			*trainIDs,		/* OUT allocated train IDs */
+    Four                        *allocatedTrains,	/* OUT # of train allocated */
+    LogParameter_T		*logParam		/* IN  log parameter */
+)
+{
+    BitmapTrain_T		*bitmapTrain;		/* bitmap train */
+    Four			i = 0;			/* index */
+    Four 			ith;			/* ith in a extent */
+    Four                        offset;			/* offset */
+    Four			e;			/* returned error value */
+    Four                        remainPages;		/* # of empty trains */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("rdsm_AllocTrainsInExtent(xactEntry=%P, volInfo=%P, extent=%P, sizeOfTrain=%lD, pos=%lD, numOfTrain=%lD, eff=%lD, trainIDs=%P, allocatedTrains=%P, logParam=%p)", xactEntry, volInfo, extent, sizeOfTrain, pos, numOfTrain, eff, trainIDs, allocatedTrains, logParam));
+
+
+    bitmapTrain = (BitmapTrain_T*)RDSM_BITMAP_BUFFER_ACC_CB(extent)->bufPagePtr;
+    offset = RDSM_BITMAP_OFFSET(extent);
+
+    /* set 'remainPages' */
+    Util_CountBitsSet(handle, bitmapTrain->bytes, offset, volInfo->extSize, &remainPages);
+
+    while (volInfo->extSize - remainPages < eff) {
+
+        /*
+         * find a empty trains in a extent
+         */
+	if (pos == volInfo->extSize || i == numOfTrain) break;
+
+  	Util_FindBits(handle, bitmapTrain->bytes, offset+pos, volInfo->extSize-pos, sizeOfTrain, &ith);
+	if (ith == NIL) break;
+
+        /* update bit map */
+	e = rdsm_SetBitMapInfo(handle, xactEntry, extent, pos+ith, sizeOfTrain, CLEAR_BITS, logParam);
+	if (e < eNOERROR) ERR(handle, e);
+
+	trainIDs[i].volNo = volInfo->volNo;
+	trainIDs[i].pageNo = extent->extentNo * volInfo->extSize + pos + ith;
+
+	i++;
+	pos += ith + sizeOfTrain;
+	remainPages -= sizeOfTrain;
+    }
+
+    *allocatedTrains = i;
+
+
+    return (eNOERROR);
+}

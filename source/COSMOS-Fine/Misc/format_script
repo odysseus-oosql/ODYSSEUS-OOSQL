@@ -1,0 +1,6 @@
+#!/bin/csh
+LRDS_Format -extentSize 16 -segmentSize 320 -volumeTitle cookie -volumeID 10 -device /backup/cookie.vol 3200 -device /backup/cookie2.vol 1600
+#LRDS_Format -l -extentSize 16 -volumeTitle cookie -volumeID 10 -device log.vol 320000
+#LRDS_ExpandDataVolume -device /backup/cookie.vol -device /backup/cookie2.vol -addDevice /backup/cookie3.vol 3200
+#SM_Format -extentSize 16 -volumeTitle cookie -volumeID 10 -device cookie.vol 320000 -device cookie2.vol 320000
+#SM_ExpandVolume -device cookie.vol -device cookie2.vol -addDevice cookie4.vol 320000

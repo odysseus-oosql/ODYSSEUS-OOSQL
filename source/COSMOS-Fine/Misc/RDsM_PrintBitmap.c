@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,137 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_ViewCatalog.c
+ *
+ * Description:
+ *  Print the rows of the catalog tables of the SM.
+ *
+ * Usage:
+ *  SM_ViewCatalog volume_name
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+
+#include "common.h"
+#include "SHM.h"
+#include "TM.h"
+#include "OM.h"
+#include "SM.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+#define MAXDEVICESINVOLUME 20 
+#define ERROR(_e) printf("<FILE:%s LINE:%ld> %ld::%s\n", __FILE__, __LINE__, _e, SM_Err(handle, _e))
+
+#define ERROR_AND_EXIT(_e) \
+	BEGIN_MACRO \
+	ERROR(_e); \
+	(Four) SM_AbortTransaction(handle, &xactId); \
+	(Four) SM_Final( ); \
+	exit(1); \
+	END_MACRO
+
+Four procIndex;
+
+
+int main(int argc, char *argv[])
+{
+    Four e;			/* error code */
+    Four volId;			/* volume identifier */
+    XactID xactId;		/* transaction Id */
+    Four i;
+    Four extentSize, numPages, numUsedPages;
+    char *devNames[MAXDEVICESINVOLUME]; 
+
+    Four handle = 0;
+
+    if (argc < 2) {
+	printf("%s [device_name]+\n", argv[0]);
+	exit(1);
+    }
+
+
+    /* get device names */
+    for (i = 1; i < argc; i++) devNames[i-1] = argv[i];
+
+    /* Initialzie the storage system. */
+    e = SM_Init( );
+    if (e < eNOERROR) {
+        ERROR(e);
+        printf("storage system initialization failed\n");
+        exit(1);
+    }
+
+    e = SM_AllocHandle(&handle);
+    if (e < eNOERROR) {
+        ERROR(e);
+        exit(1);
+    }
+
+    /* Mount the given volume. */
+    e = SM_Mount(handle, argc-1, devNames, &volId); 
+    if (e < eNOERROR) {
+        ERROR(e);
+        SM_FreeHandle(handle);
+        (Four) SM_Final( );
+        exit(1);
+    }
+
+
+    e = SM_BeginTransaction(handle, &xactId, X_CS_BROWSE); 
+    if (e < eNOERROR) {
+        ERROR(e);
+        SM_FreeHandle(handle);
+        (Four) SM_Final( );
+        exit(1);
+    }
+
+
+    e = RDsM_GetStatistics(handle, volId, &extentSize, &numPages, &numUsedPages, TRUE);
+    if (e < eNOERROR) ERROR_AND_EXIT(e);
+
+    printf("\n");
+    printf("extentSize = %ld\n", extentSize);
+    printf("numPages = %ld\n", numPages);
+    printf("numUsedPages = %ld\n", numUsedPages);
+    printf("\n");
+
+    /* Commit the transaction. */
+    e = SM_CommitTransaction(handle, &xactId);
+    if (e < eNOERROR) ERROR_AND_EXIT(e);
+
+
+    /* Dismount the volume. */
+    e = SM_Dismount(handle, volId);
+    if (e < eNOERROR) {
+        ERROR(e);
+        (Four) SM_FreeHandle(handle);
+        (Four) SM_Final( );
+        exit(1);
+    }
+
+
+    /* Finalize the LRDS. */
+    e = SM_FreeHandle(handle);
+    if (e < eNOERROR) {
+        ERROR(e);
+        exit(1);
+    }
+
+    e = SM_Final( );
+    if (e < eNOERROR) {
+        ERROR(e);
+        exit(1);
+    }
+
+    return(0);
+
+} /* main() */
+
+

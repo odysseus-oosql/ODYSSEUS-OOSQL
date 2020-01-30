@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,222 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SHM_demon.c
+ *
+ * Description:
+ *   demon process control
+ *
+ * Exports:
+ *
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <sys/types.h>
+#include <sys/wait.h>	/* for waitpid */
+#include <signal.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+#include <errno.h>
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/* shm_initDemon :: initialize Demon Process */
+#define ST_DEADLOCKDETECTION 4
+
+
+void shm_signalHandlerOfDemon();
+void shm_signalHandlerOfServer();
+
+Four shm_initInheritedProperty(Four handle); 
+
+
+/*@================================
+ * SHM_initDemon( )
+ *================================*/
+Four SHM_initDemon(
+    Four    	handle
+)
+{
+    Four 	demonPId;			/* index loop */
+    Four	e;
+    char        semName[MAXSEMAPHORENAME];
+    Four        tmp;
+    FileDesc    fd_1, fd_2, fd_3; 
+
+    signal(SIGTRAP, SIG_IGN);
+    signal(SIGCHLD, shm_signalHandlerOfServer); 
+
+    if ( ( demonPId = fork() ) == -1 )
+	ERR(handle, eDEMONFORKFAILED_SHM);
+
+    else if ( demonPId == 0 ) {
+	/* child process */
+	shm_perProcessDSptr->demonPId = getpid();
+
+        /*
+         * Initialize the inherited property from its parent process
+         */
+        e = shm_initInheritedProperty(handle);
+        if ( e < eNOERROR ) ERR(handle, e);
+
+        /*
+         * CRITICAL SECTION INIT
+         */
+	/* INIT_CRITICAL_SECTION_FOR_SHARED_MEMORY_ACCESS(handle); */
+	INIT_CRITICAL_SECTION_FOR_SHARED_MEMORY_ACCESS(handle, &fd_1);
+
+        /*
+         * CRITICAL SECTION BEGIN
+         */
+        /* START_CRITICAL_SECTION_FOR_SHARED_MEMORY_ACCESS(handle); */
+	START_CRITICAL_SECTION_FOR_SHARED_MEMORY_ACCESS(handle, &fd_2);
+
+
+ 	e = shm_allocAndInitProcessTableEntry(handle, &procIndex);
+	if ( e < eNOERROR ) ERR(handle, e);
+
+        /* Alloc TCB */
+        perThreadTable[handle].TCBptr = &tm_shmPtr->TCB_Pool[procIndex * MAXTHREADS + handle];
+
+        /* initialize TCB */
+#if !defined(_LP64) && defined(SUPPORT_LARGE_DATABASE2)
+        sprintf(semName,"/%lld_%lld",procIndex, handle);
+#else
+        sprintf(semName,"/%ld_%ld",procIndex, handle);
+#endif
+        e = cosmos_thread_unnamed_sem_create(&(perThreadTable[handle].TCBptr->semID), 0, 0);
+        if (e < eNOERROR) ERR(handle, e);
+
+        strcpy(perThreadTable[handle].TCBptr->semName, semName);
+        perThreadTable[handle].TCBptr->next = LOGICAL_PTR(NULL); 
+
+        /* allocate and initialize its own latchList */
+        MY_NUMGRANTED(handle) = 0;
+        MY_GRANTEDLATCHSTRUCT(handle) = &shm_grantedLatchStruct[handle];
+
+	/*@ signal handling */
+	/* change signal handler from shm_sigHandle to shm_signalHandlerOfDemon */
+	signal(SIGINT, shm_signalHandlerOfDemon);
+	signal(SIGQUIT, shm_signalHandlerOfDemon);
+	signal(SIGKILL, shm_signalHandlerOfDemon);
+
+	fprintf(stderr, "[%2ld] Demon Process(pid=%ld) Created\n", procIndex, getpid());
+
+
+        /*
+         * CRITICAL SECTION END
+         */
+	END_CRITICAL_SECTION_FOR_SHARED_MEMORY_ACCESS(handle, &fd_3);
+
+	CLOSE_LOCK_FILE_DESC_FOR_SHARED_MEMORY_ACCESS(fd_1);
+	CLOSE_LOCK_FILE_DESC_FOR_SHARED_MEMORY_ACCESS(fd_2);
+	CLOSE_LOCK_FILE_DESC_FOR_SHARED_MEMORY_ACCESS(fd_3);
+
+	for(;;) {
+
+	    sleep(ST_DEADLOCKDETECTION);
+
+	    e = LM_detectDeadlock(handle);
+	    if (e < eNOERROR) ERR(handle, e);
+	}
+
+    }
+    else {
+
+	/* parent process */
+	shmPtr->demonPId = demonPId;
+    }
+
+    return(eNOERROR);
+}
+
+
+
+/*@================================
+ * SHM_finalDemon( )
+ *================================*/
+Four SHM_finalDemon(
+    Four    	handle
+)
+{
+    Four 	e;
+
+
+    fprintf(stderr, "[%2ld] This process(pid=%d) Send Signal %ld to Demon Process(pid=%ld)\n", 
+	    procIndex, getpid(), SIGQUIT, shmPtr->demonPId);
+
+
+    kill(shmPtr->demonPId, SIGQUIT);
+
+    return(eNOERROR);
+}
+
+
+
+/*@================================
+ * shm_signalHandlerOfDemon
+ *================================*/
+void shm_signalHandlerOfDemon(Four sigNo) /* change function name from shm_sigHandle */
+{
+    char        semName[MAXSEMAPHORENAME];
+
+
+    fprintf(stderr, "[%2ld] Demon Process(pid=%ld) Destroyed by signal %ld\n", procIndex, getpid(), sigNo);
+
+
+    exit(0); /* DO NOT REMOVE THIS LINE */ 
+}
+
+/*@================================
+ * shm_signalHandlerOfServer
+ *================================*/
+void shm_signalHandlerOfServer(Four sigNo)
+{
+    pid_t	pid;
+    int		status;
+
+    /*
+     * Wait for the termination of demon and 
+     * get the exit status of the demon
+     */
+    if ((pid = waitpid(-1, &status, 0)) < 0) {
+	fprintf(stderr, "waitpid error\n");
+    }
+
+
+    return;
+}
+
+/*============================================
+ * shm_initInheritedProperty(handle)
+ *============================================*/
+Four shm_initInheritedProperty(
+    Four                handle
+)
+{
+    Four                e;              /* error */
+    Four                fd;
+
+
+    /* We close all opend file descriptors except stdard I/O (stdin, stdout, stderr) */
+    for (fd = 0; fd < sysconf(_SC_OPEN_MAX); fd++) {
+        if (fd == STDIN_FILENO || fd == STDOUT_FILENO || fd == STDERR_FILENO)
+            continue;
+        else
+            close(fd);
+    }
+
+    /* We detach this demon process from the process group in order to prevent signal's effect */
+    e = setpgrp();
+    if (e == -1) ERR(handle, eINTERNAL);
+
+
+    return eNOERROR;
+}

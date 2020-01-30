@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,72 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _UTIL_POOL_H_
+#define _UTIL_POOL_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "latch.h"		/* support mutual exclusion for Pool */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*
+ * Type Definition for subpool header
+ * For each subpool, a subpool header is defined.
+ * The subpool header is dynamically allocated at once with the subpool.
+ */
+struct _SubpoolHdr {
+    Four        count;	/* # of elements in the freed list */
+    LOGICAL_PTR_TYPE(char  *) firstElem; /* pointer to the first freed element */
+			/* freed elements make a linked list. */
+    LOGICAL_PTR_TYPE(struct _SubpoolHdr *) nextSubpool; /* pointer to next subpool */ 
+};
+
+typedef struct _SubpoolHdr SubpoolHdr;
+
+/*
+ * Type definition for Pool.
+ * Pool consists of the subpools of same size.
+ */
+struct _Pool {
+    LATCH_TYPE latch;		/* latch for allocate/free one element from a pool */
+    Four       elemSize;	/* element size */
+    Four       maxElemInSubpool; /* maximum elements in subpool */
+    Four       usedElemInPool;   /* the # of the used elements */
+    LOGICAL_PTR_TYPE(SubpoolHdr *) subpoolPtr; /* pointer to the first subpool */
+};
+
+typedef struct _Pool Pool;
+
+typedef struct LocalSubpoolHdr_tag LocalSubpoolHdr;
+
+struct LocalSubpoolHdr_tag {
+    Four  count;                /* # of elements in the freed list */
+    char *firstElem;            /* pointer to the first freed element */
+                                /* freed elements make a linked list. */
+    LocalSubpoolHdr *nextSubpool; /* pointer to next subpool */
+};
+
+struct _LocalPool {
+    /* No needs for latch. Used only locally */
+    Four       elemSize;	/* element size */
+    Four       maxElemInSubpool; /* maximum elements in subpool */
+    LocalSubpoolHdr *subpoolPtr; /* pointer to the first subpool */
+};
+
+typedef struct _LocalPool LocalPool;
+
+
+/* Utility Interface Function Prototypes */
+
+/* Using Shared Memory */
+Four Util_checkPool(Four, Pool*); /* used when TRACE flag is set */
+Four Util_finalPool(Four, Pool*);
+Four Util_freeElementToPool(Four, Pool*, void*);
+Four Util_initPool(Four, Pool*, Four, Four);
+Four Util_getElementFromPool(Four, Pool*, void*);
+Four Util_getElemInPool(Four, Pool *, Four *); 
+
+/* Using Local Memory */
+Four Util_finalLocalPool(Four, LocalPool*);
+Four Util_freeElementToLocalPool(Four, LocalPool*, void*);
+Four Util_initLocalPool(Four, LocalPool*, Four, Four);
+Four Util_getElementFromLocalPool(Four, LocalPool*, void*);
+
+#endif /* _UTIL_POOL_H_ */

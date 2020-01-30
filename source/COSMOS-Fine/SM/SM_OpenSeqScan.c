@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,160 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_OpenSeqScan.c
+ *
+ * Description:
+ *  Open a sequential scan.
+ *
+ * Exports:
+ *  Four SM_OpenSeqScan(Four, FileID*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_OpenSeqScan( )
+ *================================*/
+/*
+ * Function: Four SM_OpenSeqScan(Four, FileID*, Four)
+ *
+ * Description:
+ *  Open a sequential scan. The scan is used to fetch all objects in the
+ *  given data file. The scan order is specified by 'direction'; FORWARD
+ *  means the physical order and BACKWARD the reverse physical order.
+ *
+ * Returns:
+ *  1) Scan Identifier - the return value is 0 or positive number
+ *  2) Error code - negative number
+ *       eBADPARAMETER
+ *       eNOTMOUNTEDVOLUME_SM
+ *       some errors caused by function calls
+ */
+Four SM_OpenSeqScan(
+    Four handle,
+    FileID *fid,		/* IN file to open */
+    Four   direction,		/* IN direction of the scan */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four e;			/* error number */
+    Four v;			/* index for the used volume on the mount table */
+    Four i;			/* temporary variable */
+    Four scanId;		/* scan identifier of the new scan */
+    LockMode lockMode;
+    LockReply lockReply;
+    LockMode oldMode;
+
+    /* pointer for SM Data Structure of perThreadTable */
+    SM_PerThreadDS_T *sm_perThreadDSptr = SM_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_OpenSeqScan(handle, fid=%P, direction=%ld, lockup=%P)", fid, direction, lockup));
+
+
+    /*@
+    ** Check parameters
+    */
+    if (fid == NULL) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == fid->volNo) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+
+    /*@ for each entry */
+    /* find the empty scan table entry */
+    for (scanId = 0; scanId < sm_perThreadDSptr->smScanTable.nEntries; scanId++)
+	if (SM_SCANTABLE(handle)[scanId].scanType == NIL) break;
+
+    if (scanId == sm_perThreadDSptr->smScanTable.nEntries) {
+	/* There is no empty entry. */
+
+	e = Util_doublesizeVarArray(handle, &(sm_perThreadDSptr->smScanTable), sizeof(sm_ScanTableEntry));
+	if (e < eNOERROR) ERR(handle, e);
+
+	/* Initialize the newly allocated entries. */
+	for (i = scanId; i < sm_perThreadDSptr->smScanTable.nEntries; i++)
+            SM_SCANTABLE(handle)[i].scanType = NIL; 
+    }
+
+    SM_SCANTABLE(handle)[scanId].acquiredFileLock = L_NL; 
+
+    /* Check if the file is a temporary file. */
+    SM_SCANTABLE(handle)[scanId].finfo.tmpFileFlag = FALSE; /* initialize */
+    for (i = 0; i < SM_NUM_OF_ENTRIES_OF_ST_FOR_TMP_FILES(handle); i++) 
+	if (!SM_IS_UNUSED_ENTRY_OF_ST_FOR_TMP_FILES(SM_ST_FOR_TMP_FILES(handle)[i]) &&
+	    EQUAL_FILEID(*fid, SM_ST_FOR_TMP_FILES(handle)[i].data.fid)) {
+
+	    SM_SCANTABLE(handle)[scanId].finfo.tmpFileFlag = TRUE;
+	    SM_SCANTABLE(handle)[scanId].finfo.catalog.entry = &(SM_ST_FOR_TMP_FILES(handle)[i]);
+	    break;
+	}
+
+    if (!SM_SCANTABLE(handle)[scanId].finfo.tmpFileFlag) {
+	if (lockup) {
+	    /* check the lockup mode */
+	    switch(lockup->mode){
+	      case L_SIX:
+	      case L_S:
+	      case L_X: lockMode = lockup->mode; break;
+	      case L_IS: lockMode = L_S; break;
+	      case L_IX: lockMode = L_SIX; break;
+	      default : ERR(handle, eBADLOCKMODE_SM);
+	    }
+	    if(lockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+
+	    /* lock on the data file */
+	    e = LM_getFileLock(handle,  &MY_XACTID(handle), fid, lockMode, lockup->duration,
+				L_UNCONDITIONAL, &lockReply, &oldMode);
+	    if ( e < eNOERROR ) ERR(handle, e);
+
+	    if ( lockReply == LR_DEADLOCK)
+		ERR(handle, eDEADLOCK);
+
+	    /* acquiredFileLock is the lock mode to be acquired */
+	    /* old code -> SM_SCANTABLE(handle)[scanId].acquiredFileLock = lockup->mode; */
+	    SM_SCANTABLE(handle)[scanId].acquiredFileLock = (LockMode)lockReply;
+
+	}
+
+	/* Get catalog entry of */
+	e = sm_GetCatalogEntryFromDataFileId(handle, v, fid, &(SM_SCANTABLE(handle)[scanId].finfo.catalog.oid));
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    SM_SCANTABLE(handle)[scanId].finfo.fid = *fid;
+    SM_SCANTABLE(handle)[scanId].cursor.any.flag = CURSOR_BOS;
+    SM_SCANTABLE(handle)[scanId].scanInfo.seq.direction = direction;
+    SM_SCANTABLE(handle)[scanId].scanType = SEQUENTIAL;
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(scanId);
+
+} /* SM_OpenSeqScan() */

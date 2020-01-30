@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,83 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_IsAppendBulkLoad.c
+ *
+ * Description :
+ *  This function finds that this bulkload is append bulkload or not.
+ *
+ * Exports:
+ *  Four BtM_IsAppendBulkLoad(PageID*, Boolean*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perThreadDS.h"
+#include "perProcessDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*@=====================
+ * BtM_IsAppendBulkLoad()
+ *=====================*/
+/*
+ * Function: Four BtM_IsAppendBulkLoad(PageID*, Boolean*)
+ *
+ * Description:
+ *  This function finds that this bulkload is append bulkload or not.
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *
+ */
+Four BtM_IsAppendBulkLoad (
+    Four	  	    handle,
+    PageID                  *root,              /* IN root PageID of index to be created */
+    Boolean                 *isAppend)          /* OUT flag which indicates bulkload is append or not */
+{
+    Four                    e;                  /* error number */
+    BtreePage               *rpage;             /* a root page pointer */
+    Buffer_ACC_CB           *catPage_BCBP;      /* buffer access control block holding catalog data */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+            ("BtM_IsAppendBulkLoad(root=%P, isAppend=%P)", root, isAppend));
+
+
+
+    /* 1. Read root page of index */
+    e = BfM_getAndFixBuffer(handle, root, M_FREE, &catPage_BCBP, PAGE_BUF);
+    if (e < 0)  ERR(handle, e);
+
+    rpage = (BtreePage*)catPage_BCBP->bufPagePtr;
+
+
+    /* 2. Set isAppend flag which indicates bulkload is append or not */
+    if (rpage->any.hdr.type & INTERNAL) {
+        if (rpage->bi.hdr.nSlots == 0)  *isAppend = FALSE;
+        else                            *isAppend = TRUE;
+    }
+    else if(rpage->any.hdr.type & LEAF) {
+        if (rpage->bl.hdr.nSlots == 0)  *isAppend = FALSE;
+        else                            *isAppend = TRUE;
+    }
+    else {
+        ERRB1(handle, eBADBTREEPAGE_BTM, catPage_BCBP, PAGE_BUF);
+    }
+
+
+    /* 3. Free train in which root page is */
+    e = BfM_unfixBuffer(handle, catPage_BCBP, PAGE_BUF);
+    if(e < 0)   ERR(handle, e);
+
+
+    return eNOERROR;
+
+}   /* BtM_IsAppendBulkLoad() */

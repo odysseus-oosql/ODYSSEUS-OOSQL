@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,128 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_Final.c
+ *
+ * Description:
+ *  Finalize the LRDS and its sublayers. Sublayers are finalized via their
+ *  interface function SM_Final( ). In the LRDS we free the allocated memory.
+ *
+ * Exports:
+ *  Four LRDS_FinalSharedDS()
+ *  Four LRDS_FinalLocalDS()
+ *
+ * Returns:
+ *  Error code
+ *   some erros caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four LRDS_FinalSharedDS(
+    Four handle)
+{
+    Four e;			/* error number */
+    Four v;			/* index on the LRDS mount table */
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_FinalSharedDS()"));
+
+
+    /* Dismount the volumes that has been mounted but not dismounted. */
+    for (v = 0; v < LRDS_NUM_OF_ENTRIES_OF_MOUNTTABLE; v++)
+	if (!LRDS_IS_UNUSED_ENTRY_OF_MOUNTTABLE(v)) { /* entry for a mounted volume */
+
+	    /* enforce the dismount operation */
+	    LRDS_MOUNTTABLE[v].nMount = 1;
+	    e = lrds_Dismount(handle, LRDS_MOUNTTABLE[v].volId);
+	    if (e < eNOERROR) ERR(handle, e);
+	}
+
+    /*
+    ** Finalize the shared memory data structure used in LRDS.
+    */
+    /* Finalize the column table heap. */
+    e = Util_finalHeap(handle, &LRDS_COLUMNTABLEHEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the index table heap. */
+    e = Util_finalHeap(handle, &LRDS_INDEXTABLEHEAP);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the ordered set aux column info pool */
+    e = Util_finalPool(handle, &LRDS_ORDEREDSET_AUXCOLINFO_POOL);
+    if (e < eNOERROR) ERR(handle, e);
+
+#ifdef COSMOS_S
+    e = SM_FinalSharedDS(handle);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* COSMOS_S */
+
+    return(eNOERROR);
+
+} /* LRDS_FinalSharedDS() */
+
+
+Four LRDS_FinalLocalDS(
+    Four handle)
+{
+    Four e;			/* error number */
+    Four i;			/* temporary variable */
+
+    /* pointer for LRDS Data Structure of perThreadTable */
+    LRDS_PerThreadDS_T *lrds_perThreadDSptr = LRDS_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_FinalLocalDS()"));
+
+    /* Dismount the mounted volumes. */
+    for (i = 0; i < LRDS_NUM_OF_ENTRIES_OF_USERMOUNTTABLE; i++)
+	if (!LRDS_IS_UNUSED_ENTRY_OF_USERMOUNTTABLE(handle, i))
+	    (Four)LRDS_Dismount(handle, LRDS_USERMOUNTTABLE(handle)[i].volId);
+
+    /* Finalize the boolean table heap. */
+    e = Util_finalLocalHeap(handle, &LRDS_BOOLTABLEHEAP(handle));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the scan table.*/
+    e = Util_finalVarArray(handle, &(lrds_perThreadDSptr->lrdsScanTable));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the set scan table.*/
+    e = Util_finalVarArray(handle, &(lrds_perThreadDSptr->lrdsSetScanTable));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the ordered set scan table.*/
+    e = Util_finalVarArray(handle, &(lrds_perThreadDSptr->lrdsOrderedSetScanTable));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the ordered set aux column info pool */
+    e = Util_finalLocalPool(handle, &LRDS_ORDEREDSET_AUXCOLINFO_LOCALPOOL(handle));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the collection scan table.*/
+    e = Util_finalVarArray(handle, &(lrds_perThreadDSptr->lrdsCollectionScanTable));
+    if (e < eNOERROR) ERR(handle, e);
+
+#ifdef COSMOS_S
+    e = SM_FinalLocalDS(handle);
+    if (e < 0)ERR(handle, e);
+#endif /* COSMOS_S */
+
+    /* Finalize the Ordered Set Element Length Pool */
+    e = Util_finalLocalPool(handle, &LRDS_ORDEREDSET_ELEMENT_LENGTH_POOL(handle));
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LRDS_FinalLocalDS() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,72 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_CommonRegionTest.c
+ *
+ * Description:
+ *  for all keys, do prefix test
+ *
+ * Exports:
+ *  Boolean mlgf_CommonRegionTest(Four, Four, mlgf_DirectoryEntry*, mlgf_DirectoryEntry*)
+ *
+ * Returns:
+ *  TRUE : if entry_x and entry_y have some common region
+ *  FALSE : otherwise
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Boolean mlgf_CommonRegionTest(
+    Four 		handle,
+    Four 		nKeys,		/* IN number of keys in MLGF index */
+    mlgf_DirectoryEntry *entry_x, 	/* IN one entry */
+    mlgf_DirectoryEntry *entry_y) 	/* IN other entry */
+{
+    Four 		i;		/* index variable */
+    Four 		minValidBits;	/* minimum of # of valid bits of two entries */
+    MLGF_HashValue 	*hx;		/* array of hash values of x */
+    MLGF_HashValue 	*hy;		/* array of hash values of y */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_CommonRegionTest(handle, nKeys=%ld, entry_x=%P, entry_y=%P)",
+	      nKeys, entry_x, entry_y));
+
+
+    /* hx/hy points to array of hash values of entry_x/entry_y. */
+    hx = MLGF_DIRENTRY_HASHVALUEPTR(entry_x, nKeys);
+    hy = MLGF_DIRENTRY_HASHVALUEPTR(entry_y, nKeys);
+
+    for (i = 0; i < nKeys; i++, hx++, hy++) {
+	/* Do prefix test for all the keys. */
+
+	minValidBits = (entry_x->nValidBits[i] < entry_y->nValidBits[i]) ? entry_x->nValidBits[i] : entry_y->nValidBits[i];
+
+	if (minValidBits == 0) continue;
+
+	if (((*hx ^ *hy) >> (MLGF_MAXNUM_VALIDBITS - minValidBits)) != 0)
+	    return(FALSE);
+    }
+
+    return(TRUE);
+
+} /* mlgf_CommonRegionTest() */
+

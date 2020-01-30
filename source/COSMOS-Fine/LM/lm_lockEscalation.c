@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,77 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lm_lockEscalation.c
+ *
+ * Description:
+ *   Escalate locks for all files.
+ *
+ * Exports:
+ *  lm_lockEscalation(handle, XactBucket_Type*)
+ *
+*/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "latch.h"
+#include "Util.h"
+#include "TM.h"
+#include "LM.h"
+#include "LM_macro.h"
+#include "LM_LockMatrix.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four lm_lockEscalation(
+    Four		handle,
+    XactBucket_Type 	*xBucket)
+{
+    Four 		e;
+    Four 		maxFileLock;
+    RequestNode_Type 	*aRequest;
+    LockReply 		lockReply;
+
+#ifdef TRACE
+    printf("lm_lockEscalation( )\n");
+#endif
+
+    e = lm_getMaxLocksOnFile(handle, &maxFileLock);
+    if(e < eNOERROR) ERR(handle, e);
+
+    aRequest =  PHYSICAL_PTR(xBucket->grantedList[L_FILE]);
+
+    while(aRequest){
+	
+		if(aRequest->nLowLocks && (aRequest->nLowLocks >= maxFileLock*2)) aRequest->nLowLocks = 0; 
+
+        /* if nLowLock > maxFileLock than escalate the lock */
+        if(aRequest->nLowLocks && (aRequest->nLowLocks >= maxFileLock)){
+            e = lm_escalateLockOnFile(handle, &xBucket->xactID,
+                                      &((LockBucket_Type*)PHYSICAL_PTR(aRequest->lockHDR))->target.fileID,
+                                      lm_perProcessDSptr->LOCK_super[aRequest->mode],
+                                      aRequest->duration, L_CONDITIONAL,
+                                      &lockReply);
+			if(e == LR_NOTOK) {
+				aRequest = PHYSICAL_PTR(aRequest->nextGrantedEntry);
+				continue;
+			}
+			aRequest->nLowLocks = 0;
+			if(e < eNOERROR) ERR(handle, e);
+
+        }
+        aRequest = PHYSICAL_PTR(aRequest->nextGrantedEntry);
+    }
+
+    /* reset maxFileLock */
+    e = lm_resetMaxLocksOnFile(handle);
+    if(e < eNOERROR) ERRL1(handle, e, &LM_LATCH);
+
+    return(eNOERROR);
+}
+

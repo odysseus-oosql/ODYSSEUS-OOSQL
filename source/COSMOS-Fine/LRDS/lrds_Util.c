@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,145 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lrds_Util.c
+ *
+ * Description:
+ *  some utility functions
+ *
+ * Exports:
+ *  void lrds_KeyInfoToKeyDesc(Four, ColInfo*, ColDesc*, KeyInfo*, KeyDesc*)
+ *  void lrds_MLGF_KeyInfoToMLGF_KeyDesc(Four, ColInfo*, ColDesc*, MLGF_KeyInfo*, MLGF_KeyDesc*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: void lrds_KeyInfoToKeyDesc(Four, ColInfo*, ColDesc*, KeyInfo*, KeyDesc*);
+ *
+ * Description:
+ *  Convert KeyInfo data structure to KeyDesc data structure.
+ *  Column informations are required to conver into KeyDesc. The column
+ *  information can be given either by ColInfo structure or by ColDesc
+ *  structure.
+ *
+ * Returns:
+ *  None
+ */
+void lrds_KeyInfoToKeyDesc(
+    Four handle,
+    ColInfo *cinfo,		/* IN column information using ColInfo */
+    ColDesc *cdesc,		/* IN column information using ColDesc */
+    KeyInfo *kinfo,		/* IN Key Information */
+    KeyDesc *kdesc)		/* OUT Btree Key Description */
+{
+    Four i;
+
+
+    TR_PRINT(handle, TR_LRDS, TR1,
+	     ("lrds_IndexDescToKeyDesc(cinfo=%P, cdesc=%P, kinfo=%P, kdesc=%P)",
+	      cinfo, cdesc, kinfo, kdesc));
+
+
+    kdesc->flag = kinfo->flag;
+    kdesc->nparts = kinfo->nColumns;
+
+    if (cinfo != NULL) {
+	if (cinfo[kinfo->columns[0].colNo].type == SM_TEXT) {
+	    /* The index on SM_TEXT column consists of a key part of SM_VARSTRING. */
+	    kdesc->kpart[0].type = SM_VARSTRING;
+            if (kinfo->columns[0].flag & KEYINFO_COL_DESC) kdesc->kpart[0].type |= SM_DESC;
+	    /* 'offset' field of KeyDesc is not used. */
+	    kdesc->kpart[0].length = sizeof(Two) + MAXKEYWORDLEN;
+	} else {
+	    for (i = 0; i < kinfo->nColumns; i++) {
+		kdesc->kpart[i].type = cinfo[kinfo->columns[i].colNo].type;
+
+                if (kinfo->columns[i].flag & KEYINFO_COL_DESC) kdesc->kpart[i].type |= SM_DESC;
+		/* 'offset' field of KeyDesc is not used. */
+		kdesc->kpart[i].length = cinfo[kinfo->columns[i].colNo].length;
+	    }
+	}
+    } else { /* should be cdesc != NULL */
+	if (cdesc[kinfo->columns[0].colNo].type == SM_TEXT) {
+	    /* The index on SM_TEXT column consists of a key part of SM_VARSTRING. */
+	    kdesc->kpart[0].type = SM_VARSTRING;
+            if (kinfo->columns[0].flag & KEYINFO_COL_DESC) kdesc->kpart[0].type |= SM_DESC;
+	    /* 'offset' field of KeyDesc is not used. */
+	    kdesc->kpart[0].length = sizeof(Two) + MAXKEYWORDLEN;
+	} else {
+	    for (i = 0; i < kinfo->nColumns; i++) {
+		kdesc->kpart[i].type = cdesc[kinfo->columns[i].colNo].type;
+                if (kinfo->columns[i].flag & KEYINFO_COL_DESC) kdesc->kpart[i].type |= SM_DESC;
+		/* 'offset' field of KeyDesc is not used. */
+		kdesc->kpart[i].length = cdesc[kinfo->columns[i].colNo].length;
+	    }
+	}
+    }
+
+} /* lrds_KeyInfoToKeyDesc() */
+
+
+
+/*
+ * Function: void lrds_MLGF_KeyInfoToMLGF_KeyDesc(Four, ColInfo*, ColDesc*,
+ *                                                MLGF_KeyInfo*, MLGF_KeyDesc*);
+ *
+ * Description:
+ *  Convert MLGF_KeyInfo data structure to MLGF_KeyDesc data structure.
+ *  Column informations are required to conver into MLGF_KeyDesc. The column
+ *  information can be given either by ColInfo structure or by ColDesc
+ *  structure.
+ *
+ * Returns:
+ *  None
+ */
+void lrds_MLGF_KeyInfoToMLGF_KeyDesc(
+    Four handle,
+    ColInfo *cinfo,		/* IN column information using ColInfo */
+    ColDesc *cdesc,		/* IN column information using ColDesc */
+    MLGF_KeyInfo *kinfo,	/* IN Key Information */
+    MLGF_KeyDesc *kdesc)	/* OUT MLGF Key Description */
+{
+    Four k;			/* index variable */
+    Four type;			/* data type of the first key attribute */
+
+
+    TR_PRINT(handle, TR_LRDS, TR1,
+	     ("lrds_MLGF_KeyInfoToMLGF_KeyDesc(handle, cinfo=%P, cdesc=%P, kinfo=%P, kdesc=%P)",
+	      cinfo, cdesc, kinfo, kdesc));
+
+
+    type = (cinfo != NULL) ? cinfo[kinfo->colNo[0]].type : cdesc[kinfo->colNo[0]].type;
+
+    kdesc->flag = kinfo->flag;
+    kdesc->extraDataLen = kinfo->extraDataLen;
+
+    /* OpenGIS ... */
+    /* Geometry type의 UDT인 경우에도 동작하도록 수정 ... */
+    /* SM_VARSTRING type can be UDT of geometry type, thus it should be handled, too */
+    if (type == SM_MBR || type == SM_VARSTRING){
+    /* ... OpenGIS */
+	kdesc->nKeys = MBR_NUM_PARTS;
+	for (k = 0; k < kdesc->nKeys/2; k++)
+	    MLGF_KEYDESC_SET_MINTYPE(*kdesc, k);
+	for ( ; k < kdesc->nKeys; k++)
+	    MLGF_KEYDESC_SET_MAXTYPE(*kdesc, k);
+    } else {
+	kdesc->nKeys = kinfo->nColumns;
+	MLGF_KEYDESC_CLEAR_MINMAXTYPEVECTOR(*kdesc);
+    }
+
+} /* lrds_IndexDescToKeyDesc() */
+
+
+

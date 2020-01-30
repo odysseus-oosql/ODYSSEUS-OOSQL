@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,68 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Redo_MLGF_DeleteLeafEntries.c
+ *
+ * Description:
+ *  redo deleting leaf entries
+ *
+ * Exports:
+ *  Four Redo_MLGF_DeleteLeafEntries(Four, void*, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Redo_MLGF_DeleteLeafEntries(
+    Four handle,
+    void *anyPage,		/* OUT updated page */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing the small object */
+{
+    mlgf_LeafPage *aPage = anyPage;
+    Four entryLen;              /* entry length */
+    LOG_Image_MLGF_SpecifyEntries_T *entriesInfo;
+    mlgf_LeafEntry *entry;	/* an entry in leaf page */
+    Four totalEntryLen;
+    Four i;
+
+
+    TR_PRINT(handle, TR_REDO, TR1, ("Redo_MLGF_DeleteLeafEntries()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* get the images */
+    entriesInfo = (LOG_Image_MLGF_SpecifyEntries_T*)logRecInfo->imageData[0];
+
+    /* get the total length of the deleted entries */
+    totalEntryLen = 0;          /* total entry length of delete entries */
+    for (i = entriesInfo->startEntryNo; i < entriesInfo->startEntryNo+entriesInfo->nEntries; i++) {
+        entry = MLGF_ITH_LEAFENTRY(aPage, i);
+
+        totalEntryLen += MLGF_LEAFENTRY_LENGTH(aPage->hdr.nKeys, aPage->hdr.extraDataLen, entry->nObjects);
+    }
+
+    /* delete the entries */
+    MLGF_DELETE_SLOTS_IN_MLGF_PAGE(aPage, entriesInfo->startEntryNo, entriesInfo->nEntries);
+
+    aPage->hdr.nEntries -= entriesInfo->nEntries;
+
+    /* free space */
+    aPage->hdr.unused += totalEntryLen;
+
+    return(eNOERROR);
+
+} /* Redo_MLGF_DeleteLeafEntries( ) */

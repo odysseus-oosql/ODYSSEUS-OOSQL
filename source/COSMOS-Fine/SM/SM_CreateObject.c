@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,117 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_CreateObject.c
+ *
+ * Description:
+ *  Create an object into the opened file.
+ *
+ * Exports:
+ *  Four SM_CreateObject(Four, Four, ObjectID*, ObjectHdr*, Four, void*, ObjectID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_CreateObject( )
+ *================================*/
+/*
+ * Function: Four SM_CreateObject(Four, Four, ObjectID*, ObjectHdr*, Four, void*, ObjectID*)
+ *
+ * Description:
+ *  Create an object into the opened file. The file is specified by 'scanId'.
+ *  The new object is inserted near 'nearObj' object. The new object's ObjectID
+ *  is returned via 'oid'.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ */
+Four SM_CreateObject(
+    Four      handle,
+    Four      scanId,		/* IN scan to use; specify the data file */
+    ObjectID  *nearObj,		/* IN create the new object near this object */
+    ObjectHdr *objHdr,		/* IN tag value of the new object's header*/
+    Four      length,		/* IN amount of data */
+    char      *data,		/* IN the initial data of the new object */
+    ObjectID  *oid,		/* OUT the created object's ObjectID */
+    LockParameter *lockup)      /* IN request lock or not */
+{
+    Four e;			/* error number */
+    LockParameter *realLockup;
+    LogParameter_T logParam;
+
+
+    TR_PRINT(handle, TR_SM, TR1,
+	     ("SM_CreateObject(handle, scanId=%ld, nearObj=%P, objHdr=%P, length=%ld, data=%P, oid=%P, lockup=%P)",
+	      scanId, nearObj, objHdr, length, data, oid, lockup));
+
+
+    /*@ check parameters */
+
+    if (!VALID_SCANID(handle, scanId)) ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL) ERR(handle, eBADPARAMETER);
+
+    if (length < 0) ERR(handle, eBADPARAMETER);
+
+    if (length > 0 && data == NULL) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /* check the lockup parameter */
+    realLockup = NULL;
+
+    if(lockup){
+	if(lockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+	if(lockup->mode != L_X) ERR(handle, eEXCLUSIVELOCKREQUIRED_SM);
+        switch ( SM_SCANTABLE(handle)[scanId].acquiredFileLock ) {
+	  case L_IS :
+	  case L_S  : ERR(handle, eINVALIDHIERARCHICALLOCK_SM);
+	  case L_X  : realLockup = NULL; break; /* already enough lock  */
+	  case L_SIX:
+	  case L_IX : realLockup = lockup; break;
+/*
+** This error can detected by LM_getObjectLock call
+		default   : ERR(handle, eINVALIDHIERARCHICALLOCK_SM);
+*/
+	}
+    }
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, SM_SCANTABLE(handle)[scanId].finfo.tmpFileFlag);
+
+    /*@ create the object */
+    /* Create an object into the data file. */
+    e = OM_CreateObject(handle, MY_XACT_TABLE_ENTRY(handle), &(SM_SCANTABLE(handle)[scanId].finfo),
+			nearObj, objHdr, length, data, oid, realLockup, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* SM_CreateObject() */
+
+

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -77,13 +71,84 @@
 /*                                                                            */
 /******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: LRDS_InitFinal.c
+ *
+ * Description:
+ *  Initialize/Finalize the storage system.
+ *
+ * Exports:
+ *  Four LRDS_Init(Four)
+ *  Four LRDS_Final(Four)
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include <unistd.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@================================
+ * LRDS_Init( )
+ *================================*/
+/*
+ * Function: Four LRDS_Init( )
+ *
+ * Description:
+ *  Initialize the storage system.
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ */
+Four LRDS_Init( )
+{
+    Four e;                     /* error code */
+    Four handle = -1;
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_Init()"));
+
+
+    e = SM_Init();
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LRDS_Init( ) */
+
+
+/*@================================
+ * LRDS_Final( )
+ *================================*/
+/*
+ * Function: Four LRDS_Final( )
+ *
+ * Description:
+ *  Finalize the storage system.
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ */
+Four LRDS_Final( )
+{
+    Four e;                     /* error code */
+    Four handle = -1;
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_Final()"));
+
+
+    e = SM_Final( );
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* SM_Final() */

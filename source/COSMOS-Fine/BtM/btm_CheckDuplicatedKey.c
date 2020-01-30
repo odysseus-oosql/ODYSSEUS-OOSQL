@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,170 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_CheckDuplicatedKey.c
+ *
+ * Description:
+ *  Check if there is an object with same key as the inserted object.
+ *
+ *  CAUTION :: Calling routine must acquire the latch of child_BCB.
+ *             And this routine keeps the latch of child_BCB.
+ *
+ * Exports:
+ *  Four btm_CheckDuplicatedKey( )
+ *
+ * Returns:
+ *  eNOERRROR
+ *  BTM_RETRAVERSE
+ *  Error code
+ *    eDUPLICATEDKEY_BTM
+ *    some errors caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LM.h"
+#include "OM.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four btm_CheckDuplicatedKey(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 		/* IN transaction table entry */
+    FileID 		*fid,			/* FileID of the ObjectID */ 
+    Buffer_ACC_CB 	*leaf_BCB,		/* IN buffer control block for leaf */
+    KeyDesc 		*kdesc,			/* IN key descriptor */
+    KeyValue 		*kval,			/* IN key value */
+    LockParameter 	*lockup       		/* IN lock parameter */
+)
+{
+    Four 		e;			/* error code */
+    Four 		slotNo;			/* slot no */
+    IndexID 		iid;			/* IndexID of the leaf page */
+    Boolean 		found;			/* TRUE if the given key exist */
+    Boolean 		latchRelease;		/* TRUE if latch on leaf is released */
+    LockReply 		lockResult;		/* result of lock request */
+    BtreeLeaf 		*apage;			/* IN a Btree leaf page */
+    ObjectID 		dupOid;			/* variable for testing ObjectID duplication */
+    ObjectID 		dupOid2;		/* variable for testing ObjectID duplication */
+    Lsn_T 		leaf_LSN;		/* remember the LSN of the leaf */
+    LockMode 		oldMode;
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("btm_CheckDuplicatedKey(handle, leaf_BCB=%P, kdesc=%P, kval=%P)",
+	      leaf_BCB, kdesc, kval));
+
+
+    /* Initialize the variable latchRelease. */
+    latchRelease = FALSE;
+
+    apage = (BtreeLeaf *)leaf_BCB->bufPagePtr;
+
+    /* Search the leaf to find the insert position. */
+    found = btm_BinarySearchLeaf(handle, apage, kdesc, kval, &slotNo);
+
+    if (!found) return(eNOERROR);
+
+    /* found == TRUE */
+    if (!lockup) ERRL1(handle, eDUPLICATEDKEY_BTM, leaf_BCB->latchPtr);
+
+
+    /* Duplicate Key Error */
+    /* Get the found key's ObjectID; the ObjectID is only one because */
+    /* this index has the unique key. */
+    e = btm_GetObjectId(handle, apage, slotNo, &dupOid, NULL);
+    if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+
+    for ( ; ; ) {
+
+	/* Request a conditional S lock on the found key's ObjectID */
+	/* to make sure that the key value is in the committed state. */
+	e = LM_getObjectLock(handle, &xactEntry->xactId, &dupOid, fid, L_S, L_COMMIT, L_CONDITIONAL, &lockResult, &oldMode); 
+        if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+
+	if (lockResult != LR_NOTOK) {
+	    /* It is a committed insert or */
+	    /* an uncommitted insert of the same transaction. */
+
+            ERRL1(handle, eDUPLICATEDKEY_BTM, leaf_BCB->latchPtr);
+	}
+
+	/* lockResult == LR_NOTOK */
+
+	/* Remember the leaf page's LSN. */
+	leaf_LSN = apage->hdr.lsn;
+	iid = apage->hdr.iid;
+
+	/* Unlatch the pages. */
+	e = SHM_releaseLatch(handle, leaf_BCB->latchPtr, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+	/* Latch was released. */
+	latchRelease = TRUE;
+
+	/* Request an unconditional, S lock on the found key's ObjectID. */
+	e = LM_getObjectLock(handle, &xactEntry->xactId, &dupOid, fid, L_S, L_MANUAL, L_UNCONDITIONAL, &lockResult, &oldMode); 
+        if (e < eNOERROR) ERR(handle, e);
+
+	if ( lockResult == LR_DEADLOCK )
+            ERR(handle, eDEADLOCK);
+
+	/* Relatch the leaf page. */
+	e = SHM_getLatch(handle, leaf_BCB->latchPtr, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+        if (e < eNOERROR) ERR(handle, e);
+
+
+	if (!btm_IsCorrectLeaf(handle, apage, kdesc, kval, &iid, &leaf_LSN)) {
+	    e = LM_releaseObjectLock(handle, &xactEntry->xactId, &dupOid, L_MANUAL);
+            if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+
+            e = SHM_releaseLatch(handle, leaf_BCB->latchPtr, procIndex);
+            if (e < eNOERROR) ERR(handle, e);
+
+	    return(BTM_RETRAVERSE);
+	}
+
+	/* Search the leaf again to find the previously found key. */
+	found = btm_BinarySearchLeaf(handle, apage, kdesc, kval, &slotNo);
+
+	if (!found) {
+	    e = LM_releaseObjectLock(handle, &xactEntry->xactId, &dupOid, L_MANUAL);
+            if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+	    break;
+	}
+
+	/* Fetch the ObjectID whose key value is duplicated. */
+	e = btm_GetObjectId(handle, apage, slotNo, &dupOid2, NULL);
+        if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+
+	if (btm_ObjectIdComp(handle, &dupOid, &dupOid2) == EQUAL) {
+	    /* Request an unconditional, S lock on the found key's ObjectID. */
+	    e = LM_getObjectLock(handle, &xactEntry->xactId, &dupOid, fid, 
+				 L_S, L_COMMIT, L_UNCONDITIONAL, &lockResult, &oldMode);
+            if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+
+            ERRL1(handle, eDUPLICATEDKEY_BTM, leaf_BCB->latchPtr);
+	}
+
+	e = LM_releaseObjectLock(handle, &xactEntry->xactId, &dupOid, L_MANUAL);
+	if (e < eNOERROR) ERRL1(handle, e, leaf_BCB->latchPtr);
+
+	dupOid = dupOid2;
+    }
+
+    return((latchRelease == TRUE) ? BTM_RELATCHED : eNOERROR);
+
+} /* btm_CheckDuplicatedKey() */
+
+
+
+
+
+
+

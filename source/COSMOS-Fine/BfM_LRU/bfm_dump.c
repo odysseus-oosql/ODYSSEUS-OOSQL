@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,81 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: bfm_dump.c
+ *
+ * Description:
+ *  dump the buffer table and hash table.
+ *  This module is used for test.
+ *
+ * Exports:
+ *  void bfm_dump_buffertable(Four, Four)
+ *  void bfm_dump_hashtable(Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BfM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@ macros */
+#define BUFT(i)	(BI_BTENTRY(type,i))
+
+
+
+/*@================================
+ * bfm_dump_buffertable( )
+ *================================*/
+void bfm_dump_buffertable(
+    Four handle,
+    Four type)			/* IN buffer type */
+{
+    Four i;
+
+    printf("\n\t|==================================================|\n");
+    printf("\t|                 Buffer Table                     |\n");
+    printf("\t|-------------+-------------+-------------+--------|\n");
+    printf("\t|%10s   |%10s   |%10s   |  bits  |\n", "volNo", "pageNo", "fixed");
+    printf("\t|-------------+-------------+-------------+--------|\n");
+    for( i = 0; i < BI_NBUFS(type); i++ )
+        printf("\t|%10ld   |%10ld   |%10ld   |  %10ld  |\n", BUFT(i).key.volNo,
+	       BUFT(i).key.pageNo, BUFT(i).fixed, (Four)BUFT(i).dirtyFlag );
+    printf("\t|==================================================|\n");
+
+} /* bfm_dump_buffertable() */
+
+
+
+/*@================================
+ * bfm_dump_hashtable( )
+ *================================*/
+void bfm_dump_hashtable(
+    Four handle,
+    Four type)			/* IN buffer type */
+{
+    Four i, j;
+
+    printf("\n\t|=======================================================================================|\n");
+    printf("\t|                                        Hash Table                                     |\n");
+    printf("\t|=======|=======|=======|=======|=======|=======|=======|=======|=======|=======|=======|\n");
+    printf("\t|       |    0  |    1  |    2  |    3  |    4  |    5  |    6  |    7  |    8  |    9  |\n");
+    printf("\t|=======|=======|=======|=======|=======|=======|=======|=======|=======|=======|=======|\n");
+    for( i = 0; i <= (Four)(HASHTABLESIZE(type)/10);i++ ) {
+	printf("\t|%5ld  |", i);
+    	for( j = 0; j < 10; j++)
+	    if((i*10+j) < HASHTABLESIZE(type))
+		printf("%5P  |", BI_HASHENTRY(type,i*10+j));
+	    else
+		printf("       |");
+	if(i < (Four)(HASHTABLESIZE(type)/10))
+	    printf("\n\t|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|-------|\n");
+    }
+    printf("\n\t|=======|=======|=======|=======|=======|=======|=======|=======|=======|=======|=======|\n");
+
+} /* bfm_dump_hashtable() */

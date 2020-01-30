@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,79 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_MLGF_RootPageLevelUp.c
+ *
+ * Description:
+ *  Undo level up a root page
+ *
+ * Exports:
+ *  Four Undo_MLGF_RootPageLevelUp(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "LOG.h"
+#include "BfM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_MLGF_RootPageLevelUp(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing a small object */
+{
+    Four e;                     /* error code */
+    mlgf_DirectoryPage *aPage;  /* a mlgf page */
+    Four entryLen;              /* length of a directory entry */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_MLGF_RootPageLevelUp(aPage_BCBP=%P, logRecInfo=%P)", aPage_BCBP, logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage_BCBP == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+    aPage = (mlgf_DirectoryPage*)aPage_BCBP->bufPagePtr;
+
+    entryLen = MLGF_DIRENTRY_LENGTH(aPage->hdr.nKeys);
+    memcpy(&aPage->data[0], logRecInfo->imageData[1], logRecInfo->imageSize[1]);
+    aPage->hdr.nEntries = logRecInfo->imageSize[1] / entryLen;
+    aPage->hdr.height --;
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_1(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_MLGF_ROOT_PAGE_LEVEL_DOWN, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[1], logRecInfo->imageData[1]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->hdr.lsn = lsn;
+    aPage->hdr.logRecLen = logRecLen;
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+    return(eNOERROR);
+
+} /* Undo_MLGF_RootPageLevelUp( ) */

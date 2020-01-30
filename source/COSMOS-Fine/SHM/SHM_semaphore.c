@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,183 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SHM_semaphore.c
+ *
+ * Description:
+ *  Semaphore operation :: wait and signal
+ *
+ * Exports:
+ *	SHM_semWait();
+ *	SHM_semSignal();
+ *	SHM_semInit();
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <sys/types.h>
+#include <sys/ipc.h>
+#include <sys/sem.h>
+#include <sys/shm.h>
+#include <stdio.h>
+#include <errno.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "RDsM.h" 
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+#include "THM_cosmosThread.h"
+
+#ifdef __SVR4
+union semun {
+    int val;
+    struct semid_ds *buf;
+    ushort *array;
+};
+#endif /* __SVR4 */
+
+#ifndef LINUX	
+extern char *sys_errlist[];
+#endif
+
+extern Four_Invariable shmId;
+
+
+/*@================================
+ * SHM_semCreateOrOpen( )
+ *================================*/
+Four SHM_semCreateOrOpen(
+    Four 		handle,
+    key_t 		key,                  /* IN semaphore key */
+    Four 		(*initFn)(Four, void *), /* IN initialize function */
+    void 		*argForInitFn)        /* IN arg for initialize function */
+{
+    Four 		e;                     /* error code */
+    struct shmid_ds     shmInfo;
+
+    e = shmctl(shmId, IPC_STAT, &shmInfo);
+    if (e < 0 ) fprintf(stderr, "shmctl error: get infomation\n");
+
+    if (shmInfo.shm_nattch == 1) {
+
+        e = (*initFn)(handle, argForInitFn);
+        if (e < eNOERROR) ERR(handle, e);
+
+	NUM_OF_PROCESS_IN_SYSTEM = 0;
+    }
+    else {
+
+	/* The following code must be called in SHM_finalLocalDS(). */
+	/* close the corresponding entry of the processTable */
+	/* shm_freeProcessTableEntry(handle, procIndex); */ 
+
+        e = shm_allocAndInitProcessTableEntry(handle, &procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    NUM_OF_PROCESS_IN_SYSTEM++;
+
+    fprintf(stderr, "[%2ld] Process(pid=%ld) Created (active processes=%ld)\n", procIndex, getpid(), NUM_OF_PROCESS_IN_SYSTEM);
+
+
+    return(eNOERROR);
+
+} /* SHM_semCreateOrOpen() */
+
+
+
+/*@================================
+ * SHM_semClose( )
+ *================================*/
+Four SHM_semClose(
+    Four 		handle,
+    Four 		nDemonProcs,           /* IN # of demon processes */
+    Four 		(*finalFn)(Four, void*, Boolean), /* IN finalization function */
+    void 		*argForFinalFn)        /* IN arg for finalization function */
+{
+    Four 		e;                     /* error code */
+    struct shmid_ds     shmInfo;
+
+    e = shmctl(shmId, IPC_STAT, &shmInfo);
+    if (e < 0 ) fprintf(stderr, "shmctl error: get infomation\n");
+
+    NUM_OF_PROCESS_IN_SYSTEM--;
+
+    fprintf(stderr, "[%2ld] Process(pid=%ld) Destroyed (active processes=%ld)\n", procIndex, getpid(), NUM_OF_PROCESS_IN_SYSTEM);
+
+#ifndef DEMON_PROCESS
+    if (shmInfo.shm_nattch == 1) {
+#else
+    if (shmInfo.shm_nattch == 2) {
+#endif /* DEMON_PROCESS */
+
+        e = (*finalFn)(handle, argForFinalFn, TRUE);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+    else {
+
+        e = (*finalFn)(handle, argForFinalFn, FALSE);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+
+    return(eNOERROR);
+
+} /* SHM_semClose() */
+
+
+
+/*@================================
+ * SHM_semWait( )
+ *================================*/
+/* By using a seamphore value in a set of semaphores instead of a semaphore for each process, this file was modified. */
+Four SHM_semWait(
+    Four                    handle,
+    cosmos_thread_sem_t     *semID
+)
+{
+    Four 		    e;
+
+    e = cosmos_thread_sem_wait(semID);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+}
+
+
+
+/*@================================
+ * SHM_semSignal( )
+ *================================*/
+Four SHM_semSignal(
+    Four 			handle,
+    cosmos_thread_sem_t 	*semID
+)
+{
+
+    Four                        e;
+
+    e = cosmos_thread_sem_post(semID);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+}
+
+
+
+/*@================================
+ * SHM_semInit( )
+ *================================*/
+Four SHM_semInit(
+    Four 	handle,
+    Four 	semNo,
+    Four 	value
+)
+{
+
+    return(eNOERROR);
+
+}

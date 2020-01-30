@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,118 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_Transaction.c
+ *
+ * Description:
+ *  Includes transaction related interfaces.
+ *
+ * Exports:
+ *  Four LRDS_BeginTransaction(Four, XactID*)
+ *  Four LRDS_CommitTransaction(Four, XactID*)
+ *  Four LRDS_AbortTransaction(Four, XactID*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: LRDS_BeginTransaction( )
+ *
+ * Description:
+ *  Begin a transaction.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_BeginTransaction(
+    Four handle,
+    XactID *xactId,		/* OUT transaction id of the newly started transaction */
+    ConcurrencyLevel  ccLevel)  /* IN concurrency level */ 
+{
+    Four e;                     /* error code */
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_BeginTransaction()"));
+
+
+    e = SM_BeginTransaction(handle, xactId, ccLevel); 
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LRDS_BeginTransaction( ) */
+
+
+/*
+ * Function: LRDS_CommitTransaction( )
+ *
+ * Description:
+ *  Commit a transaction.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_CommitTransaction(
+    Four handle,
+    XactID *xactId)             /* IN transaction to commit */
+{
+    Four e;                     /* error code */
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_CommitTransaction()"));
+
+    e = LRDS_CloseAllScans(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Close all relations */
+    e = LRDS_CloseAllRelations(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = SM_CommitTransaction(handle, xactId);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LRDS_CommitTransaction( ) */
+
+
+
+/*
+ * Function: LRDS_AbortTransaction( )
+ *
+ * Description:
+ *  Abort a transaction.
+ *
+ * Returns:
+ *  error code
+ */
+Four LRDS_AbortTransaction(
+    Four handle,
+    XactID *xactId)             /* IN transaction to abort */
+{
+    Four e;                     /* error code */
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_AbortTransaction()"));
+
+    e = LRDS_CloseAllScans(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Close all relations */
+    e = LRDS_CloseAllRelations(handle);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = SM_AbortTransaction(handle, xactId);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LRDS_AbortTransaction() */

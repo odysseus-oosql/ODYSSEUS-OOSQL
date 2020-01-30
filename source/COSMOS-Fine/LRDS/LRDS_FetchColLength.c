@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,152 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_FetchColLength.c
+ *
+ * Description:
+ *  Fetch some columns of the current tuple or the given tuple.
+ *
+ * Exports:
+ *  Four LRDS_FetchColLength(Four, Four, TupleID*, Four, ColListStruct*)
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eFETCHERROR
+ *    some errors caused by function calls
+ *
+ * Side effects:
+ *  The fetched data are returned via ColListStruct 'lengthInfoList'.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+Four LRDS_FetchColLength(
+    Four handle,
+    Four ornOrScanId,		/* IN open relation no or scan id*/
+    Boolean useScanFlag,        /* IN TRUE if above parameter is scan id */
+    TupleID *tid,		/* IN tuple to fetch */
+    Four    nCols,		/* IN number of columns to fetch */
+    ColLengthInfoListStruct lengthInfoList[])	/* INOUT columns to fetch */
+{
+    Four e;			/* error code */
+    Four orn;
+    Four smScanId;
+    Four i;			/* index variable */
+    Four size;			/* size of tuple header */
+    Four varColNo;		/* column number of variable-length columns */
+    Four start;			/* starting offset of fetch */
+    Four length;		/* amount of data to fetch */
+    ColDesc *cdesc;		/* pointer to the current column descriptor */
+    TupleHdr tupHdr;		/* a tuple header */
+    unsigned char *nullVector;	/* bit array of null flags */
+    LockParameter lockup;	/* lockup for SM_Fetch Tuple */
+    lrds_RelTableEntry *relTableEntry; /* pointer to an entry of relation table */
+    LockParameter fileLockup;	/* lockup for SM_Fetch Tuple */
+    LockParameter objLockup;	/* lockup for SM_Fetch Tuple */
+    LockParameter *fileLockupPtr; /* pointer to the lockup value */
+    LockParameter *objLockupPtr; /* pointer to the lockup value */
+    ColDesc *relTableEntry_cdesc;
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("LRDS_FetchColLength()"));
+
+
+    /* check parameters */
+    if (useScanFlag == TRUE && !LRDS_VALID_SCANID(handle, ornOrScanId)) ERR(handle, eBADPARAMETER);
+
+    if (useScanFlag == FALSE && !LRDS_VALID_ORN(handle, ornOrScanId)) ERR(handle, eBADPARAMETER);
+
+    if (useScanFlag) {
+        orn = LRDS_SCANTABLE(handle)[ornOrScanId].orn;
+        smScanId = LRDS_SCANTABLE(handle)[ornOrScanId].smScanId;
+    } else {
+        orn = ornOrScanId;
+        smScanId = NIL;
+    }
+
+    /* Get the relation table entry. */
+    relTableEntry = LRDS_GET_RELTABLE_ENTRY(handle, orn);
+    relTableEntry_cdesc = PHYSICAL_PTR(relTableEntry->cdesc);
+
+    if (nCols <= 0) ERR(handle, eBADPARAMETER);
+
+    if (lengthInfoList == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Prepare lock parameter */
+
+    /* if the relation is a catalog relation then lockup is NULL */
+    /* Our policy :: no lock on LRDS catalog relation exists under the LRDS layer */
+    /* no lock for the temporary relation */
+    if (LRDS_USEROPENRELTABLE(handle)[orn].tmpRelationFlag) {
+	fileLockupPtr = objLockupPtr = NULL;
+
+    } else {
+	fileLockup.mode = L_IS;
+	fileLockup.duration = L_COMMIT;
+	fileLockupPtr = &fileLockup;
+
+	objLockup.mode = L_S;
+	objLockup.duration = L_COMMIT;
+	objLockupPtr = &objLockup;
+    }
+
+    /* Fetch the tuple header. */
+    size = TUPLE_HEADER_SIZE(relTableEntry->ri.nColumns, relTableEntry->ri.nVarColumns);
+
+    e = LRDS_FETCHOBJECT(handle, &relTableEntry->ri.fid, smScanId, useScanFlag,
+                         (ObjectID*)tid, 0, size, (char*)&tupHdr,
+                         (relTableEntry->isCatalog) ? NULL : fileLockupPtr,
+                         (relTableEntry->isCatalog) ? NULL : objLockupPtr);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* 'nullVector' points to bit array of null flags. */
+    nullVector = NULLVECTOR_PTR(tupHdr, tupHdr.nVarCols);
+
+
+    /* For each entry in 'lengthInfoList', read the data from the tuple. */
+    for (i = 0; i < nCols; i++) {
+
+	if (lengthInfoList[i].colNo >= relTableEntry->ri.nColumns)
+	    ERR(handle, eBADPARAMETER);
+
+	/* For fast and simple access */
+	cdesc = &(relTableEntry_cdesc[lengthInfoList[i].colNo]);
+
+	/* check NULL value. */
+	if (LRDS_HAS_NULL_VALUE(lengthInfoList[i].colNo, cdesc, tupHdr, nullVector)) {
+	    lengthInfoList[i].length = NULL_LENGTH;
+	    continue;
+	}
+
+	if (cdesc->varColNo != NIL) {
+	    /* Variable Length Column */
+
+            start = LRDS_VARCOL_START_OFFSET(cdesc->varColNo, tupHdr);
+            length = LRDS_VARCOL_REAL_SIZE(cdesc->varColNo, start, tupHdr);
+
+	    lengthInfoList[i].length = length;
+
+	} else {
+	    /* Fixed Length Column */
+
+	    lengthInfoList[i].length = cdesc->length;
+	}
+    }
+
+    return(eNOERROR);
+
+} /* LRDS_FetchColLength() */
+

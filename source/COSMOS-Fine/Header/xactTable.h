@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,72 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __XACTTABLE_H__
+#define __XACTTABLE_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "latch.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#define MAX_DEPTH_OF_NESTED_TOP_ACTIONS 	3
+#define DEALLOC_PAGE_ARRAY_INCREASE_SIZE  	5
+#define DEALLOC_TRAIN_ARRAY_INCREASE_SIZE  	5
+
+/*
+ * XactTable_T : transaction table
+ */
+typedef struct NestedTopActionInfo_T_tag {
+    Two   	nestedTopActionNo;    		/* nested top action no */
+    Lsn_T 	undoNextLsn;        		/* undo next lsn for this nested top action */
+    Lsn_T 	deallocLsn;           		/* LSN for logging of the deallocated pages/trains */
+    Two   	idxOnDeallocPageArray; 
+    Two   	idxOnDeallocTrainArray; 
+} NestedTopActionInfo_T;
+
+typedef struct XactTableEntry_T_tag {
+    One    		status;					/* transaction status */
+    Two    		nestedTopActionStackIdx; 		/* index for the nested top action stack */
+    XactID 		xactId;					/* transaction identifier */
+    GlobalXactID 	*globalXactId; 				/* global transaction id */
+    Lsn_T  		firstLsn;            			/* first LSN for this transaction */
+    Lsn_T  		lastLsn;				/* lastLsn for this transaction */
+    Lsn_T  		undoNextLsn;				/* undoNextLsn for this transaction */
+    Lsn_T  		deallocLsn;				/* deallocLsn for this transaction */
+    Four   		nestedTopActionNoCounter; 		/* counter for the nested top action no */
+    NestedTopActionInfo_T nestedTopActions[MAX_DEPTH_OF_NESTED_TOP_ACTIONS]; /* stack for the nested top actions */
+    Two 		sizeOfDeallocPageArray;
+    Two 		sizeOfDeallocTrainArray;
+    LOGICAL_PTR_TYPE(PageID *) deallocPageArray; 		/* array of the deallocated pages */
+    LOGICAL_PTR_TYPE(TrainID *) deallocTrainArray;     		/* array of the deallocated trains */ 
+    Two 		idxOnDeallocPageSegmentArray; 
+    Two 		idxOnDeallocTrainSegmentArray;    
+    Two 		sizeOfDeallocPageSegmentArray; 
+    Two 		sizeOfDeallocTrainSegmentArray;
+    LOGICAL_PTR_TYPE(SegmentID_T *) deallocPageSegmentArray; 	/* array of the deallocated pages */ 
+    LOGICAL_PTR_TYPE(SegmentID_T *) deallocTrainSegmentArray;   /* array of the deallocated trains */ 
+    DeallocListElem 	dlHead;					/* deallocated List for this transaction */    
+    LOGICAL_PTR_TYPE(struct XactTableEntry_T_tag *) nextEntry; 	/* next entry in the hash chain */ 
+    LATCH_TYPE 		latch;           			/* control entry update/access */
+
+} XactTableEntry_T;
+
+typedef struct XactTable_T_tag {
+    LATCH_TYPE 		latch;					/* control entry allocation/free */
+    UFour 		hashTableSize_1;			/* hash table size - 1 (for hashing function) */
+    LOGICAL_PTR_TYPE(XactTableEntry_T **) hashTable; 		/* hash table */ 
+    LOGICAL_PTR_TYPE(XactTableEntry_T *)  freeEntryListHdr; 	/* header of the free list of XCB entries */
+} XactTable_T;
+
+
+/*
+ * ActiveXactRec_T
+ */
+typedef struct ActiveXactRec_T_tag {
+    One    	status;			/* transaction status */
+    XactID 	xactId;			/* transaction identifier */
+    Lsn_T  	firstLsn;            	/* first LSN for this transaction */ 
+    Lsn_T  	lastLsn;		/* lastLsn for this transaction */
+    Lsn_T  	undoNextLsn;		/* undoNextLsn for this transaction */
+    Lsn_T  	deallocLsn;		/* deallocLsn for this transaction */
+} ActiveXactRec_T;
+
+#endif /* __XACTTABLE_H__ */
+

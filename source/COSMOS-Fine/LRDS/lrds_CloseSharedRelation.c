@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,95 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: lrds_CloseSharedRelation.c
+ *
+ * Description:
+ *  Close the given relation. The relation information is in LRDS_RELTABLE
+ *  in the shared memory. The parameter 'sysOrn', which are used to specify
+ *  the closed relation, is an index on the LRDS_RELTABLE.
+ *
+ * Exports:
+ *  Four lrds_CloseSharedRelation(Four, Four)
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "Util.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+Four lrds_CloseSharedRelation(
+    Four handle,
+    Four sysOrn)		/* IN open relation number */
+{
+    Four e;			/* error number */
+    Four i;
+    ColDesc *relTableEntry_cdesc;
+
+
+    TR_PRINT(handle, TR_LRDS, TR1, ("lrds_CloseSharedRelation(sysOrn=%ld)", sysOrn));
+
+
+    /* Mutex Begin ::
+    **  - allocation/deallocation of entry in LRDS_RELTABLE
+    */
+    e = SHM_getLatch(handle, &LRDS_RELTABLE[sysOrn].latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* Decrement the number of opens by 1. */
+    LRDS_RELTABLE[sysOrn].count --;
+
+    /* Free resources if the number of opens is 0. */
+    if (LRDS_RELTABLE[sysOrn].count == 0) {
+
+	if (LRDS_RELTABLE[sysOrn].ri.nIndexes != 0) {
+	    e = Util_freeArrayToHeap(handle, &LRDS_INDEXTABLEHEAP, PHYSICAL_PTR(LRDS_RELTABLE[sysOrn].ii));
+	    if (e < eNOERROR) ERRL1(handle, e, &LRDS_RELTABLE[sysOrn].latch);
+	}
+
+        relTableEntry_cdesc = PHYSICAL_PTR(LRDS_RELTABLE[sysOrn].cdesc);
+	if (LRDS_RELTABLE[sysOrn].ri.nColumns != 0) {
+            /* ordered set */
+            for (i = 0; i < LRDS_RELTABLE[sysOrn].ri.nColumns; i++) {
+                if (PHYSICAL_PTR(relTableEntry_cdesc[i].auxInfo) != NULL) {
+                    assert(relTableEntry_cdesc[i].complexType == SM_COMPLEXTYPE_ORDEREDSET);
+
+                    e = Util_freeElementToPool(handle, &LRDS_ORDEREDSET_AUXCOLINFO_POOL,
+                                               PHYSICAL_PTR(relTableEntry_cdesc[i].auxInfo));
+                    if (e < eNOERROR) ERRL1(handle, e, &LRDS_RELTABLE[sysOrn].latch);
+                }
+            }
+
+	    e = Util_freeArrayToHeap(handle, &LRDS_COLUMNTABLEHEAP, relTableEntry_cdesc);
+	    if (e < eNOERROR) ERRL1(handle, e, &LRDS_RELTABLE[sysOrn].latch);
+	}
+
+	/* Unmark the entry; set it to unused. */
+	LRDS_SET_TO_UNUSED_ENTRY_OF_RELTABLE(sysOrn);
+    }
+
+    /* Mutex End ::
+    **  - allocation/deallocation of entry in LRDS_RELTABLE
+    */
+    e = SHM_releaseLatch(handle, &LRDS_RELTABLE[sysOrn].latch, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* lrds_CloseSharedRelation( ) */
+
+

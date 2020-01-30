@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,159 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_InsertMetaDictEntry.c
+ *
+ * Description:
+ *  insert a meta dictionary entry into the first meta dictionary page of the given volume
+ *
+ * Exports:
+ *  Four RDsM_InsertMetaDictEntry(Four, char*, char*, Four)
+ *
+ * Note:
+ *  The caller should be sure that the name(including NULL character) length
+ *  is less than MAX_METADICTENTRY_NAME_SIZE, and data length
+ *  MAX_METADICTENTRY_DATA_SIZE.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four RDsM_InsertMetaDictEntry(Four, char*, char*, Four)
+ *
+ * Description:
+ *   insert a meta dictionary entry into the first meta dictionary page of the given volume
+ *
+ * Returns:
+ *  Error code
+ */
+Four	RDsM_InsertMetaDictEntry(
+    Four        handle,         /* IN    handle */
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Four	volNo,		/* IN volume number */
+    char	*name,		/* IN entry name */
+    char	*data,		/* IN data */
+    Four	length,		/* IN length of data */
+    LogParameter_T *logParam) /* IN log parameter */
+{
+    Four	e;		/* returned error code */
+    Buffer_ACC_CB *aPage_BCBP;	/* Buffer Access BCB holding meta entry */
+    MetaDictPage_T *m_page;     /* meta dictionary page */
+    MetaDictEntry_T *m_entry;	/* pointer to a meta dictionary entry */
+    Four entryNo;               /* entry no of volume table entry corresponding to the given volume */
+    PageID metaDictPid;         /* page id of meta dictionary page */
+    Four	i;		/* loop index */
+    Lsn_T lsn;                  /* LSN of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T logRecInfo; /* log record information */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+
+    /*
+     *	check input parameters
+     */
+    if (name == NULL || data == NULL) ERR(handle, eBADPARAMETER);
+    if (strlen(name) >= MAX_METADICTENTRY_NAME_SIZE) ERR(handle, eBADPARAMETER);
+    if (length < 0 || length > MAX_METADICTENTRY_DATA_SIZE) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     *	get a page buffer for the meta dictionary page
+     */
+    metaDictPid = RDSM_VOLTABLE[entryNo].volInfo.dataVol.metaDictPid;
+    e = BfM_getAndFixBuffer(handle, &metaDictPid, M_EXCLUSIVE, &aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    m_page = (MetaDictPage_T*)aPage_BCBP->bufPagePtr;
+
+    /*
+     *	set a pointer to the corresponding entry
+     */
+    m_entry = m_page->entries;
+
+    /*
+     *	Check if there is an entry which has the same name.
+     */
+    for (i = 0; i < NUMMETADICTENTRIESPERPAGE; i++, m_entry++)
+	if (!strcmp(m_entry->name, name)) { /* found */
+            ERRBL1(handle, eDUPMETADICTENTRY_RDSM, aPage_BCBP, PAGE_BUF);
+        }
+
+    /*
+     *	if there does not exist such a meta entry, make such an entry
+     */
+    /* set a pointer to the corresponding entry */
+    m_entry = m_page->entries;
+
+    /* find an empty entry */
+    for (i = 0; i < NUMMETADICTENTRIESPERPAGE; i++, m_entry++)
+	if (!strcmp(m_entry->name, "")) break;
+
+    /*
+     *	if there is no empty meta entry
+     */
+    if (i >= NUMMETADICTENTRIESPERPAGE)
+        ERRBL1(handle, eNOEMPTYMETAENTRY_RDSM, aPage_BCBP, PAGE_BUF);
+
+    /*
+     *	make a new meta entry in the empty entry
+     */
+    strcpy(m_entry->name, name);
+    memcpy(m_entry->data, data, length);
+
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+
+        LOG_FILL_LOGRECINFO_3(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_RDSM_INSERT_METADICTENTRY, LOG_REDO_ONLY,
+                              metaDictPid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(Four), &i,
+                              strlen(name)+1, name,
+                              length, data);
+
+	e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+	if (e < eNOERROR) ERRBL1(handle, e, aPage_BCBP, PAGE_BUF);
+
+        m_page->hdr.lsn = lsn;
+        m_page->hdr.logRecLen = logRecLen;
+    }
+
+    /*
+     *  set dirty bit
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+    /*
+     *	free this meta dictionary page
+     */
+    BFM_FREEBUFFER(handle, aPage_BCBP, PAGE_BUF, e);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* RDsM_InsertMetaDictEntry() */

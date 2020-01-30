@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,53 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LRDS_FormatCoherencyVolume.c
+ *
+ * Description:
+ *  format a coherency volume.
+ *
+ * Exports:
+ *  Four LRDS_FormatCoherencyVolume(char*, char*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "SM.h"
+#include "LRDS.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+Four LRDS_FormatCoherencyVolume(
+    Four	handle,
+    char*       devName,        /* IN  name of the coherency volume device */
+    char*       title,          /* IN  volume title */
+    Four        volNo           /* IN  volume id */
+)
+{
+#ifdef COSMOS_S
+#ifdef USE_COHERENCY_VOLUME
+
+    Four e;
+
+    TR_PRINT(handle, TR_SM, TR1, ("LRDS_FormatCoherencyVolume()"));
+
+    /*
+     * Check parameters
+     */
+    if (devName == NULL || title == NULL || volNo < 0) ERR(handle, eBADPARAMETER);
+
+    /*
+     * format coherency volume
+     */
+    /* Do Nothing in Multi-User COSMOS */
+
+#endif /* USE_COHERENCY_VOLUME */
+#endif /* COSMOS_S */
+
+
+    return eNOERROR;
+}

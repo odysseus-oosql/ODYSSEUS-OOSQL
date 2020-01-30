@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,105 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: shm_processTable.c
+ *
+ * Description:
+ *  Process Table  Initialization and finalization
+ *
+ * Exports:
+ *	shm_initProcessTable()
+ *	shm_allocAndInitProcessTableEntry()
+ *	shm_freeProcessTableEntry()
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * shm_initProcessTable( )
+ *================================*/
+/* shm_processTable_init :: initialize processTable at initialization time */
+Four shm_initProcessTable(
+    Four 	handle
+)
+{
+
+    Four 	e, i;
+
+    /*@ initialize */
+    /* initialize process table and trasaction table */
+
+    for (i = 0; i < MAXPROCS; i++) {
+
+        /* this part is executed by TM
+         *
+         * SET_NIL_XACTID(tm_shmPtr->xactTable[i].xactID);
+         * tm_shmPtr->xactTable[i].dlHead.next = NULL;
+         */
+
+	tm_shmPtr->processTable[i].pID = NIL;
+    }
+
+    tm_shmPtr->procCounter = 0;
+
+    return (eNOERROR);
+}
+
+
+
+/*@================================
+ * shm_allocAndInitProcessTableEntry( )
+ *================================*/
+Four shm_allocAndInitProcessTableEntry(
+    Four 	handle,
+    Four 	*pindex)
+{
+    Four 	i;			/* loop index */
+
+    for ( i = 0; i < MAXPROCS; i++ ){
+	if ( tm_shmPtr->processTable[i].pID == NIL ) { /* semID => semID */
+            tm_shmPtr->processTable[i].pID = i;
+	    *pindex = i;
+            tm_shmPtr->procCounter++;
+	    return(eNOERROR);
+	}
+    }
+
+
+    ERR(handle, eFULLPROCTABLE_SHM);
+
+}
+
+
+
+/*@================================
+ * shm_freeProcessTableEntry( )
+ *================================*/
+Four shm_freeProcessTableEntry(
+    Four 	handle,
+    Four 	pindex
+)
+{
+
+     Four 	e;
+
+     /*
+      * e = Util_finalPool(handle, &(tm_shmPtr->TCB_Pool));
+      * if (e < eNOERROR) ERR(handle, e);
+      */
+
+    /* empty the corresponding entry of the processTable */
+    tm_shmPtr->processTable[pindex].pID = NIL; /* semID => semID */
+    tm_shmPtr->procCounter --;
+
+    return (eNOERROR);
+}
+

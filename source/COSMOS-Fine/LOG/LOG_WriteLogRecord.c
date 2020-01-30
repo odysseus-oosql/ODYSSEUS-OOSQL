@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,138 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_WriteLogRecord.c
+ *
+ * Description:
+ *  Write a log record which consists of a log record header and a set of
+ *  images into the log.
+ *
+ * Exports:
+ *  Four LOG_WriteLogRecord(Four, XactTableEntry_T*, LOG_LogRecInfo_T*, LOG_Lsn_T*, Four*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*
+ * Function: Four LOG_WriteLogRecord(Four, XactTableEntry_T*, LOG_LogRecInfo_T*, LOG_Lsn_T*, Four*)
+ *
+ * Description:
+ *  Write a log record which consists of a log record header and a set of
+ *  images into the log.
+ *
+ * Returns:
+ *  error codes
+ */
+Four LOG_WriteLogRecord(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 	/* IN transaction table entry */
+    LOG_LogRecInfo_T 	*logRecInfo, 	/* IN log record information */
+    Lsn_T 		*lsn,           /* OUT lsn of the newly written log record */
+    Four 		*logRecLength)	/* OUT length of the log record (used for flushing log record) */
+{
+    Four	       	e;	  	/* error code */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_WriteLogRecord(logRecInfo=%P, lsn=%P, logRecLength=%lD)",
+			   logRecInfo, lsn, logRecLength));
+
+
+    /*
+     * check input parameter
+     */
+    if (logRecInfo == NULL || lsn == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Return the length of the log record. */
+    *logRecLength = log_GetLogRecordLength(handle, logRecInfo);
+
+
+    /* get latch */
+    e = SHM_getLatch(handle, &LOG_LATCH4HEAD, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Check the # of remained bytes. */
+    while (*logRecLength > LOG_LOGMASTER.numBytesRemained) {
+        e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+
+        e = LOG_SwitchLogFile(handle, *logRecLength);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* get latch */
+        e = SHM_getLatch(handle, &LOG_LATCH4HEAD, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    /* Get the record lsn. */
+    *lsn = LOG_LOGMASTER.nextLsn;
+
+
+    /*
+     *	write the log record into the log
+     */
+    e = log_WriteLogRecord(handle, logRecInfo);
+    if (e < eNOERROR) ERRL1(handle, e, &LOG_LATCH4HEAD);
+
+
+    /*
+     * adjust logMaster.nextLsn
+     */
+    LOG_INCREASE_LSN(LOG_LOGMASTER.nextLsn, *logRecLength);
+
+
+    /*
+     * decrease the # of remained bytes
+     */
+    LOG_LOGMASTER.numBytesRemained -= *logRecLength;
+
+
+    /*
+     * increase the # of written log records
+     */
+    LOG_LOGMASTER.logRecordCount++;
+
+    /* release latch */
+    e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * Update the corresponding entry of the transaction table.
+     */
+    if (logRecInfo->type == LOG_TYPE_UPDATE ||
+        logRecInfo->type == LOG_TYPE_COMPENSATION ||
+        logRecInfo->type == LOG_TYPE_TRANSACTION) {
+
+        e = SHM_getLatch(handle, &xactEntry->latch, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* Remember the first LSN value. */
+        if (IS_NIL_LSN(xactEntry->firstLsn)) xactEntry->firstLsn = *lsn;
+
+        xactEntry->lastLsn = *lsn;
+
+        if (logRecInfo->type == LOG_TYPE_UPDATE || logRecInfo->type == LOG_TYPE_TRANSACTION) {
+
+            if (logRecInfo->redoUndo == LOG_REDO_UNDO || logRecInfo->redoUndo == LOG_UNDO_ONLY)
+                xactEntry->undoNextLsn = *lsn;
+
+        } else                    /* LOG_TYPE_COMPENSATION */
+            xactEntry->undoNextLsn = logRecInfo->undoNextLsn;
+
+        e = SHM_releaseLatch(handle, &xactEntry->latch, procIndex);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+
+    return(eNOERROR);
+
+} /* LOG_WriteLogRecord() */

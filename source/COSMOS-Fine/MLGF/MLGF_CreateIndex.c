@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,121 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: MLGF_CreateIndex.c
+ *
+ * Description:
+ *  Create an MLGF index.
+ *
+ * Exports:
+ *  Four MLGF_CreateIndex(Four, Four, MLGF_KeyDesc*, IndexID*)
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four MLGF_CreateIndex(
+    Four handle,
+    XactTableEntry_T 			*xactEntry, 		/* IN transaction table entry */
+    IndexID 				*iid,			/* IN allocated index ID of new MLGF */ 
+    MLGF_KeyDesc 			*kdesc,			/* IN key descriptor of the new MLGF index */
+    PageID 				*rootPid,		/* OUT PageID of root of newly created index */ 
+    SegmentID_T 			*pageSegmentID, 	/* OUT page segment id of new MLGF */
+    LogParameter_T 			*logParam)   		/* IN log parameter */
+{
+    Four 				e;			/* error code */
+    Buffer_ACC_CB 			*root_BCB;		/* buffer access control block for root */
+    mlgf_DirectoryPage 			*apage;  		/* root page of the created index */
+    Lsn_T 				lsn;                  	/* lsn of the newly written log record */
+    Four 				logRecLen;             	/* log record length */
+    LOG_LogRecInfo_T 			logRecInfo; 		/* log record information */
+    LOG_Image_MLGF_InitDirectoryPage_T 	initDirPageInfo; 	/* directory page information */
+
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("MLGF_CreateIndex()"));
+
+
+    /* check parameters */
+    if (iid == NULL || kdesc == NULL || rootPid == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Allocate a page for root of the newly created MLGF index. */
+    e = RDsM_CreateSegment(handle, xactEntry, iid->volNo, pageSegmentID, PAGESIZE2, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = RDsM_AllocTrains(handle, xactEntry, iid->volNo, pageSegmentID, NULL, 1, PAGESIZE2, TRUE, rootPid, logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+    ** Construct a root page.
+    */
+
+    /* Read the root page into the buffer. */
+    e = BfM_fixNewBuffer(handle, rootPid, M_EXCLUSIVE, &root_BCB, PAGE_BUF); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    apage = (mlgf_DirectoryPage*)root_BCB->bufPagePtr;
+
+    MLGF_INIT_DIRECTORY_PAGE(apage, *iid, *rootPid, 1, TRUE, kdesc->nKeys); 
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+
+        initDirPageInfo.iid = *iid;
+        initDirPageInfo.height = 1;
+        initDirPageInfo.rootFlag = TRUE;
+        initDirPageInfo.nKeys = kdesc->nKeys;
+
+        LOG_FILL_LOGRECINFO_1(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_MLGF_INIT_DIRECTORY_PAGE, LOG_REDO_ONLY,
+                              apage->hdr.pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(LOG_Image_MLGF_InitDirectoryPage_T), &initDirPageInfo);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERRBL1(handle, e, root_BCB, PAGE_BUF);
+
+        apage->hdr.lsn = lsn;
+        apage->hdr.logRecLen = logRecLen;
+    }
+
+    root_BCB->dirtyFlag = 1;
+
+    /* Unfix buffer for root page. */
+    e = SHM_releaseLatch(handle, root_BCB->latchPtr, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    e = BfM_unfixBuffer(handle, root_BCB, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* MLGF_CreateIndex() */

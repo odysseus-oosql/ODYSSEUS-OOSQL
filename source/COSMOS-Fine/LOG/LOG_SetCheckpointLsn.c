@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,68 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_SetCheckpointLsn.c
+ *
+ * Description:
+ *  Write the recent checkpoint LSN into the log master and then write the
+ *  log master into the disk.
+ *
+ * Exports:
+ *  Four LOG_SetCheckpointLsn(Four, LOG_Lsn_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_SetCheckpointLsn(Four, LOG_Lsn_T*)
+ *
+ * Description:
+ *  Write the recent checkpoint LSN into the log master and then write the
+ *  log master into the disk.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_SetCheckpointLsn(
+    Four 		handle,
+    Lsn_T 		*ckptLsn)	/* IN LSN of the recent checkpoint */
+{
+    Four 		e;		/* error code */
+    PageID 		pid;		/* page id of the log master page */
+    log_LogMasterPage_T masterPage; 	/* log master page */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_SetCheckpointLsn(chkptLsn=%P)", ckptLsn));
+
+
+    e = SHM_getLatch(handle, &LOG_LATCH4HEAD, procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Write checkpoint LSN into the log master. */
+    LOG_LOGMASTER.checkpointLsn = *ckptLsn;
+
+    /* Copy the log master. */
+    masterPage.master = LOG_LOGMASTER;
+
+    e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Write the log master into the disk. */
+    pid.volNo = masterPage.master.volNo;
+    pid.pageNo = masterPage.master.logMasterPageNo;
+    e = RDsM_WriteTrain(handle, (char*)&masterPage, &pid, PAGESIZE2);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* LOG_SetCheckpointLsn() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,143 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SHM_initDS.c
+ *
+ * Description:
+ *	initialize data structure
+ *
+ * Exports:
+ *	SHM_initSharedDS( )
+ *	SHM_initLocalDS( )
+ *	shm_assignSharedPtr( )
+ *	shm_initLocalLatchList( )
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four procIndex = -1; /* this value must be -1 */
+SemStruct *shmPtr; 
+VarArray shm_grantedLatchStruct[MAXTHREADS];
+
+COMMON_SHM *common_shmPtr;
+TM_SHM 	*tm_shmPtr = NULL;
+RDsM_SHM *rdsm_shmPtr = NULL;
+BfM_SHM *bfm_shmPtr = NULL;
+BtM_SHM *btm_shmPtr = NULL;
+SM_SHM  *sm_shmPtr = NULL;
+LM_SHM  *lm_shmPtr = NULL;
+LOG_SHM *log_shmPtr = NULL;
+
+
+#ifdef LRDS_INCLUDED
+LRDS_SHM *lrds_shmPtr = NULL;
+#endif
+
+
+/*@================================
+ * shm_assignSharedPtr( )
+ *================================*/
+void shm_assignSharedPtr(
+    Four 	handle)
+{
+    /* assign shared memory pointer */
+    common_shmPtr = &shmPtr->commonDS;
+    log_shmPtr = &shmPtr->logDS;
+    tm_shmPtr = &shmPtr->tmDS;
+    rdsm_shmPtr = &shmPtr->rdsmDS;
+    bfm_shmPtr = &shmPtr->bfmDS;
+    btm_shmPtr = &shmPtr->btmDS;
+    sm_shmPtr = &shmPtr->smDS;
+    lm_shmPtr = &shmPtr->lmDS;
+#ifdef LRDS_INCLUDED
+    lrds_shmPtr = &shmPtr->lrdsDS;
+#endif
+
+} /* shm_assignSharedPtr() */
+
+
+
+/*@================================
+ * SHM_initSharedDS( )
+ *================================*/
+/* SHM_initSharedDS( )
+   	Initialize the Shared Data Structures of KAOSS */
+Four SHM_initSharedDS(
+    Four 	handle
+)
+{
+    Four 	e;                     /* error code */
+
+
+    /*@ initialize all the common data structures */
+
+    /* First, initialize processTable */
+    shm_initProcessTable(handle);
+
+    /* First, fill the its(process's) processTable entry */
+    e = shm_allocAndInitProcessTableEntry(handle, &procIndex);
+    if ( e < eNOERROR ) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* SHM_initSharedDS() */
+
+
+
+/*@================================
+ * SHM_initLocalDS( )
+ *================================*/
+/* SHM_initLocalDS( )
+   	- initialize Local DS of KAOSS */
+Four SHM_initLocalDS(
+    Four 	handle
+)
+{
+    Four 	e;                     /* error code */
+
+    /* allocate and initialize its own latchList */
+    if ((e = shm_initLocalLatchList(handle)) < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* SHM_initLocalDS() */
+
+
+
+/*@================================
+ * shm_initLocalLatchList( )
+ *================================*/
+Four shm_initLocalLatchList(
+    Four 	handle
+)
+{
+
+    Four 	e;		/* error number */
+    Four 	i;		/* array index variable */
+    LatchEntry 	*lEntryList;	/* temporal variable for initialization */
+
+    /*@ allocate */
+    /* allocate local vararray */
+    e = Util_initVarArray(handle, &(shm_grantedLatchStruct[handle]),
+                          sizeof(LatchEntry), MAXLATCHENTRIES);
+    if ( e < eNOERROR) ERR(handle, e);
+
+    /*@ initialize */
+    /* initialize GrantedLatchList */
+    lEntryList = (LatchEntry*)shm_grantedLatchStruct[handle].ptr;
+    for ( i = 0; i < shm_grantedLatchStruct[handle].nEntries; i++ ) {
+	lEntryList[i].latchPtr = NULL;
+	lEntryList[i].counter = 0;
+    }
+
+    return(eNOERROR);
+
+} /* shm_initLocalLatchList() */

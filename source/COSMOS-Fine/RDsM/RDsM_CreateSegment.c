@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,145 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_CreateSegment.c
+ *
+ * Description:
+ *  Create the segment.
+ *
+ * Exports:
+ *  Four RDsM_CreateSegment(XactTableEntry_T*, Four, SegmentID_T*, Four, LogParameter_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "TM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*
+ * Function: Four RDsM_CreateSegment(XactTableEntry_T*, Four, SegmentID_T*, Four, LogParameter_T*)
+ *
+ * Description:
+ *  Create the segment which has a given type(PAGESIZE2, TRAINSIZE2).
+ *
+ * Returns:
+ *  Error code
+ */
+Four RDsM_CreateSegment(
+    Four                        handle,                 /* IN    handle */
+    XactTableEntry_T  		*xactEntry,    		/* IN transaction table entry */
+    Four              		volNo,         		/* IN volume number where the segment is created */
+    SegmentID_T        		*segmentID,    		/* OUT segment identifier */
+    Four                	sizeOfTrain,            /* IN size of train in a segment to create */
+    LogParameter_T    		*logParam  		/* IN log parameter */
+)
+{
+    Four        		e;             		/* returned error code */
+    Four              		entryNo;                /* entry no of volume table entry corresponding to the given volume */
+    RDsM_VolumeInfo_T 		*volInfo;               /* volume information in volume table entry */
+    AllocAndFreeExtentInfo_T   	allocExtent;            /* new alloc extent */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_CreateSegment(xactEntry=%P, volNo=%lD, segmentID=%P, sizeOfTrain=%lD, logParam=%p)",
+    	     xactEntry, volNo, segmentID, sizeOfTrain, logParam));
+
+
+    /*
+     * check parameters
+     */
+    if (sizeOfTrain != PAGESIZE2 && sizeOfTrain != TRAINSIZE2) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *  get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * set a pointer to the corresponding entry
+     */
+    volInfo = &(RDSM_VOLTABLE[entryNo].volInfo);
+
+
+    /*
+     * initialize alloc & free extent info
+     */
+    e = rdsm_InitAllocAndFreeExtentInfo(handle, &allocExtent, 1);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /*
+     * ### Critical Section Start ###
+     *
+     * get the latch of page alloc & dealloc
+     */
+    e = SHM_getLatch(handle, &RDSM_LATCH_PAGEALLOCDEALLOC(volInfo), procIndex, M_EXCLUSIVE, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     * Nested Top Action Start.
+     * Note: This is for extent map. and This must be called after the lath of page alloc & dealloc is acquired.
+     */
+    e = TM_XT_BeginNestedTopAction(handle, xactEntry, &xactEntry->lastLsn);
+    if (e < eNOERROR) ERRL1(handle, e, &RDSM_LATCH_PAGEALLOCDEALLOC(volInfo));
+
+    /* get new extent No. from free extent list */
+    e = rdsm_GetExtentFromFreeExtentList(handle, volInfo, &allocExtent.extentNo, sizeOfTrain);
+    if (e < eNOERROR) ERRL1(handle, e, &RDSM_LATCH_PAGEALLOCDEALLOC(volInfo));
+
+    /* get the extentmap buffer latch */
+    e = rdsm_getAndFixExtentMapBuffer(handle, volInfo, &allocExtent);
+    if (e < eNOERROR) ERRL1(handle, e, &RDSM_LATCH_PAGEALLOCDEALLOC(volInfo));
+
+    /* allocate an extent for this segment */
+    e = rdsm_RemoveExtentFromFreeExtentList(handle, xactEntry, volInfo, &allocExtent, sizeOfTrain, logParam);
+    if (e < eNOERROR) ERRBL1L1(handle, e, RDSM_EXTENTMAP_BUFFER_ACC_CB(&allocExtent), PAGE_BUF, &RDSM_LATCH_PAGEALLOCDEALLOC(volInfo));
+
+    /* assign new extent to initial value */
+    e = rdsm_SetExtentMapInfo(handle, xactEntry, &allocExtent, NIL, NIL, logParam);
+    if (e < eNOERROR) ERRBL1(handle, e, RDSM_EXTENTMAP_BUFFER_ACC_CB(&allocExtent), PAGE_BUF);
+
+    /*
+     * Nested Top Action End.
+     * Note: This is for extent map. and This must be called before the lath of page alloc & dealloc is released.
+     */
+    ENABLE_EXTENT_MAP_LOGGING_FLAG(logParam); 
+
+    e = TM_XT_EndNestedTopAction(handle, xactEntry, logParam);
+    if (e < eNOERROR) ERRBL1L1(handle, e, RDSM_EXTENTMAP_BUFFER_ACC_CB(&allocExtent), PAGE_BUF, &RDSM_LATCH_PAGEALLOCDEALLOC(volInfo));
+
+    DISABLE_EXTENT_MAP_LOGGING_FLAG(logParam); 
+
+    /* 
+     * ### Critical Section End ###
+     *
+     * release the latch of page alloc & dealloc
+     */
+    e = SHM_releaseLatch(handle, &RDSM_LATCH_PAGEALLOCDEALLOC(volInfo), procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    /* free the extentmap buffer latch */
+    RDSM_FREE_EXTENTMAP_BUFFER(handle, &allocExtent, e);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* assign firstExtent of segmentID to new alloc extent No. */
+    segmentID->volNo       = volNo;
+    segmentID->firstExtent = allocExtent.extentNo;
+    segmentID->sizeOfTrain = sizeOfTrain;
+
+
+    return (eNOERROR);
+
+}
+
+

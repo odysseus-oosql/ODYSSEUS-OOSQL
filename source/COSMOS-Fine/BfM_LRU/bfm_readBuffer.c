@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,67 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: bfm_readBuffer.c
+ *
+ * Description :
+ *  Using the given parameters, trainId and type,  read a train from
+ *  the disk  and load it into the given buffer.
+ *
+ * Exports:
+ *  Four bfm_readBuffer(Four, TrainID*, char*, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*@================================
+ * bfm_readBuffer( )
+ *================================*/
+/*
+ * Function: Four bfm_readBuffer(Four, TrainID*, char*, Four)
+ *
+ * Description :
+ *  Using the given parameters, trainId and type,  read a train from
+ *  the disk  and load it into the given buffer.   If the error occurs
+ *  when RDsM_ReadTrain() is called, simply return it.  The function has
+ *  no code for checking input parameters since this will be done RDsM,
+ *  especially RDsM_ReadTrain( ).
+
+ * Return Values :
+ *  Error codes
+ *    some errors caused by RDsM_ReadTrain( )
+ *
+ * Side effects
+ *  1) parameter aTrain
+ *     a buffer specified by 'aTrain' is filled with a disk content
+ */
+
+Four bfm_readBuffer(
+    Four 		handle,
+    TrainID 		*trainId,		/* IN which train? */
+    char    		*aTrain,		/* OUT a pointer to buffer */
+    Four    		type )			/* IN buffer type */
+{
+    Four 		e;			/* for error */
+
+    TR_PRINT(handle, TR_BFM, TR1, ("bfm_readBuffer( trainId=%P, aTrain=%P, type=%ld )",
+			   trainId, aTrain, type));
+
+    /*@ Read a train from the disk and load it into the given buffer */
+    e = RDsM_ReadTrain(handle,  trainId, aTrain, BI_BUFSIZE(type) );
+
+    if (e < eNOERROR) ERR(handle,  e );
+
+    return( eNOERROR );
+
+}  /* bfm_readBuffer */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,101 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_DeleteObject.c
+ *
+ * Description :
+ *  Delete from a B+tree an ObjectID 'oid' whose key value is given by "kval".
+ *  The B+tree' is specified by the root PageID 'root' and its key descriptor
+ *  'kdesc'.
+ *
+ *  Deleting an ObjectID causes deleting internal pages or moving
+ *  ObjectIDs in an overflow page to a leaf page.
+ *
+ * Exports:
+ *  Four BtM_DeleteObject(Four, PageID*, KeyDesc*, KeyValue*, ObjectID*, LockParameter*, LocalPool*, DeallocListElem*)
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER_BTM
+ *    some errors caused by fucntion calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four BtM_DeleteObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    BtreeIndexInfo *iinfo,	/* IN B tree information */ 
+    FileID     *fid,            /* IN FileID */ 
+    KeyDesc  *kdesc,		/* IN a key descriptor */
+    KeyValue *kval,		/* IN key value */
+    ObjectID *oid,		/* IN Object IDentifier */
+    LockParameter *lockup,	/* IN request lock or not */
+    LogParameter_T *logParam)   /* IN log parameter */
+{
+    Four e;			/* error number */
+    Four retErrCode;		/* error code to return */
+    btm_TraversePath path;	/* Btree traverse path stack */
+    LATCH_TYPE *treeLatchPtr;
+    PageID root;
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("BtM_DeleteObject(handle, iinfo=%P, treeLatchPtr=%P, kdesc=%P, kval=%P, oid=%P, lockup=%P)",
+	      iinfo, treeLatchPtr, kdesc, kval, oid, lockup));
+
+
+    /* check parameters */
+    if (iinfo == NULL) ERR(handle, eBADPARAMETER); 
+
+    if (kdesc == NULL) ERR(handle, eBADPARAMETER);
+
+    if (kval == NULL) ERR(handle, eBADPARAMETER);
+
+    if (oid == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /* Get root's page ID of the current index */
+    e = btm_GetRootPid(handle, xactEntry, iinfo, &root, lockup);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Get TreeLatchPtr of the current index */
+    e = BtM_GetTreeLatchPtrFromIndexId(handle, &iinfo->iid, &treeLatchPtr); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Initialize the traverse path stack. */
+    btm_InitPath(handle, &path, treeLatchPtr);
+
+    do {
+
+	/* Get the traverse path. */
+	e = btm_Search(handle, &iinfo->iid, &root, kdesc, kval, BTM_DELETE, 0, &path); 
+	if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+	/* Delete the given ObjectID from the leaf page. */
+	e = btm_DeleteLeaf(handle, xactEntry, iinfo, fid, &path, &root, kdesc, kval, oid, lockup, logParam);
+	if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+    } while (e == BTM_RETRAVERSE);
+
+    retErrCode = (e == BTM_NOTFOUND) ? BTM_NOTFOUND:eNOERROR;
+
+    /* Finalize the traverse path stack. */
+    e = btm_FinalPath(handle, &path);
+    if (e < eNOERROR) ERR(handle, e);
+
+    if ( retErrCode == BTM_NOTFOUND )
+		PRTERR(handle, eDELETEOBJECTFAILED_BTM);
+
+	return eNOERROR;
+
+
+}   /* BtM_DeleteObject() */

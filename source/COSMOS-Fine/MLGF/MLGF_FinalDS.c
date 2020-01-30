@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,86 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: MLGF_FinalDS.c
+ *
+ * Description :
+ *  finalize the data structure used in btree manager.
+ *
+ * Exports:
+ *  Four MLGF_FinalLocalDS(Four)
+ *  Four MLGF_FinalSharedDS(Four)
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include "common.h"
+#include "error.h"
+#include "Util.h"
+#include "trace.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * MLGF_FinalSharedDS()
+ *================================*/
+/*
+ * Function: Four MLGF_FinalSharedDS(void)
+ *
+ * Description:
+ *  finalize the data structure used in MLGF manager.
+ *
+ * Return values:
+ *  Error codes
+ *    some errors cased by function calls
+ *
+ */
+Four MLGF_FinalSharedDS(Four handle)
+{
+    Four e;             /* error number */
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("MLGF_FinalSharedDS()"));
+
+    return(eNOERROR);
+
+} /* MLGF_FinalSharedDS() */
+
+
+/*@================================
+ * MLGF_FinalLocalDS()
+ *================================*/
+Four MLGF_FinalLocalDS(
+    Four 			handle
+)
+{
+    Four 			e;    			/* error number */
+
+    /* pointer for MLGF Data Structure of perThreadTable */
+    MLGF_PerThreadDS_T *mlgf_perThreadDSptr = MLGF_PER_THREAD_DS_PTR(handle);
+
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("MLGF_FinalLocalDS()"));
+
+
+    /* Finalize the LockStack */
+    e = Util_finalVarArray(handle, &(mlgf_perThreadDSptr->mlgfLockStack.lockStack));
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Finalize the LogicalID Mapping Table for MLGF */
+    e = mlgf_IdMapping_FinalTable(handle); 
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* MLGF_FinalLocalDS() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,157 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BtM_Fetch.c
+ *
+ * Description :
+ *  Find an object identifier satisfying the given condition.
+ *  If there is no such object, then return with 'flag' field of cursor set
+ *  to CURSOR_EOS. If there is an object satisfying the condition, then cursor
+ *  points to the object position in the B+ tree and the object identifier
+ *  is returned via 'oid' parameter.
+ *  The condition is given with a key value and a comparison operator;
+ *  the comparison operator is one among SM_EQ, SM_LT, SM_LE, SM_GT, SM_GE.
+ *
+ * Exports:
+ *  Four BtM_Fetch(Four, PageID*, KeyDesc*, KeyValue*, Four, BtreeCursor*, LockParameter*)
+ *
+ * Returns:
+ *  Error code
+ *    eBADCOMPOP_BTM
+ *    eBADPARAMETER_BTM
+ *    some errors caused by function calls
+ *
+ * Side effects:
+ *  cursor  : The found ObjectID and its position in the Btree Leaf
+ *            (it may indicate a ObjectID in an  overflow page).
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four BtM_Fetch(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    BtreeIndexInfo *iinfo,	/* IN B tree index information */ 
+    FileID     *fid,            /* IN FileID */ 
+    KeyDesc  *kdesc,		/* IN Btree key descriptor */
+    KeyValue *startKval,	/* IN start key value */
+    Four     startCompOp,	/* IN comparison operator of start condition */
+    KeyValue *stopKval,		/* IN stop key value */
+    Four     stopCompOp,	/* IN comparison operator of stop condition */
+    BtreeCursor *cursor,	/* OUT Btree Cursor */
+    PageID *parentPid,          /* IN parent page */
+    LockParameter *lockup)	/* IN request lock or nolock */
+{
+    Four e;		   /* error number */
+    Four cmp;		   /* result of key comparison */
+    btm_TraversePath path;     /* a Btree Traverse Path Stack */
+    LATCH_TYPE *treeLatchPtr;
+    PageID root; 
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("BtM_Fetch(handle, iinfo=%P, kdesc=%P, startKval=%P, startCompOp=%ld, stopKval=%P, stopCompOp=%P, lockup=%P, cursor=%P)",
+	      iinfo, kdesc, startKval, startCompOp, stopKval, stopCompOp, lockup, cursor));
+
+
+    /* Check the parameters. */
+    if (iinfo == NULL || kdesc == NULL || startKval == NULL || stopKval == NULL || cursor == NULL ||
+	(startCompOp != SM_EQ && startCompOp != SM_LT && startCompOp != SM_LE &&
+	 startCompOp != SM_GT && startCompOp != SM_GE && startCompOp != SM_BOF && startCompOp != SM_EOF) ||
+	(stopCompOp != SM_EQ && stopCompOp != SM_LT && stopCompOp != SM_LE &&
+	 stopCompOp != SM_GT && stopCompOp != SM_GE && stopCompOp != SM_BOF && stopCompOp != SM_EOF))
+	ERR(handle, eBADPARAMETER);
+
+
+    /* Get root's page ID of the current index */
+    e = btm_GetRootPid(handle, xactEntry, iinfo, &root, lockup);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Get TreeLatchPtr of the current index */
+    e = BtM_GetTreeLatchPtrFromIndexId(handle, &iinfo->iid, &treeLatchPtr); 
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Initialize the traverse path stack. */
+    btm_InitPath(handle, &path, treeLatchPtr);
+
+    if (startCompOp == SM_BOF) {
+	/* Find the first object which has the smallest key value. */
+
+	e = btm_FirstObject(handle, xactEntry, &iinfo->iid, fid, &root, &path, cursor, lockup); 
+	if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+    } else if (startCompOp == SM_EOF) {
+	/* Find the last object which has the largest key value. */
+
+	e = btm_LastObject(handle, xactEntry, &iinfo->iid, fid, &root, &path, cursor, lockup); 
+	if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+    } else {
+	for (;;) {
+
+	    /* Get the traverse path. */
+	    e = btm_Search(handle, &iinfo->iid, &root, kdesc, startKval, BTM_FETCH, 0, &path); 
+	    if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+	    if (startCompOp == SM_EQ || startCompOp == SM_GT || startCompOp == SM_GE)
+		e = btm_FetchForward(handle, xactEntry, fid, &path, kdesc, startKval, startCompOp, cursor, lockup);
+	    else	/* startCompOp == SM_LT or startCompOp == SM_LE */
+		e = btm_FetchBackward(handle, xactEntry, fid, &path, kdesc, startKval, startCompOp, cursor, lockup);
+
+	    if (e < eNOERROR) ERRPATH(handle, e, &path);
+
+	    if (e == eNOERROR) break;
+
+	    /* Retraverse the tree. */
+	}
+    }
+
+    /* Finalize the traverse path stack. */
+    e = btm_FinalPath(handle, &path);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Check the stop condition. */
+    if (cursor->flag == CURSOR_ON && stopCompOp != SM_EOF && stopCompOp != SM_BOF) {
+	cmp = btm_KeyCompare(handle, kdesc, &cursor->key, stopKval);
+
+	switch(stopCompOp) {
+	  case SM_EQ:
+	    if (cmp != EQUAL) cursor->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_LT:
+	    if (cmp != LESS) cursor->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_LE:
+	    if (cmp == GREAT) cursor->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_GT:
+	    if (cmp != GREAT) cursor->flag = CURSOR_EOS;
+	    break;
+
+	  case SM_GE:
+	    if (cmp == LESS) cursor->flag = CURSOR_EOS;
+	    break;
+	}
+    }
+
+    return(eNOERROR);
+
+} /* BtM_Fetch() */
+
+
+
+
+

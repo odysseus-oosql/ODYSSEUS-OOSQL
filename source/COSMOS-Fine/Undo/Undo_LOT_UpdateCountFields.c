@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,91 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Function: Undo_LOT_UpdateCountFields.c
+ *
+ * Description:
+ *  undo updating count fields of internal entries
+ *
+ * Exports:
+ *  Four Undo_LOT_UpdateCountFields(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOT.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_LOT_UpdateCountFields(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN log record information */
+{
+    Four e;                     /* error code */
+    L_O_T_INodePage *aPage;
+    L_O_T_INode *anode;
+    LOG_Image_LOT_UpdateCountFields_T *updateCountFieldsInfo;
+    LOG_Image_LOT_UpdateCountFields_T localUpdateCountFieldsInfo;
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    Four i;
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_LOT_UpdateCountFields()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    aPage = (L_O_T_INodePage*)aPage_BCBP->bufPagePtr;
+    anode = &aPage->node;
+
+    updateCountFieldsInfo = (LOG_Image_LOT_UpdateCountFields_T*)logRecInfo->imageData[0];
+
+
+    /*
+     *  make the compensation log record
+     */
+    localUpdateCountFieldsInfo.start = updateCountFieldsInfo->start;
+    localUpdateCountFieldsInfo.delta = -updateCountFieldsInfo->delta;
+
+    LOG_FILL_LOGRECINFO_1(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_LOT_UPDATE_COUNT_FIELDS, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          sizeof(LOG_Image_LOT_UpdateCountFields_T), &localUpdateCountFieldsInfo);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->header.lsn = lsn;
+    aPage->header.logRecLen = logRecLen;
+
+
+    /*
+     *	undo updating count fields of internal entries
+     */
+    for (i = updateCountFieldsInfo->start; i < anode->header.nEntries; i++)
+	anode->entry[i].count -= updateCountFieldsInfo->delta;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_LOT_UpdateCountFields( ) */

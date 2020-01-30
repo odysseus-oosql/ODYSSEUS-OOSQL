@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,127 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: BfM_LogDirtyPageTableEntries.c
+ *
+ * Description:
+ *  Write the log record containing the dirty page table entries.
+ *  The log records is a part of a checkpoint log records.
+ *
+ * Exports:
+ *  Four BfM_LogDirtyPageTableEntries(void)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "xactTable.h"
+#include "dirtyPageTable.h"
+#include "SHM.h"
+#include "BfM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/*@
+ * Internal Function Prototypes
+ */
+static Four bfm_LogDirtyPageTableEntries(Four, Four);
+
+
+Four BfM_LogDirtyPageTableEntries(
+    Four		handle)
+{
+    Four 		e;                     /* error code */
+    Four 		type;                  /* buffer type */
+
+
+    TR_PRINT(handle, TR_BFM, TR1, ("BfM_LogDirtyPageTableEntries()"));
+
+
+    /* For each buffer pool */
+    for (type = 0; type < NUM_BUF_TYPES; type++) {
+
+        /* log dirty page table entries */
+        e = bfm_LogDirtyPageTableEntries(handle,type);
+        if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* BfM_LogDirtyPageTableEntries() */
+
+
+
+Four bfm_LogDirtyPageTableEntries(
+    Four		handle,
+    Four 		type)                  	/* IN buffer type */
+{
+    Four 		e;			/* returned error number */
+    BufTBLEntry 	*anEntry;		/* Buffer Table Entry to be checked */
+    PageID 		aKey;			/* temporary key for conflict detection */
+    Four 		nDirtyPages;           	/* number of dirty pages */
+    Lsn_T 		lsn;                  	/* LSN of the newly written log record */
+    Four 		logRecLen;             	/* log record length */
+    LOG_LogRecInfo_T 	logRecInfo; 		/* log record information */
+    Four 		i;
+    DirtyPage_T 	dirtyPages[LOG_MAX_DIRTY_PAGES_PER_LOG_RECORD]; /* the list of dirty pages */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_BFM, TR1, ("bfm_CollectDirtyPageTableEntries(type=%ld)", type));
+
+
+    /* scan the given typed Buffer Table */
+    nDirtyPages = 0;
+    for (i = 0, anEntry = &BI_BTENTRY(type, 0); i < BI_NBUFS(type); i++, anEntry++) {
+
+	/* find dirty page which is not invalid */
+	/* and copy its information into dirtyPageList */
+	if ( !IS_NILBFMHASHKEY(anEntry->key) && anEntry->dirtyFlag ) {
+
+	    aKey = *((PageID *)&(anEntry->key));
+	    if (IS_NILBFMHASHKEY(aKey)) continue;
+
+	    /* Mutex Begin : protection from updating */
+	    if ((e = bfm_lock(handle, (TrainID *)&aKey, type)) < eNOERROR) ERR(handle, e);
+
+	    if ( EQUAL_PAGEID(aKey, anEntry->key) &&
+		anEntry->dirtyFlag ) { 
+
+		dirtyPages[nDirtyPages].pid = *((PageID*)&(anEntry->key));
+		dirtyPages[nDirtyPages].recLsn = anEntry->recLsn;
+
+		nDirtyPages++;
+
+	    } /* if  */
+
+	    /* Mutex End : protection from updating */
+	    if ( (e = bfm_unlock(handle, (TrainID *)&aKey, type)) < eNOERROR) ERR(handle, e);
+
+	} /* if */
+
+
+        if ((nDirtyPages == LOG_MAX_DIRTY_PAGES_PER_LOG_RECORD) || (i+1 == BI_NBUFS(type))) {
+            One bufferType_tmp = type;
+
+            LOG_FILL_LOGRECINFO_2(logRecInfo, common_perThreadDSptr->nilXactId, LOG_TYPE_CHECKPOINT,
+                                  LOG_ACTION_CHKPT_DIRTY_PAGES, LOG_REDO_ONLY,
+                                  common_perThreadDSptr->nilPid, common_perThreadDSptr->nilLsn, common_perThreadDSptr->nilLsn,
+                                  sizeof(One), &bufferType_tmp,
+                                  nDirtyPages*sizeof(DirtyPage_T), dirtyPages);
+
+            e = LOG_WriteLogRecord(handle, NULL, &logRecInfo, &lsn, &logRecLen);
+            if (e < eNOERROR) ERR(handle, e);
+
+            nDirtyPages = 0;
+        }
+
+    } /* for */
+
+    return(eNOERROR);
+
+} /* bfm_LogDirtyPageTableEntries() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,110 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_Dump.c
+ *
+ * Description:
+ *   For the Debugging
+ *
+ * Exports:
+ *  Boolean RDsM_TestPageSet(PageID pageId, Four pageSize)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include <stdio.h>
+#include <stdlib.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "RDsM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+
+/*
+ * Function: Boolean RDsM_TestPageSet(PageID*, Four)
+ *
+ * Description:
+ *  Test bitmap of the input page is set
+ *
+ * Returns:
+ *  Error code
+ *    some errors caused by function calls
+ */
+Boolean RDsM_TestPageSet(
+    Four                        handle,                 	/* IN    handle */
+    PageID 			*pageId,
+    Four 			pageSize
+)
+{
+
+    Four              		entryNo;			/* entry no of volume table entry corresponding to the given volume */
+    RDsM_VolumeInfo_T 		*volInfo;			/* volume information in volume table entry */
+    Four              		devNo;				/* device number in the volume */
+    Four              		extNo;				/* extent number */
+    Four              		trainOffset;			/* physical train offset */
+    Four              		pageOffset;			/* offset of page in the device (unit = # of page) */
+    Four              		extOffset;			/* offset of extent in the device (unit = # of extent) */
+    RDsM_DevInfo      		*devInfo;			/* device info */
+    RDsM_DevInfoForDataVol 	*devInfoForDataVol;		/* deveci info for data volume */
+    PageID            		bmTrainId;			/* bitmap train identifier */
+    BitmapTrain_T     		*bmTrain;			/* pointer to a train buffer */
+    Buffer_ACC_CB     		*bmTrain_BCBP;			/* buffer page access control block */
+    Four              		e;				/* returned error code */
+    Four              		pos;				/* corresponding bit position for the extent*/
+    Four              		ith;				/* corresponding bit offset in the extent */
+    Boolean           		flag;				/* flag indicating whether a bit is set or not */
+
+    /* Find entryNo from Volume Talbe Entry */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, pageId->volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* For fast access about Volume Info */
+    volInfo = &(RDSM_VOLTABLE[entryNo].volInfo);
+
+    /* Get ExtNo from pageNo */
+    extNo = pageId->pageNo / volInfo->extSize;
+
+    /* Get Physical Info (devNo & trainOffset) from extNo & pageSize */
+    e = rdsm_GetPhysicalInfo(handle, volInfo, extNo*volInfo->extSize, &devNo, &trainOffset);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Get extext Offset from train Offset */
+    extOffset = trainOffset / volInfo->extSize;
+
+    devInfo = PHYSICAL_PTR(volInfo->devInfo);
+    devInfoForDataVol = PHYSICAL_PTR(volInfo->dataVol.devInfo);
+
+    /* Set bmTrainId */
+    bmTrainId.volNo = devInfoForDataVol[devNo].bitmapTrainId.volNo;
+    bmTrainId.pageNo = devInfoForDataVol[devNo].bitmapTrainId.pageNo + (extOffset/volInfo->dataVol.numExtMapsInTrain)*TRAINSIZE2;
+
+    /* Get bmTrain_BCBP indicated by bmTrainId */
+    e = BfM_getAndFixBuffer(handle, &bmTrainId, M_EXCLUSIVE, &bmTrain_BCBP, TRAIN_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Get bmTrain from bmTrain_BCBP */
+    bmTrain = (BitmapTrain_T*)bmTrain_BCBP->bufPagePtr;
+
+    /* Get pageOffset from extOffset */
+    pageOffset = extOffset * volInfo->extSize;
+
+    /* Get pos which is offset from BitMap Train to the extent */
+    pos = pageOffset % (volInfo->dataVol.numExtMapsInTrain * volInfo->extSize);
+
+    /* Get ith which is offset from first page in the extent to the pageId */
+    ith = pageId->pageNo - (pageId->pageNo/volInfo->extSize)*volInfo->extSize;
+
+    /* Test BitMap of pageId is set */
+    Util_TestBitSet(handle, bmTrain->bytes, pos+ith, &flag);
+
+    /* Free BitMap Buffer */
+    BFM_FREEBUFFER(handle, bmTrain_BCBP, TRAIN_BUF, e);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return (flag);
+
+}

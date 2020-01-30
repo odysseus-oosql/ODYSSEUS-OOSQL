@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,99 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module :	OM_DropFile.c
+ *
+ * Description :
+ *  Drop the given data file.
+ *  If an deallocated list is given by the caller, then the data pages
+ *  consisting of the file are added into the list and the deallocation of the
+ *  pages are deffered; the caller is responsible for deallcating the pages.
+ *  If the dallcated list is not given, then the index pages are deallocated
+ *  immediately.
+ *
+ * Assume :
+ *  The given file might be locked before calling this function.
+ *  So, we don't need to lock the page.
+ *
+ * Exports:
+ *  Four OM_DropFile(Four, FileID*, LocalPool*, DeallocListElem*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "OM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+/* Internal Function Prototypes */
+Four OM_CollectDLforDroppedFile(PageID*, LocalPool*, DeallocListElem*);
+
+
+/*
+ * Function: Four OM_DropFile(Four, FileID*, LocalPool*, DeallocListElem*)
+ *
+ * Description:
+ *  Refer to the module description.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    some errors caused by function calls
+ *
+ * Side Effects:
+ *  1) parameter dlHead
+ *     The nodes for the pages of the dropped file are inserted into the list.
+ */
+Four OM_DropFile(
+    Four                        handle,                 /* IN handle */
+    XactTableEntry_T 		*xactEntry, 		/* IN transaction table entry */
+    PhysicalFileID 		*pFid,			/* IN File ID for the file to be deleted */ 
+    SegmentID_T			*pageSegmentID,		/* IN page segment ID concerned with the file */
+    SegmentID_T			*trainSegmentID,	/* IN train segment ID concerned with the file */
+    Boolean 			immediateFlag,      	/* IN TRUE if drop immediately */
+    LogParameter_T 		*logParam) 		/* IN log parameter */
+{
+    Four 			e;			/* for the error number */
+    PageID			pid;			/* current page's PageID */
+    PageID 			nextPid;		/* next page's PageID */
+    SlottedPage 		*apage;			/* pointer to buffer holding slotted page */
+    DeallocListElem 		*dlTemp;    		/* current element of the list */
+    Buffer_ACC_CB 		*aPage_BCBP;		/* buffer access control block holding data */
+
+
+    TR_PRINT(handle, TR_OM, TR1,
+	     ("OM_DropFile(xactEntry=%P, pFid=%P, pageSegmentID=%P, trainSegmentID=%P, immediateFlag=%lD, logParam=%P)",
+	     xactEntry, pFid, pageSegmentID, trainSegmentID, immediateFlag, logParam));
+
+
+    /* Check parameters. */
+    if (pFid == NULL) ERR(handle, eBADPARAMETER);
+
+    if (immediateFlag == TRUE) {
+        /* Drop the segment concerned with the file */
+        if (IS_NIL_SEGMENT_ID(pageSegmentID) != TRUE) {
+	    e = RDsM_DropSegment(handle, xactEntry, pFid->volNo, pageSegmentID, pageSegmentID->sizeOfTrain, immediateFlag, logParam);
+	    if (e < eNOERROR) ERR(handle, e);
+        }
+        if (IS_NIL_SEGMENT_ID(trainSegmentID) != TRUE) {
+	    e = RDsM_DropSegment(handle, xactEntry, pFid->volNo, trainSegmentID, trainSegmentID->sizeOfTrain, immediateFlag, logParam);
+	    if (e < eNOERROR) ERR(handle, e);
+        }
+    }
+    else {
+	/* Add the segment identification to dealloc list */
+	e = TM_XT_AddToDeallocList(handle, xactEntry, pFid, pageSegmentID, trainSegmentID, DL_FILE);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+    return(eNOERROR);
+
+} /* OM_DropFile() */

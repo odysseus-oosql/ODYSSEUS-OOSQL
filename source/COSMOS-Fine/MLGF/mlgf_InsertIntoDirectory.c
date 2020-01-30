@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,107 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_InsertIntoDirectory.c
+ *
+ * Description:
+ *  Insert a directory entry into the directory page.
+ *
+ * Exports:
+ *  void mlgf_InsertIntoDirectory(handle, mlgf_DirectoryPage*, MLGF_KeyDesc*, mlgf_DirectoryEntry*)
+ *
+ * Returns:
+ *  None
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four mlgf_InsertIntoDirectory(
+    Four 		handle,
+    XactTableEntry_T 	*xactEntry, 		/* IN transaction table entry */
+    mlgf_DirectoryPage 	*dirPage, 		/* INOUT where the new entry is inserted */
+    MLGF_KeyDesc 	*kdesc,	 		/* IN key descriptor of used index */
+    mlgf_DirectoryEntry *insertedEntry,	 	/* IN entry to be inserted */
+    LogParameter_T 	*logParam) 		/* IN log parameter */
+{
+    Four 		e;                     	/* error code */
+    Four 		entryNo;		/* index on entry array */
+    Four 		entryLen;		/* length of a directory entry */
+    mlgf_MortonValue 	morton;			/* morton value of the inserted index */
+    mlgf_DirectoryEntry *entry;			/* points to the insertion position */
+    Four 		i;
+    Lsn_T 		lsn;                  	/* lsn of the newly written log record */
+    Four 		logRecLen;             	/* log record length */
+    LOG_LogRecInfo_T 	logRecInfo; 		/* log record information */
+
+    /* pointer for COMMON Data Structure of perThreadTable */
+    COMMON_PerThreadDS_T *common_perThreadDSptr = COMMON_PER_THREAD_DS_PTR(handle);
+
+    TR_PRINT(handle, TR_MLGF, TR1,
+	     ("mlgf_InsertIntoDirectory(handle, dirPage=%P, kdesc=%P, insertedEntry=%P)",
+	      dirPage, kdesc, insertedEntry));
+
+
+    /* Get the length of a directory entry. */
+    entryLen = MLGF_DIRENTRY_LENGTH(kdesc->nKeys);
+
+    /* Get the morton value of the inserted entry. */
+    mlgf_GetMortonValue(handle, MLGF_DIRENTRY_HASHVALUEPTR(insertedEntry, kdesc->nKeys),
+			insertedEntry->nValidBits, &morton, kdesc->nKeys);
+
+    mlgf_SearchDirPageInMortonOrder(handle, dirPage, kdesc, &morton, TRUE, &entryNo); 
+
+    /* 'entry' points to the insertion position. */
+    entry = MLGF_ITH_DIRENTRY(dirPage, entryNo, entryLen);
+
+    /* Make room for the inserted index. */
+    memmove((char*)entry+entryLen, entry, (dirPage->hdr.nEntries-entryNo)*entryLen);
+
+    /* Insert the new entry. */
+    memcpy((char*)entry, (char*)insertedEntry, entryLen);
+
+    /* increase the number of entries in directory page. */
+    dirPage->hdr.nEntries ++;
+
+    /*
+     * Write log record.
+     */
+    if (logParam->logFlag & LOG_FLAG_DATA_LOGGING) {
+        Two tmpEntryNo = entryNo;
+
+        LOG_FILL_LOGRECINFO_2(logRecInfo, xactEntry->xactId, LOG_TYPE_UPDATE,
+                              LOG_ACTION_MLGF_INSERT_DIRECTORY_ENTRY, LOG_REDO_UNDO,
+                              dirPage->hdr.pid, xactEntry->lastLsn, common_perThreadDSptr->nilLsn,
+                              sizeof(Two), &tmpEntryNo,
+                              entryLen, entry);
+
+        e = LOG_WriteLogRecord(handle, xactEntry, &logRecInfo, &lsn, &logRecLen);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* mark the lsn in the page */
+        dirPage->hdr.lsn = lsn;
+        dirPage->hdr.logRecLen = logRecLen;
+    }
+
+    return(eNOERROR); 
+
+} /* mlgf_InsertIntoDirectory() */

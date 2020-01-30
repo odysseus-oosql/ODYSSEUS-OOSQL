@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,76 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_MLGF_DeleteObjectWithLeafEntry.c
+ *
+ * Description:
+ *  Undo deleting an object with a leaf entry
+ *
+ * Exports:
+ *  Four Undo_MLGF_DeleteObjectWithLeafEntry(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "TM.h"
+#include "LOG.h"
+#include "BfM.h"
+#include "MLGF.h"
+#include "Undo.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_MLGF_DeleteObjectWithLeafEntry(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN operation information for writing a small object */
+{
+    Four e;			/* error code */
+    mlgf_LeafEntry *entry;      /* the updated leaf entry */
+    char *objectItemPtr;
+    LOG_Image_MLGF_LogicalUndoInfo_T *undoInfo;
+    LogParameter_T logParam;
+    MLGFIndexInfo               iinfo;                  /* MLGF Index Info */
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_MLGF_DeleteObjectWithLeafEntry()"));
+
+
+    /*
+     *	check input parameter
+     */
+    if (aPage_BCBP == NULL || logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	get images
+     */
+    entry = (mlgf_LeafEntry*)logRecInfo->imageData[1];
+    undoInfo = (LOG_Image_MLGF_LogicalUndoInfo_T*)logRecInfo->imageData[2];
+    objectItemPtr = MLGF_LEAFENTRY_FIRST_OBJECT(undoInfo->kdesc.nKeys, entry);
+
+    SET_LOG_PARAMETER(logParam, TRUE, FALSE);
+    logParam.logFlag |= LOG_FLAG_UNDO;
+    logParam.undo.undoLsn = *logRecLsn;
+    logParam.undo.undoNextLsn = logRecInfo->prevLsn;
+
+    /* get MLGF index info */
+    iinfo.iid = undoInfo->iid;
+    iinfo.tmpIndexFlag = FALSE;
+    iinfo.catalog.oid = undoInfo->catEntry;
+
+    e = MLGF_InsertObject(handle, xactEntry, &iinfo, &undoInfo->kdesc, 
+                          entry->keys, (ObjectID*)objectItemPtr,
+                          objectItemPtr + sizeof(ObjectID), NULL, &logParam);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* Undo_MLGF_DeleteObjectWithLeafEntry( ) */

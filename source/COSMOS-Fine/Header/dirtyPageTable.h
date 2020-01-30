@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,39 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef __DIRTYPAGETABLE_H__
+#define __DIRTYPAGETABLE_H__
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "Util_pool.h"
+#include "BfM.h"
+
+/*
+ * DirtyPage_T
+ */
+typedef struct DirtyPage_T_tag {
+    PageID pid;			/* page id of the updated page */
+    Lsn_T recLsn;		/* recovery lsn */
+} DirtyPage_T;
+
+
+/*
+ * DirtyPageTable_T
+ */
+typedef struct DirtyPageTableEntry_T_tag {
+    PageID pid;			/* page id of the updated page */
+    Lsn_T recLsn;		/* recovery lsn */
+    struct DirtyPageTableEntry_T_tag *nextEntry; /* next entry in a hash chain */
+} DirtyPageTableEntry_T;
+
+typedef struct {
+    Four hashTableSize_1;	/* (# of slots in the hash table) - 1 */
+				/* hash table size is power of 2 */
+    DirtyPageTableEntry_T **hashTable[NUM_BUF_TYPES]; /* hash table */
+    LocalPool freeEntryPool;	       /* ppool for new entry allocation */
+} DirtyPageTable_T;
+
+
+#define RM_DIRTYPAGETABLE(_handle) perThreadTable[_handle].rmDS.rm_dirtyPageTable
+
+#endif /* __DIRTYPAGETABLE_H__ */

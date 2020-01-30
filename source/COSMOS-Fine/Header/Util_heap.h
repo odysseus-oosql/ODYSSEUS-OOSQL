@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,85 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _UTIL_HEAP_H_
+#define _UTIL_HEAP_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "latch.h"		/* suppport mutual exclusion for Heap */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*
+ * Type Definition for HeapWord
+ * HeapWord is a basic unit of a heap.
+ */
+union _HeapWord {
+    LOGICAL_PTR_TYPE(union _HeapWord *) ptr; /* pointer to the next control HeapWord. */ 
+    MEMORY_ALIGN_TYPE dummay;		/* alignment unit */
+};
+
+typedef union _HeapWord HeapWord;
+
+/*
+ * Type Definition for subheap header
+ * For each subheap, a subheap header is defined.
+ * The subheap header is dynamically allocated at once with the subheap.
+ */
+struct _SubheapHdr {
+    Four  count;			/* # of heap words in the heap */
+    LOGICAL_PTR_TYPE(HeapWord *) searchPtr; /* start position of search */
+    LOGICAL_PTR_TYPE(struct _SubheapHdr *) nextSubheap; /* pointer to next subheap */
+};
+
+typedef struct _SubheapHdr SubheapHdr;
+
+/*
+ * Type definition for Heap.
+ * Heap consists of the subheaps of same size.
+ */
+struct _Heap {
+    LATCH_TYPE latch;		/* latch for allocate/free one element from a pool */
+    Four elemSize;		/* element size */
+    Four maxWordsInSubheap;	/* maximum heap words in a subheap */
+    LOGICAL_PTR_TYPE(SubheapHdr *) subheapPtr; /* pointer to the first subheap */
+};
+
+typedef struct _Heap Heap;
+
+/*
+ * Type definition for LocalHeap.
+ * Heap consists of the subheaps of same size.
+ */
+typedef union LocalHeapWord_tag LocalHeapWord;
+
+union LocalHeapWord_tag {
+    LocalHeapWord 	*ptr;         	/* pointer to the next control HeapWord. */
+    MEMORY_ALIGN_TYPE  	dummay;		/* alignment unit */
+};
+
+typedef struct LocalSubheapHdr_tag LocalSubheapHdr;
+
+struct LocalSubheapHdr_tag {
+    Four  count;		     /* # of heap words in the heap */
+    LocalHeapWord *searchPtr;	     /* start position of search */
+    LocalSubheapHdr *nextSubheap;    /* pointer to next subheap */
+};
+
+struct _LocalHeap {
+    Four elemSize;		 /* element size */
+    Four maxWordsInSubheap; 	 /* maximum heap words in a subheap */
+    LocalSubheapHdr *subheapPtr; /* pointer to the first subheap */
+};
+
+typedef struct _LocalHeap LocalHeap;
+
+/* Using Shared Memory */
+Four Util_initHeap(Four, Heap*, Four, Four);
+Four Util_getArrayFromHeap(Four, Heap*, Four, void*);
+Four Util_freeArrayToHeap(Four, Heap*, void*);
+Four Util_finalHeap(Four, Heap*);
+
+/* Using Local Memory */
+Four Util_initLocalHeap(Four, LocalHeap*, Four, Four);
+Four Util_getArrayFromLocalHeap(Four, LocalHeap*, Four, void*);
+Four Util_freeArrayToLocalHeap(Four, LocalHeap*, void*);
+Four Util_finalLocalHeap(Four, LocalHeap*);
+
+#endif /* _UTIL_HEAP_H_ */

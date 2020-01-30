@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,115 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: util_Train.c
+ *
+ * Description:
+ *
+ *
+ * Exports:
+ *  Four util_WriteTrains(char *, PageID *, Four, Four)
+ *  Four util_ReadTrains(PageID *, char *, Four, Four)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "RDsM.h"
+#include "Util_Sort.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+/*@================================
+ * util_WriteTrains()
+ *================================*/
+/*
+ * Function: Four util_WriteTrains(SlottedPageForSort **, PageID *, Four, Four)
+ *
+ * Description :
+ *  Write a train specified by 'trainId' into the disk.
+ *
+ * Returns:
+ *  error code
+ *    some errors caused by function calls
+ */
+Four util_WriteTrains(
+    Four	  handle,
+    char*         bufPtr,            /* IN buffer which contain train contents */
+    PageID*       trainIdArray,      /* IN Array of train ID to be written */
+    Four          numTrains,         /* IN number of trains */
+    Four          sizeOfTrain)       /* IN size of train */
+{
+    Four          e;                 /* for errors */
+    Four          i, j;              /* index variable */
+    Four          numContTrains;     /* number of contiguous trains */
+
+
+    for (i = 0; i < numTrains; i += numContTrains) {
+
+        /* calculate 'numContTrains' */
+        for (numContTrains = 1, j = i ;
+             j + 1 < numTrains && trainIdArray[j].pageNo + sizeOfTrain == trainIdArray[j+1].pageNo ;
+             j++, numContTrains++);
+
+        /*@ write a train into the disk */
+        e = RDsM_WriteTrains(handle, bufPtr, &trainIdArray[i], numContTrains, sizeOfTrain);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* update 'bufPtr' */
+        bufPtr += numContTrains*sizeOfTrain*PAGESIZE;
+    }
+
+
+    return(eNOERROR);
+
+}  /* util_WriteTrains() */
+
+
+
+
+/*@================================
+ * util_ReadTrains()
+ *================================*/
+/*
+ * Function: Four util_ReadTrains(PageID *, SlottedPageForSort **, Four, Four)
+ *
+ * Description :
+ *  Read trains specified by 'trainIdArray' from the disk.
+ *
+ * Returns:
+ *  error code
+ *    some errors caused by function calls
+ */
+Four util_ReadTrains(
+    Four	  handle,
+    PageID*       trainIdArray,      /* IN    Array of train ID to be written */
+    char*         bufPtr,            /* INOUT buffer which contain train contents */
+    Four          numTrains,         /* IN    number of trains */
+    Four          sizeOfTrain)       /* IN    size of train */
+{
+    Four          e;                 /* for errors */
+    Four          i, j;              /* index variable */
+    Four          numContTrains;     /* number of contiguous trains */
+
+
+    for (i = 0; i < numTrains; i += numContTrains) {
+
+        /* calculate 'numContTrains' */
+        for (numContTrains = 1, j = i ;
+             j + 1 < numTrains && trainIdArray[j].pageNo + sizeOfTrain == trainIdArray[j+1].pageNo ;
+             j++, numContTrains++);
+
+        /*@ write a train into the disk */
+        e = RDsM_ReadTrains(handle, &trainIdArray[i], bufPtr, numContTrains, sizeOfTrain);
+        if (e < eNOERROR) ERR(handle, e);
+
+        /* update 'bufPtr' */
+        bufPtr += numContTrains*sizeOfTrain*PAGESIZE;
+    }
+
+
+    return(eNOERROR);
+
+}  /* util_ReadTrains() */

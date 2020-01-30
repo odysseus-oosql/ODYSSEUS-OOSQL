@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,55 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: LOG_GetCheckpointLsn.c
+ *
+ * Description:
+ *  Return the recent checkpoint lsn.
+ *
+ * Exports:
+ *  Four LOG_GetCheckpointLsn(Four, LOG_Lsn_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: Four LOG_GetCheckpointLsn(Four, LOG_Lsn_T*)
+ *
+ * Description:
+ *  Return the recent checkpoint lsn.
+ *
+ * Returns:
+ *  error code
+ */
+Four LOG_GetCheckpointLsn(
+    Four 	handle,
+    Lsn_T 	*ckptLsn)		/* OUT LSN of the recent checkpoint */
+{
+    Four 	e;			/* error code */
+
+
+    TR_PRINT(handle, TR_LOG, TR1, ("LOG_GetCheckpointLsn(chkptLsn=%P)", ckptLsn));
+
+
+    e = SHM_getLatch(handle, &LOG_LATCH4HEAD, procIndex, M_SHARED, M_UNCONDITIONAL, NULL);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* Get the checkpoint lsn. */
+    *ckptLsn = LOG_LOGMASTER.checkpointLsn;
+
+    e = SHM_releaseLatch(handle, &LOG_LATCH4HEAD, procIndex);
+    if (e < eNOERROR) ERR(handle, e);
+
+
+    return(eNOERROR);
+
+} /* LOG_GetCheckpointLsn() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,78 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: btm_GetObjectId.c
+ *
+ * Description:
+ *  Get the first ObjectID in the given entry of the given leaf page.
+ *
+ * Exports:
+ *  Four btm_GetObjectId(Four, BtreeLeaf*, Four, ObjectID*, PageID*)
+ *
+ * Returns:
+ *  eNOERROR
+ *  Error code
+ *    some errors caused by function calls
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "BtM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four btm_GetObjectId(
+    Four 		handle,
+    BtreeLeaf 		*apage,		/* IN Btree leaf page */
+    Four      		slotNo,		/* IN slot to fetch ObjectID */
+    ObjectID  		*oid,		/* OUT return fetched ObjectID */
+    PageID 		*oid_ovPid)	/* OUT Overflow PageID */
+{
+    Four 		e;		/* error code */
+    Four 		offset;		/* offset where 'spid' or 'overflow PageID' starts */
+    PageID 		ovPid;		/* overflow PageID */
+    ObjectID 		*oidArray;	/* pointer to array of ObjectIDs */
+    btm_LeafEntry 	*entry;		/* a Btree leaf entry */
+    Buffer_ACC_CB 	*ov_BCB;	/* buffer control block for overflow page */
+
+
+    TR_PRINT(handle, TR_BTM, TR1,
+	     ("btm_GetObjectId(handle, apage=%P, slotNo=%ld, oid=%P, oid_ovPid=%P)",
+	      apage, slotNo, oid, oid_ovPid));
+
+
+    entry = (btm_LeafEntry*)&apage->data[apage->slot[-slotNo]];
+    offset = ALIGNED_LENGTH(BTM_LEAFENTRY_FIXED + entry->klen) - BTM_LEAFENTRY_FIXED;
+
+    if (entry->nObjects > 0) {	/* normal entry */
+	oidArray = (ObjectID*)&entry->kval[offset];
+
+	*oid = oidArray[0];
+	ov_BCB = NULL;		/* no overflow page */
+
+    } else {
+
+	MAKE_PAGEID(ovPid, apage->hdr.pid.volNo, *((ShortPageID*)&entry->kval[offset]));
+
+	e = BfM_getAndFixBuffer(handle, &ovPid, M_SHARED, &ov_BCB, PAGE_BUF);
+	if (e < eNOERROR) ERR(handle, e);
+
+	*oid = ((BtreeOverflow*)(ov_BCB->bufPagePtr))->oid[0];
+
+	e = SHM_releaseLatch(handle, ov_BCB->latchPtr, procIndex);
+	if (e < eNOERROR) ERR(handle, e);
+
+	e = BfM_unfixBuffer(handle, ov_BCB, PAGE_BUF);
+	if (e < eNOERROR) ERR(handle, e);
+
+	if (oid_ovPid != NULL) *oid_ovPid = ovPid;
+    }
+
+    return(eNOERROR);
+
+} /* btm_GetObjectId() */

@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,59 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+#ifndef _BL_SM_H_
+#define _BL_SM_H_
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+#include "SM.h"
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+/*@
+ * Constant Definitions
+ */
+#define MINPFF              (100*1/2)                       /* minimum page fill factor of B+ tree */
+#define MAXPFF              100                             /* maximum page fill factor of B+ tree */
+
+
+/*@
+ * Type Definitions
+ */
+
+typedef struct {
+    Boolean                 isUsed;                /* flag which indicates append bulkloading */
+    Four                    smBlkLdVolume;         /* index for the used volume on the mount table */
+    Boolean                 smBlkLdisAppend;       /* flag which indicates append bulkloading */
+    Four                    streamId;              /* index for the used volume on the mount table */
+    Four                    btmBlkLdId;            /* index for the used volume on the mount table */
+    FileID                  fid;                   /* file ID on which B+ tree index is built */
+} SM_IdxBlkLdTableEntry;
+
+
+/*@
+ * Global variables 
+ */
+
+
+#define SM_IDXBLKLD_TABLE(_handle)      perThreadTable[_handle].smDS.smIdxBlkLdTable
+
+
+
+
+/*@
+ * Function Prototypes
+ */
+/*
+** Scan Manager Internal Functions Prototypes
+*/
+
+/*
+** Scan Manager Interface Functions Prototypes
+*/
+Four SM_InitIndexBulkLoad(Four, VolID, KeyDesc*);
+Four SM_NextIndexBulkLoad(Four, Four, KeyValue*, ObjectID*);
+Four SM_FinalIndexBulkLoad(Four, Four, IndexID*, Two, Two, LockParameter*); 
+
+Four SM_InitSortedIndexBulkLoad(Four, IndexID*, KeyDesc*, Two, Two, LockParameter*); 
+Four SM_NextSortedIndexBulkLoad(Four, Four, KeyValue*, ObjectID*);
+Four SM_FinalSortedIndexBulkLoad(Four, Four);
+
+
+#endif /* _BL_SM_H_ */

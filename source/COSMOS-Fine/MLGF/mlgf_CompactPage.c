@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,108 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/******************************************************************************/
+/*                                                                            */
+/*    This module has been implemented based on "The Multilevel Grid File     */
+/*    (MLGF) Version 4.0," which can be downloaded at                         */
+/*    "http://dblab.kaist.ac.kr/Open-Software/MLGF/main.html".                */
+/*                                                                            */
+/******************************************************************************/
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
+/*
+ * Module: mlgf_CompactPage.c
+ *
+ * Description:
+ *  Includes page compage routines.
+ *
+ * Exports:
+ *  void mlgf_CompactLeafPage(Four, mlgf_LeafPage*, Four, Four, Four)
+ */
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"		/* for tracing : TR_PRINT(handle, ) macro */
+#include "Util.h"
+#include "TM.h"
+#include "MLGF.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*
+ * Function: void mlgf_CompactLeafPage(Four, mlgf_LeafPage*, MLGF_KeyDesc*, Four)
+ *
+ * Description:
+ *  Reorganizes the leaf page to make sure the unused bytes in the page
+ *  are located contiguously "in the middle", between the entries and the
+ *  slot array. To compress out holes, entries must be moved toward the
+ *  beginning of the page.
+ *
+ * Return Values :
+ *  None
+ *
+ * Side Effects :
+ *  The leaf page is reorganized to comact the space.
+ */
+void mlgf_CompactLeafPage(
+    Four 		handle,
+    mlgf_LeafPage 	*apage,       		/* INOUT leaf page to compact */
+    Four 		nKeys,                 	/* IN # of keys */
+    Four 		extraDataLen,          	/* IN extra data length */
+    Four      		slotNo)			/* IN slot to go to the boundary of free space */
+{
+    mlgf_LeafPage 	tpage;			/* temporay page used to save the given page */
+    Four   		apageDataOffset;	/* where the next object is to be moved */
+    Four   		len;			/* length of the leaf entry */
+    Four   		i;			/* index variable */
+    mlgf_LeafEntry 	*entry;			/* an entry in leaf page */
+
+
+    TR_PRINT(handle, TR_MLGF, TR1, ("mlgf_CompactLeafPage()"));
+
+
+    /* save the slotted page */
+    tpage = *apage;
+
+    apageDataOffset = 0;	/* start at the beginning of the data area */
+
+    for (i = 0; i < tpage.hdr.nEntries; i++)
+	if (i != slotNo) {
+
+	    /* 'entry' points to the currently moved leaf entry. */
+	    entry = MLGF_ITH_LEAFENTRY(&tpage, i); 
+
+	    /* copy the entire entry to the reorganized page */
+	    len = MLGF_LEAFENTRY_LENGTH(nKeys, extraDataLen, entry->nObjects);
+
+	    memcpy(&apage->data[apageDataOffset], (char*)entry, len);
+	    apage->slot[-i] = apageDataOffset;
+
+	    apageDataOffset += len; /* make it point the next move position */
+	}
+
+    if (slotNo != NIL) {
+
+	/* move the specified object to the end */
+
+	/* 'entry' points to the currently moved leaf entry. */
+	entry =  MLGF_ITH_LEAFENTRY(&tpage, slotNo); 
+
+	/* copy the entire entry to the reorganized page */
+	len = MLGF_LEAFENTRY_LENGTH(nKeys, extraDataLen, entry->nObjects);
+
+	memcpy(&apage->data[apageDataOffset], (char*)entry, len);
+	apage->slot[-slotNo] = apageDataOffset;
+
+	apageDataOffset += len; /* make it point the next move position */
+    }
+
+    /* set the control variables */
+    apage->hdr.free = apageDataOffset; 	/* start pos. of contiguous space */
+    apage->hdr.unused = 0;	   	/* no fragmented unused space */
+
+
+} /* mlgf_CompactLeafPage() */

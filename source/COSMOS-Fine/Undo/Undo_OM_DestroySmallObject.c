@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,115 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: Undo_OM_DestroySmallObject.c
+ *
+ * Description:
+ *  Undo destroying a small object
+ *
+ * Exports:
+ *  Four Undo_OM_DestroySmallObject(Four, LOG_LogRecInfo_T*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include <string.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "BfM.h"
+#include "OM.h"
+#include "TM.h"
+#include "LOG.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+Four Undo_OM_DestroySmallObject(
+    Four handle,
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Buffer_ACC_CB *aPage_BCBP,  /* INOUT buffer access control block holding data */
+    Lsn_T *logRecLsn,           /* IN log record to undo */
+    LOG_LogRecInfo_T *logRecInfo) /* IN log record information */
+{
+    Four e;			/* error code */
+    SlottedPage	*aPage;		/* pointer to a slotted buffer page */
+    Object      *obj;		/* pointer to an object */
+    Four slotNo;		/* slot no of the updated object */
+    Lsn_T lsn;                  /* lsn of the newly written log record */
+    Four logRecLen;             /* log record length */
+    LOG_LogRecInfo_T localLogRecInfo; /* log record information */
+    LOG_Image_OM_ObjectInPage_T *objInfoPtr; /* specify an object in a slotted page */
+    Boolean pageUpdateFlag;
+
+
+    TR_PRINT(handle, TR_UNDO, TR1, ("Undo_OM_DestroySmallObject(logRecInfo=%P)", logRecInfo));
+
+
+    /*
+     *	check input parameter
+     */
+    if (logRecInfo == NULL) ERR(handle, eBADPARAMETER);
+
+
+
+    /*
+     *	set a slotted page pointer pointing to the buffer
+     */
+    aPage = (SlottedPage *) aPage_BCBP->bufPagePtr;
+
+
+    /*
+     * get the images
+     */
+    objInfoPtr = (LOG_Image_OM_ObjectInPage_T*)logRecInfo->imageData[0];
+
+    /* When object is deleted, slot is NOT deleted. */
+    assert(*((Boolean*)logRecInfo->imageData[1]) == FALSE);
+
+#ifdef CCRL
+    e = om_UndoRelease(handle, &xactEntry->xactId, aPage, logRecInfo->imageSize[2], &pageUpdateFlag);
+    if (e < eNOERROR) ERR(handle, e);
+#endif /* CCRL */
+
+    /*
+     *	undo destroying a small object
+     */
+    if (SP_CFREE(aPage) < logRecInfo->imageSize[2])
+	(void) om_CompactPage(handle, aPage, NIL);
+
+    aPage->slot[-(objInfoPtr->slotNo)].offset = aPage->header.free;
+    aPage->slot[-(objInfoPtr->slotNo)].unique = objInfoPtr->unique;
+
+    memcpy(&(aPage->data[aPage->header.free]), logRecInfo->imageData[2], logRecInfo->imageSize[2]);
+
+    aPage->header.free += logRecInfo->imageSize[2];
+
+
+    /*
+     *  make the compensation log record
+     */
+    LOG_FILL_LOGRECINFO_3(localLogRecInfo, logRecInfo->xactId, LOG_TYPE_COMPENSATION,
+                          LOG_ACTION_OM_CREATE_SMALL_OBJECT, LOG_REDO_ONLY,
+                          logRecInfo->pid, xactEntry->lastLsn, logRecInfo->prevLsn,
+                          logRecInfo->imageSize[0], logRecInfo->imageData[0],
+                          logRecInfo->imageSize[1], logRecInfo->imageData[1],
+                          logRecInfo->imageSize[2], logRecInfo->imageData[2]);
+
+    e = LOG_WriteLogRecord(handle, xactEntry, &localLogRecInfo, &lsn, &logRecLen);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /* mark the lsn in the page */
+    aPage->header.lsn = lsn;
+    aPage->header.logRecLen = logRecLen;
+
+
+    /*
+     *	set dirty flag for buffering
+     */
+    aPage_BCBP->dirtyFlag = 1;
+
+
+    return(eNOERROR);
+
+} /* Undo_OM_DestroySmallObject( ) */

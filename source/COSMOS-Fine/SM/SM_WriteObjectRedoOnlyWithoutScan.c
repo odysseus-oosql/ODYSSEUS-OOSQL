@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,137 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: SM_WriteObjectRedoOnlyWithoutScan.c
+ *
+ * Description:
+ *  write the given object's contents.
+ *
+ * Exports:
+ *  Four SM_WriteObjectRedoOnlyWithoutScan(Four, Four, ObjectID*, Four, Four, char*)
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <assert.h>
+#include "common.h"
+#include "error.h"
+#include "trace.h"
+#include "latch.h"
+#include "TM.h"
+#include "LM.h"
+#include "OM.h"
+#include "BtM.h"
+#include "SM.h"
+#include "SHM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+/*@================================
+ * SM_WriteObjectRedoOnlyWithoutScan( )
+ *================================*/
+/*
+ * Function: Four SM_WriteObjectRedoOnlyWithoutScan(Four, Four, ObjectID*, Four, Four, char*)
+ *
+ * Description:
+ *  Read the given object's contents.
+ *
+ * Returns:
+ *  Error code
+ *    eBADPARAMETER
+ *    eBADCURSOR
+ *    some errors caused by function calls
+ */
+Four SM_WriteObjectRedoOnlyWithoutScan(
+    Four handle,
+    FileID *fid,                /* IN file where the object is inserted */
+    ObjectID *oid,		/* IN object to read */
+    Four start,			/* IN starting offset of data to read */
+    Four length,		/* IN amount of data to read */
+    char *data,			/* IN data to write */
+    LockParameter *fileLockup,  /* IN request file lock or not */
+    LockParameter *objLockup)   /* IN request object lock or not */
+{
+    Four e;			/* error number */
+    DataFileInfo finfo;         /* data file info */
+    Four v;			/* index for the used volume on the mount table */
+    Four i;
+    LockReply lockReply;
+    LockMode oldMode;
+    LogParameter_T logParam;
+
+
+    TR_PRINT(handle, TR_SM, TR1, ("SM_WriteObjectRedoOnlyWithoutScan()"));
+
+    /*@ check parameters. */
+    if (fid == NULL) ERR(handle, eBADPARAMETER);
+
+    /* find the given volume in the scan manager mount table */
+    for (v = 0; v < MAXNUMOFVOLS; v++)
+	if (SM_MOUNTTABLE[v].volId == fid->volNo) break; /* found */
+
+    if (v == MAXNUMOFVOLS) ERR(handle, eNOTMOUNTEDVOLUME_SM);
+
+    if (length < 0 && length != REMAINDER) ERR(handle, eBADPARAMETER);
+
+    if (length > 0 && data == NULL) ERR(handle, eBADPARAMETER);
+
+    if(SM_NEED_AUTO_ACTION(handle)) {
+        e = LM_beginAction(handle, &MY_XACTID(handle), AUTO_ACTION);
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    /* Check if the file is a temporary file. */
+    finfo.fid = *fid;
+    finfo.tmpFileFlag = FALSE; /* initialize */
+    for (i = 0; i < SM_NUM_OF_ENTRIES_OF_ST_FOR_TMP_FILES(handle); i++) 
+	if (!SM_IS_UNUSED_ENTRY_OF_ST_FOR_TMP_FILES(SM_ST_FOR_TMP_FILES(handle)[i]) &&
+	    EQUAL_FILEID(*fid, SM_ST_FOR_TMP_FILES(handle)[i].data.fid)) {
+
+	    finfo.tmpFileFlag = TRUE;
+	    finfo.catalog.entry = &(SM_ST_FOR_TMP_FILES(handle)[i]);
+	    break;
+	}
+
+    if (finfo.tmpFileFlag == FALSE) {
+        if (fileLockup) {
+            if(fileLockup->duration != L_COMMIT) ERR(handle, eCOMMITDURATIONLOCKREQUIRED_SM);
+
+            /* lock on the data file */
+            e = LM_getFileLock(handle,  &MY_XACTID(handle), fid, fileLockup->mode, fileLockup->duration,
+                                L_UNCONDITIONAL, &lockReply, &oldMode);
+            if ( e < eNOERROR ) ERR(handle, e);
+
+            if (lockReply == LR_DEADLOCK) ERR(handle, eDEADLOCK);
+        }
+
+	/* Get catalog entry of */
+	e = sm_GetCatalogEntryFromDataFileId(handle, v, fid, &(finfo.catalog.oid));
+	if (e < eNOERROR) ERR(handle, e);
+    }
+
+#ifndef NDEBUG
+    if (objLockup) {
+        assert(objLockup->duration == L_COMMIT);
+    }
+#endif /* NDEBUG */
+
+    SET_LOG_PARAMETER(logParam, common_shmPtr->recoveryFlag, finfo.tmpFileFlag);
+
+    if(length != 0){
+	/* Read the object. */
+	e = OM_WriteObjectRedoOnly(handle, MY_XACT_TABLE_ENTRY(handle), &finfo, oid, start,
+			  length, data, objLockup, &logParam);
+	if (e < eNOERROR) ERR(handle, e);
+    }
+    else e = 0;
+
+    if(ACTION_ON(handle)){  
+	e = LM_endAction(handle, &MY_XACTID(handle), AUTO_ACTION); 
+        if(e < eNOERROR) ERR(handle, e);
+    }
+
+    return(e);
+
+} /* SM_WriteObjectRedoOnlyWithoutScan() */

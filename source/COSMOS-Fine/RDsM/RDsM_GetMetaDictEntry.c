@@ -35,15 +35,9 @@
 /******************************************************************************/
 /******************************************************************************/
 /*                                                                            */
-/*    ODYSSEUS/OOSQL DB-IR-Spatial Tightly-Integrated DBMS                    */
-/*    Version 5.0                                                             */
-/*                                                                            */
-/*    with                                                                    */
-/*                                                                            */
-/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System       */
-/*	  Version 3.0															  */
-/*    (In this release, both Coarse-Granule Locking (volume lock) Version and */
-/*    Fine-Granule Locking (record-level lock) Version are included.)         */
+/*    ODYSSEUS/COSMOS General-Purpose Large-Scale Object Storage System --    */
+/*    Fine-Granule Locking Version                                            */
+/*    Version 3.0                                                             */
 /*                                                                            */
 /*    Developed by Professor Kyu-Young Whang et al.                           */
 /*                                                                            */
@@ -76,14 +70,112 @@
 /*        (ICDE), pp. 1493-1494 (demo), Istanbul, Turkey, Apr. 16-20, 2007.   */
 /*                                                                            */
 /******************************************************************************/
+/*
+ * Module: RDsM_GetMetaDictEntry.c
+ *
+ * Description:
+ *  get a meta dictionary entry from the meta dictionary page of the given volume
+ *
+ * Exports:
+ *  Four RDsM_GetMetaDictEntry(Four, char*, char*, Four)
+ *
+ * Note:
+ *  The caller should be sure that the data length is less than the maximum
+ *  size, MAX_METADICTENTRY_DATA_SIZE.
+ */
 
-+---------------------+
-| Directory Structure |
-+---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
 
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+#include <string.h>
+#include "common.h"
+#include "trace.h"
+#include "error.h"
+#include "latch.h"
+#include "RDsM.h"
+#include "BfM.h"
+#include "perProcessDS.h"
+#include "perThreadDS.h"
+
+
+
+
+/*
+ * Function: Four RDsM_GetMetaDictEntry(Four, char*, char*, Four)
+ *
+ * Description:
+ *   get a meta dictionary entry from the meta dictionary page of the given volume
+ *
+ * Returns:
+ *  Error code
+ */
+Four	RDsM_GetMetaDictEntry(
+    Four        handle,         /* IN handle */
+    XactTableEntry_T *xactEntry, /* IN transaction table entry */
+    Four	volNo,		/* IN volume number */
+    char	*name,		/* IN entry name */
+    char	*data,		/* OUT data */
+    Four	length)		/* IN length of data */
+{
+    Four	e;		/* returned error code */
+    Buffer_ACC_CB *aPage_BCBP;	/* Buffer Access BCB holding meta entry */
+    MetaDictPage_T *m_page;     /* meta dictionary page */
+    MetaDictEntry_T *m_entry;	/* pointer to a meta dictionary entry */
+    Four entryNo;               /* entry no of volume table entry corresponding to the given volume */
+    Four	i;		/* loop index */
+
+
+    TR_PRINT(handle, TR_RDSM, TR1, ("RDsM_GetMetaDictEntry(volNo=%ld, name=%P, data=%P, length=%ld)",
+                            volNo, name, data, length));
+
+
+    /*
+     *	check input parameters
+     */
+    if (name == NULL || data == NULL) ERR(handle, eBADPARAMETER);
+    if (length < 0 || length > MAX_METADICTENTRY_DATA_SIZE) ERR(handle, eBADPARAMETER);
+
+
+    /*
+     *	get the corresponding volume table entry via searching the volTable
+     */
+    e = rdsm_GetVolTableEntryNoByVolNo(handle, volNo, &entryNo);
+    if (e < eNOERROR) ERR(handle, e);
+
+    /*
+     *	get a page buffer for the meta dictionary page
+     */
+    e = BfM_getAndFixBuffer(handle, &RDSM_VOLTABLE[entryNo].volInfo.dataVol.metaDictPid, M_SHARED, &aPage_BCBP, PAGE_BUF);
+    if (e < eNOERROR) ERR(handle, e);
+
+    m_page = (MetaDictPage_T*)aPage_BCBP->bufPagePtr;
+
+    /*
+     *	set a pointer to the first entry in the page
+     */
+    m_entry = m_page->entries;
+
+    /*
+     *	find the corresponding meta entry
+     */
+    for (i = 0; i < NUMMETADICTENTRIESPERPAGE; i++, m_entry++)
+	if (!strcmp(m_entry->name, name)) break;
+
+    /*
+     *	if such an entry does not exist
+     */
+    if (i >= NUMMETADICTENTRIESPERPAGE)
+	ERRBL1(handle, eMETADICTENTRYNOTFOUND_RDSM, aPage_BCBP, PAGE_BUF);
+
+    /*
+     *	copy the corresponding entry to the user's memory
+     */
+    (void) memcpy(data, m_entry->data, length);
+
+    /*
+     *	free this page
+     */
+    BFM_FREEBUFFER(handle, aPage_BCBP, PAGE_BUF, e);
+    if (e < eNOERROR) ERR(handle, e);
+
+    return(eNOERROR);
+
+} /* RDsM_GetMetaDictEntry() */
