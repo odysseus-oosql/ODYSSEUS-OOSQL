@@ -80,10 +80,6 @@
 +---------------------+
 | Directory Structure |
 +---------------------+
-./example	: examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
-./source	: ODYSSEUS/OOSQL and ODYSSEUS/COSMOS source files
-
-+---------------+
-| Documentation |
-+---------------+
-can be downloaded at "http://dblab.kaist.ac.kr/Open-Software/ODYSSEUS/main.html".
+./example		 : examples for using ODYSSEUS/COSMOS and ODYSSEUS/OOSQL
+./source			 : ODYSSEUS/COSMOS and ODYSSEUS/OOSQL source files
+./documentation : ODYSSEUS/COSMOS and ODYSSEUS/OOSQL documentations
