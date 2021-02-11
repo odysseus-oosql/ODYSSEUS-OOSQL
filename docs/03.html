@@ -1,0 +1,466 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/T
+<html>
+<head>
+<title>객체관계형 멀티미디어 DBMS-오디세우스</title>
+<meta name="generator" content="Namo WebEditor v5.0">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<style type="text/css">
+    /* reset code */
+    table, tbody, td, tr {margin:0;padding:0;}
+</style>
+
+<script language="JavaScript">
+<!--
+function namosw_exchange_src(name, rpath, nsdoc) 
+{ 
+  str = (navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name;
+  img = eval(str);
+  if (img) {
+    if (img.altsrc == null) {
+      img.altsrc = img.src;
+      img.src    = rpath;
+    } else {
+      var temp   = img.src;
+      img.src    = img.altsrc;
+      img.altsrc = temp;
+    }
+  } 
+}
+
+
+
+//-->
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<script language="JavaScript">
+<!--
+function na_restore_img_src(name, nsdoc)
+{
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img && img.altsrc) {
+    img.src    = img.altsrc;
+    img.altsrc = null;
+  } 
+}
+
+function na_preload_img()
+{ 
+  var img_list = na_preload_img.arguments;
+  if (document.preloadlist == null) 
+    document.preloadlist = new Array();
+  var top = document.preloadlist.length;
+  for (var i=0; i < img_list.length; i++) {
+    document.preloadlist[top+i]     = new Image;
+    document.preloadlist[top+i].src = img_list[i+1];
+  } 
+}
+
+function na_change_img_src(name, nsdoc, rpath, preload)
+{ 
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img) {
+    img.altsrc = img.src;
+    img.src    = rpath;
+  } 
+}
+
+// -->
+</script>
+</head>
+
+<body bgcolor="white" text="black" link="navy" vlink="purple" alink="red" OnLoad="na_preload_img(false, 'img/go02_on.jpg', 'img/go01_on.jpg', 'img/mn01-1_on.jpg', 'img/mn01-2_on.jpg', 'img/mn01-3_on.jpg', 'img/mn02-1_on.jpg', 'img/mn02-2_on.jpg', 'img/mn02-3_on.jpg', 'img/mn02-4_on.jpg', 'img/mn02-7_on.jpg', 'img/mn02-8_on.jpg', 'img/mn02-6_on.jpg', 'img/mn02-5_on.jpg', 'img/mn03_on.jpg', 'img/mn06_on.jpg', 'img/mn04_on.jpg', 'img/mn05_on.jpg');">
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스</font></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="256" height="39"><a href="index.html"><img src="img/logo.jpg"
+             width="256" height="37" border="0"></a></td>
+        <td width="134" height="39"><img src="img/spacer01.jpg" width="134"
+             height="6" border="0"></td>
+        <td width="80" height="39" valign="bottom" background="img/top_mnu_back.jpg"><img src="img/top_mnu01.jpg"
+             width="80" height="22" border="0"></td>
+        <td width="275" height="39" valign="bottom" background="img/top_mnu_back.jpg" style="text-align:right;">
+             <a href="index.html"><img src="img/top_mn03.jpg" width="55"
+             height="22" border="0"></a><a href="map.html"><img src="img/top_mn02.jpg"
+             width="69" height="22" border="0"></a><a href="mailto:contact@odysseus.kaist.ac.kr"><img src="img/top_mn01.jpg"
+             width="63" height="22" border="0"></a></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" height="43" valign="top" background="img/gray_back.jpg"><img src="img/gray00.jpg"
+             width="25" height="43" border="0"></td>
+        <td width="172" height="43" valign="top" background="img/gray_back.jpg">&nbsp;</td>
+        <td width="384" height="43" valign="top" background="img/gray_back.jpg" style="text-align:right;">
+             <a href="../" target="_blank"
+             onmouseout="na_restore_img_src('image13', 'document')"
+             onmouseover="na_change_img_src('image13', 'document', 'img/go02_on.jpg', true);"><img src="img/go02.jpg"
+             width="144" height="43" border="0" name="image13"></a><a href="../"
+             target="_blank" onmouseout="na_restore_img_src('image14', 'document')"
+             onmouseover="na_change_img_src('image14', 'document', 'img/go01_on.jpg', true);"><img src="img/go01.jpg"
+             width="200" height="43" border="0" name="image14"></a></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="top"><a href="01.html"><img src="img/mn01.jpg"
+             width="184" height="19" border="0"></a><a href="01.html" onmouseout="na_restore_img_src('image1', 'document')"
+             onmouseover="na_change_img_src('image1', 'document', 'img/mn01-1_on.jpg', true);"><img src="img/mn01-1.jpg"
+             width="184" height="20" border="0" name="image1"></a><a href="01-2.html"
+             onmouseout="na_restore_img_src('image2', 'document')"
+             onmouseover="na_change_img_src('image2', 'document', 'img/mn01-2_on.jpg', true);"><img src="img/mn01-2.jpg"
+             width="184" height="20" border="0" name="image2"></a><a href="01-3.html"
+             onmouseout="na_restore_img_src('image3', 'document')"
+             onmouseover="na_change_img_src('image3', 'document', 'img/mn01-3_on.jpg', true);"><img src="img/mn01-3.jpg"
+             width="184" height="20" border="0" name="image3"></a></td>
+        <td width="566" valign="top" background="img/back_main02.jpg"><img src="img/ttl03.jpg"
+             width="566" height="75" border="0"></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="top" background="img/back_main03.jpg"><img src="img/mn02.jpg"
+             width="184" height="20" border="0"><a href="02-1.html" onmouseout="na_restore_img_src('image4', 'document')"
+             onmouseover="na_change_img_src('image4', 'document', 'img/mn02-1_on.jpg', true);"><img src="img/mn02-1.jpg"
+             width="184" height="20" border="0" name="image4"></a><a href="02-2.html"
+             onmouseout="na_restore_img_src('image5', 'document')"
+             onmouseover="na_change_img_src('image5', 'document', 'img/mn02-2_on.jpg', true);"><img src="img/mn02-2.jpg"
+             width="184" height="20" border="0" name="image5"></a><a href="02-3.html"
+             onmouseout="na_restore_img_src('image6', 'document')"
+             onmouseover="na_change_img_src('image6', 'document', 'img/mn02-3_on.jpg', true);"><img src="img/mn02-3.jpg"
+             width="184" height="19" border="0" name="image6"></a><a href="02-4.html"
+             onmouseout="na_restore_img_src('image7', 'document')"
+             onmouseover="na_change_img_src('image7', 'document', 'img/mn02-4_on.jpg', true);"><img src="img/mn02-4.jpg"
+             width="184" height="21" border="0" name="image7"></a><a href="02-7.html"
+             onmouseout="na_restore_img_src('image15', 'document')"
+             onmouseover="na_change_img_src('image15', 'document', 'img/mn02-7_on.jpg', true);"><img src="img/mn02-7.jpg"
+			 
+             width="184" height="20" border="0" name="image15"></a><a href="02-8.html"
+             onmouseout="na_restore_img_src('image16', 'document')"
+             onmouseover="na_change_img_src('image16', 'document', 'img/mn02-8_on.jpg', true);"><img src="img/mn02-8.jpg"
+			 
+             width="184" height="20" border="0" name="image16"></a><a href="02-5.html"
+             onmouseout="na_restore_img_src('image8', 'document')"
+             onmouseover="na_change_img_src('image8', 'document', 'img/mn02-6_on.jpg', true);"><img src="img/mn02-6.jpg"
+             width="184" height="20" border="0" name="image8"></a><a href="02-6.html"
+             onmouseout="na_restore_img_src('image9', 'document')"
+             onmouseover="na_change_img_src('image9', 'document', 'img/mn02-5_on.jpg', true);"><img src="img/mn02-5.jpg"
+             width="184" height="20" border="0" name="image9"></a><a href="03.html"
+             onmouseout="na_restore_img_src('image10', 'document')"
+             onmouseover="na_change_img_src('image10', 'document', 'img/mn03_on.jpg', true);"><img src="img/mn03_on.jpg"
+             width="184" height="20" border="0" name="image10"></a><a href="http://organ.kaist.ac.kr:5830"
+             onmouseout="na_restore_img_src('image19', 'document')"
+             onmouseover="na_change_img_src('image19', 'document', 'img/mn06_on.jpg', true);" target="_blank"><img src="img/mn06.jpg"
+             width="184" height="20" border="0" name="image19"></a><a href="04.html"
+             onmouseout="na_restore_img_src('image11', 'document')"
+             onmouseover="na_change_img_src('image11', 'document', 'img/mn04_on.jpg', true);"><img src="img/mn04.jpg"
+             width="184" height="20" border="0" name="image11"></a><a href="05.html"
+             onmouseout="na_restore_img_src('image12', 'document')"
+             onmouseover="na_change_img_src('image12', 'document', 'img/mn05_on.jpg', true);"><img src="img/mn05.jpg"
+             width="184" height="25" border="0" name="image12"></a></p>
+            <p>&nbsp;</td>
+        <td width="33" valign="top"><p>&nbsp;</td>
+        <td width="533" valign="top" background="img/back_main.jpg"><p>&nbsp;</p>
+            <p><font size="2"><b>오디세우스 제품군을 이용한 구축 사이트는 다음과 
+            같습니다.</b></font></p>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><span lang=EN-US><a
+href="#01">Neowiz Say Club 웹 게시판 검색 엔진</a> (2001.5 ~ 2002.5)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><span lang=EN-US><a
+href="#02">Myseek 웹 검색 엔진</a> (2000.6 ~ 2001.5)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><span lang=EN-US><a
+href="#03">NAVER.COM㈜ 웹 검색 시스템인 네이버</a> (1997.7~2000.7)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><span lang=EN-US><a
+href="#04">NAVER.COM㈜ 신문 기사 검색 시스템인 뉴스네이버</a> (1999.7~2000.7)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><span lang=EN-US><a
+href="#05">한국과학기술원의 전자도서관</a> (1998~2004)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><span lang=EN-US><a
+href="#06">수리과학정보센터의 논문검색시스템</a> (1999~2005)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><u><span lang=EN-US><a
+href="#07">대검찰청 법무&middot;검찰종합자료검색시스템</a></span></u><span lang=EN-US> 
+                (2000~2010)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><u><span lang=EN-US><a
+href="#07">한국과학기술원 전산학과 키오스크</a></span></u><span lang=EN-US> 
+                (1997~2013)</span></font></p>
+            </ul>
+            <ul>
+                <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b><a href="#08"><span lang=EN-US>KT&amp;G 중앙 연구원의 인삼 데이터베이스 검색 시스템</span></a><span lang=EN-US> 
+                (2004~)</span></font></p>
+<!-- URL's used in the movie-->
+ <!-- text used in the movie-->
+<!--ODYSSEUS ODYSSEUS 零?퓽  ODYSSEUS ODYSSEUS 零?퓽  ODYSSEUS ODYSSEUS 零?퓽  ODYSSEUS ODYSSEUS 零?퓽  ODYSSEUS ODYSSEUS 零?퓽  ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  S       e       a       r       c       h       E       n       g       i       n      e ODYSSEUS ODYSSEUS 零?퓽  -->
+
+
+                <object classid="clsid:D27CDB6E-AE6D-11cf-96B8-444553540000" codebase="http://active.macromedia.com/flash4/cabs/swflash.cab#version=4,0,0,0" width="460" height="80" align="middle">
+                <param name="Movie" value="banner/banner01.swf">
+                <param name="Play" value="true">
+                <param name="Loop" value="true">
+                <param name="Quality" value="High">
+                <param name="_cx" value="5080">
+                <param name="_cy" value="5080">
+                <param name="Src" value="banner/banner01.swf">
+                <param name="WMode" value="Window">
+                <param name="Menu" value="true">
+                <param name="Scale" value="ShowAll">
+                <param name="DeviceFont" value="false">
+                <param name="EmbedMovie" value="false">
+                <param name="Stacking" value="below">
+                <embed Src="banner/banner01.swf" Play="true" Loop="true" Quality="High" pluginspage="http://www.macromedia.com/shockwave/download/index.cgi?P1_Prod_Version=ShockwaveFlash" width="460" height="80" WMode="Window" Menu="true" Scale="ShowAll" DeviceFont="false" EmbedMovie="false" Stacking="below"></embed>
+                </object>
+            </ul>
+ <hr size="1">
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            Neowiz Sayclub 
+            웹게시판 검색엔진 (2001.5 ~ 2002.5)<a name="01"></a></b></font>            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top"><span lang=EN-US style='font-size:10.0pt;mso-bidi-font-size:
+12.0pt;font-family:바탕;mso-hansi-font-family:"Times New Roman";mso-bidi-font-family:
+"Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+KO;mso-bidi-language:AR-SA'><font face="굴림">Neowiz 웹 게시판 검색 엔진은 네오위즈㈜의 채팅 사이트인 Sayclub에 등록되어 있는 동호회와 게시물에 대해 검색 기능을 제공합니다.
+Neowiz 웹 게시판 엔진에는 오디세우스가 탑재되어 빠르고 정확한 검색을 제공합니다. </font></span></td>
+                    <td width="220" valign="top">            <p><font size="2" face="굴림"><img src="img/ex01.jpg" align="right" width="200"
+             height="182" border="0"></font><font face="굴림">&nbsp;</font></p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            Myseek 웹검색엔진 (2000.6 ~ 2001.5)<a name="02"></a></b></font>            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top">
+<span lang=EN-US style='font-family:바탕; mso-bidi-font-size:
+12.0pt;mso-hansi-font-family:"Times New Roman";mso-bidi-font-family:
+"Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+KO;mso-bidi-language:AR-SA'><font size="2" face="굴림">Myseek 웹 검색 엔진은
+마이시크㈜에서 운영하는 웹 검색 엔진으로 국내 웹 페이지를 검색할 수 있는 기능과 Myseek 
+내집 검색기가 설치되어 있는 홈페이지 각각에 대해 내부 정보를 검색할 수 있는 검색
+기능을 제공합니다. Myseek 웹 검색 엔진에는 오디세우스가 탑재되어 빠르고 정확한 검색을 제공합니다. </font></span></td>
+                    <td width="220" valign="top">            <p><font size="2" face="굴림"><img src="img/ex02.jpg" align="right" width="200"
+             height="182" border="0"></font><font face="굴림">&nbsp;</font></p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b></font><b><span style='font-size:10.0pt;mso-bidi-font-size:12.0pt;
+font-family:굴림;mso-bidi-font-family:"Times New Roman";mso-font-kerning:1.0pt;
+mso-ansi-language:EN-US;mso-fareast-language:KO;mso-bidi-language:AR-SA'><span style="font-family:굴림; font-size:10pt;">NAVER.COM㈜ 웹 검색 시스템인 네이버 (1997.7 ~ 2000.7)<a name="03"></a></span></span></b>            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top">            <p><font size="2">네이버는 NAVER.COM(주)에서 운영중인 
+            웹페이지 검색 시스템으로 국내 최대 크기의 웹문서 데이터베이스를 
+            관리하여 국내 웹페이지들에 대해 빠른 질의 처리 기능을 제공합니다. 
+            네이버에는 오디세우스가 탑제되어 빠르고 정확한 검색을 
+            제공합니다.</font></p>
+                    </td>
+                    <td width="220" valign="top">            <p><font size="2"><img src="img/ex04.jpg" align="right" width="200"
+             height="157" border="0"></font>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b></font><span style='font-size:10.0pt;mso-bidi-font-size:
+12.0pt;font-family:굴림;mso-bidi-font-family:"Times New Roman";mso-font-kerning:
+1.0pt;mso-ansi-language:EN-US;mso-fareast-language:KO;mso-bidi-language:AR-SA'><span
+lang=EN-US><b>NAVER.COM㈜ 신문 기사 검색 시스템인 뉴스네이버 (1999.7 ~ 2000.7)</b><a name="04"></a></span></span>            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top"><span style='font-family:바탕; mso-bidi-font-size:12.0pt;mso-hansi-font-family:"Times New Roman";mso-bidi-font-family:
+"Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+KO;mso-bidi-language:AR-SA'><font size="2" face="굴림,굴림">뉴스네이버는 NAVER.COM(주)에서 
+                        운영중인 웹 페이지 검색 시스템으로 국내 최대 크기의 
+                        웹문서 데이터베이스를 관리하여 국내 웹페이지들에 대해 
+                        빠른 질의 처리 기능을 제공합니다. 네이버에는 오디세우스가 
+                        탑재되어 빠르고 정확한 검색을 제공합니다. 오디세우스는 
+                        네이버내에 사용되어 네이버가 국내 굴지의 검색 사이트로 
+                        성장하는데 중추적인 역할을 담당하였습니다. </font></span></td>
+                    <td width="220" valign="top">
+                        <p><font size="2"><img src="img/ex03.jpg" align="right" width="200"
+             height="157" border="0" vspace="1" hspace="2"></font>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            한국과학기술원의 전자도서관 (1998 ~ 2004)</b> <a name="05"></a><br></font>            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top">
+                        <p align="left"><font size="2">한국과학기술원 전자도서관은 
+            한국과학기술원 과학도서관에서 운영중인 도서관리 및 도서검색시스템입니다. 
+            전자도서관은 국내 최대 크기의 도서 데이터베이스로 1000만건 이상의 도서가 
+            등록되어 검색해 볼 수 있습니다. 전자도서관에는 
+            오디세우스가 사용되어 빠르고 정확한 검색을 제공하며, 특히 대용량의 
+            도서 데이터에 대해 잦은 데이터 갱신 및 추가를 효과적으로 처리합니다.</font></p>
+            <p><font size="2">&nbsp;</font></p>
+                    </td>
+                    <td width="220" valign="top">
+                        <p align="left"><font size="2"><img src="img/n_kaistlib.jpg" align="right"
+             width="200" height="211" border="0" vspace="1" hspace="1"></font>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            수리과학정보센터의 논문검색시스템 (1999 ~ 2005)</b> <a name="06"></a><br></font>            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top">
+                        <p align="left"><a href="http://icms.kaist.ac.kr/"><font
+             size="2">수리과학센터</font></a><font size="2">는 한국과학재단 
+            우수연구센터로 여기서 제공하는 논문검색시스템은 국내 수학정보 
+            관련정보를 제공하는 중요 사이트입니다. 본 사이트에서는 약 8만여건의 
+            논문에 대한 검색과 원문 정보를 제공하고 있습니다. </font></p>
+                    </td>
+                    <td width="220" valign="top">
+                        <p align="left"><font size="2"><img src="img/ex06-1.jpg" align="right"
+             width="200" height="178" border="0"></font>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+            <h2 class="odysseus_header"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b></font><b><span style='font-family:바탕; font-size:10pt; mso-bidi-font-size:
+12.0pt;mso-hansi-font-family:"Times New Roman";mso-bidi-font-family:
+"Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+KO;mso-bidi-language:AR-SA'><font face="굴림">대검찰청 법무&middot;검찰 종합자료
+검색시스템</font></span></b><font size="2"> (2000 ~ 2010)</font><b><span style='font-family:바탕; font-size:10pt; mso-bidi-font-size:
+12.0pt;mso-hansi-font-family:"Times New Roman";mso-bidi-font-family:
+"Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+KO;mso-bidi-language:AR-SA'><font face="굴림"><a name="08"></a></font></span></b><span style='font-family:바탕; font-size:10pt; mso-bidi-font-size:
+12.0pt;mso-hansi-font-family:"Times New Roman";mso-bidi-font-family:
+"Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+KO;mso-bidi-language:AR-SA'><font face="굴림">  
+            </font></span><font size="2"><br></font></h2>
+            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top">
+                        <p><font size="2">대검찰청 법무&middot;검찰 종합자료 
+                        검색 시스템은 법무부, 대검 및 각급 검찰청, 법무연수원, 
+                        한국형사정책연구원 등에서 생산된 검찰 공보, 실무 속보 
+                        자료에 대한 검색 기능을 제공합니다. 현재 법무부, 대검찰청을 
+                        포함한 전국 59개 고&middot;지검에 있는 약 7300명 가량의 
+                        인원이 이 시스템을 사용하고 있습니다.</font></p>
+                    </td>
+                    <td width="220" valign="top">
+                        <p class="odysseus"><font size="2"><img src="img/ex07.jpg" align="right"
+             width="200" height="154" border="0"></font>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            전산학과 키오스크 (1997 ~ 2013)</b><a name="07"></a> 
+            <br></font>            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top">
+                        <p class="odysseus"><font size="2">전산학과 키오스크는 한국과학기술원 
+            <a href="http://cs.kaist.ac.kr">전자전산학과 
+            전산학전공</a>에서 사용중인 안내시스템으로 
+            전산학전공분야의 연구실들과 연구실에 속한 각 교수님들&nbsp;및 학생들에 
+            대한 소개 및 건물내 위치 정보를 제공합니다. 이 키오스크는 KMEDIA를 
+            사용하여 저작되었으며, 오디세우스를 사용하여 정보가 관리되기 때문에 
+            다양한 검색기능을 빠르게 제공합니다.</font></p>
+            <p class="odysseus">&nbsp;</p>
+                    </td>
+                    <td width="220" valign="top">
+                        <p class="odysseus"><font size="2"><img src="img/ex08.jpg" align="right"
+             width="200" height="170" border="0"></font>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+ <hr size="1">
+            <h2 class="odysseus_header"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>KT&amp;G 중앙 연구원: 인삼 데이터베이스 검색 시스템 (2004 ~
+            ) <a name="07"></a> 
+            <br></font></h2>
+            <table border="0" width="532">
+                <tr>
+                    <td width="296" valign="top">
+                        <p class="odysseus"> <font size="2">KT&amp;G 중앙 연구원의 인삼 데이터베이스 검색 시스템은 
+                        인삼 소비자, 연구자 등이 인삼의 효능에 대한 자료, 학술 논문 등의 자료들에 대한 검색기능을 제공합니다. 
+                        이 검색시스템은 일반 소비자들도 쉽게 사용할 수 있도록 공개될 예정입니다.
+            </font></p>
+            <p class="odysseus">&nbsp;</p>
+                    </td>
+                    <td width="220" valign="top">
+                        <p class="odysseus"><font size="2"><img src="img/ex09.jpg" align="right"
+             width="200" height="170" border="0"></font>&nbsp;</p>
+                    </td>
+                </tr>
+            </table>
+            <p>&nbsp;&nbsp;</p>
+</td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="top"><p><font size="2"><img src="img/back_end.jpg"
+             width="750" height="1" border="0"></font></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="middle"><p><img src="img/spacer01.jpg" width="134"
+             height="6" border="0"><img src="img/logo_kaist.jpg" width="62" height="19" border="0">&nbsp;</td>
+        <td width="566" valign="middle"><p align="right"><font size="1" color="gray">&nbsp;Copyright 
+            &copy; 2001-2005 By Kyu-Young Whang<br>All Rights Reserved.</font></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스</font></td>
+    </tr>
+</table>
+</body>
+
+</html>

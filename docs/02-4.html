@@ -1,0 +1,723 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/T
+<html>
+<head>
+<title>객체관계형 멀티미디어 DBMS-오디세우스</title>
+<meta name="generator" content="Namo WebEditor v5.0">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<style type="text/css">
+    /* reset code */
+    table, tbody, td, tr {margin:0;padding:0;}
+</style>
+
+<script language="JavaScript">
+
+<!--
+
+function namosw_exchange_src(name, rpath, nsdoc) 
+
+{ 
+
+  str = (navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name;
+
+  img = eval(str);
+
+  if (img) {
+
+    if (img.altsrc == null) {
+
+      img.altsrc = img.src;
+
+      img.src    = rpath;
+
+    } else {
+
+      var temp   = img.src;
+
+      img.src    = img.altsrc;
+
+      img.altsrc = temp;
+
+    }
+
+  } 
+
+}
+
+
+
+
+
+
+
+//-->
+
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script language="JavaScript">
+<!--
+function na_restore_img_src(name, nsdoc)
+{
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img && img.altsrc) {
+    img.src    = img.altsrc;
+    img.altsrc = null;
+  } 
+}
+
+function na_preload_img()
+{ 
+  var img_list = na_preload_img.arguments;
+  if (document.preloadlist == null) 
+    document.preloadlist = new Array();
+  var top = document.preloadlist.length;
+  for (var i=0; i < img_list.length; i++) {
+    document.preloadlist[top+i]     = new Image;
+    document.preloadlist[top+i].src = img_list[i+1];
+  } 
+}
+
+function na_change_img_src(name, nsdoc, rpath, preload)
+{ 
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img) {
+    img.altsrc = img.src;
+    img.src    = rpath;
+  } 
+}
+
+// -->
+</script>
+</head>
+
+
+
+<body bgcolor="white" text="black" link="navy" vlink="purple" alink="red" OnLoad="na_preload_img(false, 'img/go02_on.jpg', 'img/go01_on.jpg', 'img/mn01-1_on.jpg', 'img/mn01-2_on.jpg', 'img/mn01-3_on.jpg', 'img/mn02-1_on.jpg', 'img/mn02-2_on.jpg', 'img/mn02-3_on.jpg', 'img/mn02-4_on.jpg', 'img/mnp01_on.jpg', 'img/mnp03_on.jpg', 'img/mnp04_on.jpg', 'img/mnp05_on.jpg', 'img/mnp06_on.jpg', 'img/mn02-7_on.jpg', 'img/mn02-8_on.jpg', 'img/mn02-6_on.jpg', 'img/mn02-5_on.jpg', 'img/mn03_on.jpg', 'img/mn06_on.jpg', 'img/mn04_on.jpg', 'img/mn05_on.jpg');">
+
+
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스</font></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="256" height="39"><a href="index.html"><img src="img/logo.jpg"
+
+             width="256" height="37" border="0"></a></td>
+
+        <td width="134" height="39"><img src="img/spacer01.jpg" width="134"
+
+             height="6" border="0"></td>
+
+        <td width="80" height="39" valign="bottom" background="img/top_mnu_back.jpg"><img src="img/top_mnu01.jpg"
+
+             width="80" height="22" border="0"></td>
+
+        <td width="275" height="39" valign="bottom" background="img/top_mnu_back.jpg" style="text-align:right;">
+             <a href="index.html"><img src="img/top_mn03.jpg" width="55"
+
+             height="22" border="0"></a><a href="map.html"><img src="img/top_mn02.jpg"
+
+             width="69" height="22" border="0"></a><a href="mailto:contact@odysseus.kaist.ac.kr"><img src="img/top_mn01.jpg"
+
+             width="63" height="22" border="0"></a></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" height="43" valign="top" background="img/gray_back.jpg"><img src="img/gray00.jpg"
+
+             width="25" height="43" border="0"></td>
+
+        <td width="172" height="43" valign="top" background="img/gray_back.jpg">&nbsp;</td>
+
+        <td width="384" height="43" valign="top" background="img/gray_back.jpg" style="text-align:right;">
+             <a href="../" target="_blank"
+             onmouseout="na_restore_img_src('image13', 'document')"
+             onmouseover="na_change_img_src('image13', 'document', 'img/go02_on.jpg', true);"><img src="img/go02.jpg"
+
+             width="144" height="43" border="0" name="image13"></a><a href="../"
+             target="_blank" onmouseout="na_restore_img_src('image14', 'document')"
+             onmouseover="na_change_img_src('image14', 'document', 'img/go01_on.jpg', true);"><img src="img/go01.jpg"
+
+             width="200" height="43" border="0" name="image14"></a></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" valign="top"><a href="01.html"><img src="img/mn01.jpg"
+
+             width="184" height="19" border="0"></a><a href="01.html" onmouseout="na_restore_img_src('image1', 'document')"
+             onmouseover="na_change_img_src('image1', 'document', 'img/mn01-1_on.jpg', true);"><img src="img/mn01-1.jpg"
+
+             width="184" height="20" border="0" name="image1"></a><a href="01-2.html"
+             onmouseout="na_restore_img_src('image2', 'document')"
+             onmouseover="na_change_img_src('image2', 'document', 'img/mn01-2_on.jpg', true);"><img src="img/mn01-2.jpg"
+
+             width="184" height="20" border="0" name="image2"></a><a href="01-3.html"
+             onmouseout="na_restore_img_src('image3', 'document')"
+             onmouseover="na_change_img_src('image3', 'document', 'img/mn01-3_on.jpg', true);"><img src="img/mn01-3.jpg"
+
+             width="184" height="20" border="0" name="image3"></a></td>
+
+        <td width="566" valign="top" background="img/back_main02.jpg"><img src="img/ttl02-4.jpg"
+
+             width="566" height="75" border="0"></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" valign="top" background="img/back_main03.jpg"><img src="img/mn02.jpg"
+
+             width="184" height="20" border="0"><a href="02-1.html" onmouseout="na_restore_img_src('image4', 'document')"
+             onmouseover="na_change_img_src('image4', 'document', 'img/mn02-1_on.jpg', true);"><img src="img/mn02-1.jpg"
+
+             width="184" height="20" border="0" name="image4"></a><a href="02-2.html"
+             onmouseout="na_restore_img_src('image5', 'document')"
+             onmouseover="na_change_img_src('image5', 'document', 'img/mn02-2_on.jpg', true);"><img src="img/mn02-2.jpg"
+
+             width="184" height="20" border="0" name="image5"></a><a href="02-3.html"
+             onmouseout="na_restore_img_src('image6', 'document')"
+             onmouseover="na_change_img_src('image6', 'document', 'img/mn02-3_on.jpg', true);"><img src="img/mn02-3.jpg"
+
+             width="184" height="19" border="0" name="image6"></a><a href="02-4.html"
+             onmouseout="na_restore_img_src('image7', 'document')"
+             onmouseover="na_change_img_src('image7', 'document', 'img/mn02-4_on.jpg', true);"><img src="img/mn02-4_on.jpg"
+
+             width="184" height="21" border="0" name="image7"></a><a href="#제품요약"
+             onmouseout="na_restore_img_src('image15', 'document')"
+             onmouseover="na_change_img_src('image15', 'document', 'img/mnp01_on.jpg', true);"><img src="img/mnp01.jpg"
+
+             width="184" height="20" border="0" name="image15"></a><a href="#아키텍쳐"
+             onmouseout="na_restore_img_src('image17', 'document')"
+             onmouseover="na_change_img_src('image17', 'document', 'img/mnp03_on.jpg', true);"><img src="img/mnp03.jpg"
+
+             width="184" height="20" border="0" name="image17"></a><a href="#주요성능"
+             onmouseout="na_restore_img_src('image18', 'document')"
+             onmouseover="na_change_img_src('image18', 'document', 'img/mnp04_on.jpg', true);"><img src="img/mnp04.jpg"
+
+             width="184" height="20" border="0" name="image18"></a><a href="#개발방법"
+             onmouseout="na_restore_img_src('image19', 'document')"
+             onmouseover="na_change_img_src('image19', 'document', 'img/mnp05_on.jpg', true);"><img src="img/mnp05.jpg"
+
+             width="184" height="21" border="0" name="image19"></a><a href="#응용분야"
+             onmouseout="na_restore_img_src('image20', 'document')"
+             onmouseover="na_change_img_src('image20', 'document', 'img/mnp06_on.jpg', true);"><img src="img/mnp06.jpg"
+
+             width="184" height="22" border="0" name="image20"></a><a href="02-7.html"
+             onmouseout="na_restore_img_src('image21', 'document')"
+             onmouseover="na_change_img_src('image21', 'document', 'img/mn02-7_on.jpg', true);"><img src="img/mn02-7.jpg"
+			 
+             width="184" height="20" border="0" name="image21"></a><a href="02-8.html"
+             onmouseout="na_restore_img_src('image22', 'document')"
+             onmouseover="na_change_img_src('image22', 'document', 'img/mn02-8_on.jpg', true);"><img src="img/mn02-8.jpg"
+			 
+             width="184" height="20" border="0" name="image22"></a><a href="02-5.html"
+             onmouseout="na_restore_img_src('image8', 'document')"
+             onmouseover="na_change_img_src('image8', 'document', 'img/mn02-6_on.jpg', true);"><img src="img/mn02-6.jpg"
+
+             width="184" height="20" border="0" name="image8"></a><a href="02-6.html"
+             onmouseout="na_restore_img_src('image9', 'document')"
+             onmouseover="na_change_img_src('image9', 'document', 'img/mn02-5_on.jpg', true);"><img src="img/mn02-5.jpg"
+
+             width="184" height="20" border="0" name="image9"></a><a href="03.html"
+             onmouseout="na_restore_img_src('image10', 'document')"
+             onmouseover="na_change_img_src('image10', 'document', 'img/mn03_on.jpg', true);"><img src="img/mn03.jpg"
+
+             width="184" height="20" border="0" name="image10"></a><a href="http://organ.kaist.ac.kr:5830"
+             onmouseout="na_restore_img_src('image23', 'document')"
+             onmouseover="na_change_img_src('image23', 'document', 'img/mn06_on.jpg', true);" target="_blank"><img src="img/mn06.jpg"
+             width="184" height="20" border="0" name="image23"></a><a href="04.html"
+             onmouseout="na_restore_img_src('image11', 'document')"
+             onmouseover="na_change_img_src('image11', 'document', 'img/mn04_on.jpg', true);"><img src="img/mn04.jpg"
+
+             width="184" height="20" border="0" name="image11"></a><a href="05.html"
+             onmouseout="na_restore_img_src('image12', 'document')"
+             onmouseover="na_change_img_src('image12', 'document', 'img/mn05_on.jpg', true);"><img src="img/mn05.jpg"
+
+             width="184" height="25" border="0" name="image12"></a></p>
+
+            <p>&nbsp;</td>
+
+        <td width="33" valign="top"><p>&nbsp;</td>
+
+        <td width="533" valign="top" background="img/back_main.jpg"><p>&nbsp;</p>
+
+            <p class="odysseus_header"><a name="제품요약"><font size="2"><img src="img/stl02-1.jpg"
+
+             width="395" height="35" border="0"></font></a></p>
+
+            <p class="odysseus"><font size="2">오디세우스/Web-PHP은 Web과 오디세우스/OOSQL   
+
+            데이터베이스 시스템을 연결해주는 Web-DBMS 게이트웨이(gateway)로서, 
+
+            오디세우스/OOSQL을 사용하는 웹 기반 데이터베이스 응용프로그램 작성에 사용된다. 
+
+            오디세우스/Web-PHP는 웹기반 데이터베이스 응용프로그램 작성방법으로 
+
+            웹 페이지 작성을 위한 HTML 태그(tag)를 제공하며 PHP 언어로 된 DB API를 제공한다. 
+
+            사용자는 HTML 태그와 PHP 언어로 된 DB API를 사용하여 웹 페이지를 작성하듯이 
+
+            웹기반 데이터베이스 응용프로그램을 작성할 수 있다. 오디세우스/Web-PHP는 이러한 
+
+            사용의 편의성과 더불어 수십만 건의 질의 결과를 단 수십~수백ms 이내에 처리할 수 
+
+            있는 빠른 성능을 제공한다.&nbsp;</font></p>
+
+            <p class="odysseus">&nbsp;</p>
+
+            <p class="odysseus_header"><a name="아키텍쳐"><font size="2"><img src="img/stl02-3.jpg"
+
+             width="395" height="35" border="0"></font></a></p>
+
+            <p class="odysseus"><font size="2">오디세우스/Web-PHP은 Web Server와 
+
+            오디세우스/OOSQL 간의 연결을 담당하는 게이트웨이로서 Apache Module API를 
+
+            사용하여 연결한다. Apache Module API 기술은 오디세우스/OOSQL, 
+
+            오디세우스/Web-PHP, 그리고 Web Server를 하나의 프로세스 내에서 수행되도록 
+
+            하는 기술로서, 기존에 널리 사용되고 있는 CGI방식의 문제점인 프로세스 
+
+            생성 및 프로세스간 통신 부담을 제거하여 시스템의 성능을 극대화 시킨 
+
+            기술이다.</font></p>
+
+			<!--
+            <p align="center">&nbsp;<img src="img/archi-web-1.gif" width="334"
+
+             height="241" border="0"></p>
+			 -->
+            <p align="center">&nbsp;<img src="img/archi-web-1.jpg" width="340"
+
+             height="206" border="0"></p>
+
+            <p class="odysseus_header">&nbsp;</p>
+
+            <p class="odysseus_header"><a name="주요성능"><font size="2"><img src="img/stl02-4.jpg"
+
+             width="395" height="35" border="0"></font></a> </p>
+
+	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">수십만 건의 질의 결과를 빠르게 
+
+            처리</font><font size="2"> </font>
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">최적화된 대규모 
+
+                질의 결과 처리기 탑재</font><font size="2"> </font>	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">Apache Module API를 사용한 진보된 방식의 
+
+            웹과 DBMS의 연동 제공</font><font size="2"> </font>
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">기존의 CGI 방식보다 
+
+                빠른 사용자 요청 처리</font><font size="2"> <br><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">기존의 CGI 방식으로 
+
+                발생하는 프로세스 생성 및 통신 부하를 감소시킴</font><font size="2"> 
+
+                </font>	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">용이한 응용 프로그램 
+
+            개발</font><font size="2"> </font>
+	  
+	  
+<p style="padding-left:20px;">
+<font face="굴림" size="2">
+
+            <font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">웹 프로그래밍을 위해 가장 널리 사용되는 언어인 PHP로 응용 프로그램 개발 가능
+
+            </font><font size="2"> </font>	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">사용자 정의 함수 지원</font><font size="2"> </font>
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">사용자가 C 언어로 
+
+                작성한 함수를 웹 페이지 내에서 수행 가능</font><font size="2"> 
+
+                <br><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">사용자 정의 
+
+                함수를 사용한 오디세우스/Web 기능 확장 가능</font><font size="2"> 
+
+                </font>	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">멀티미디어 데이터(비디오, 오디오, 
+
+            이미지등)를 사용하는 웹 응용프로그램 작성에 적합</font><font size="2"> 
+
+            </font>
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">멀티미디어 타입 
+
+                데이터의 저장 및 브라우징 기능 제공</font><font size="2"> </font>	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">동적 수정(Dynamic Update) 기능 제공</font><font size="2"> </font>
+	  
+	  
+<p style="padding-left:20px;">
+
+            <font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">
+            
+            Web을 통한 데이터베이스 변경 사항이 즉시 텍스트 정보 검색에 반영(Immediate Update)</font><font size="2"> 
+
+                <br><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">텍스트 정보 
+
+                검색이 바로 반영되므로 데이터베이스 변경을 위한 시스템 정지가 
+
+                필요 없음</font><font size="2"> </font>	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">다중 서버 지원</font><font size="2"> 
+
+            </font>
+	  
+	  
+<p style="padding-left:20px;">
+            
+            <!--
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 
+            
+            </font><font face="굴림" size="2">다중 서버에서 
+
+                Buffer Coherency 지원 (Volume Lock 버전)</font>-->
+                
+             <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">다중 사용자에 의한 동적 수정 
+
+            지원</font>	<p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+             <font face="굴림" size="2">보안 기능 제공</font><font size="2"> 
+
+            </font>
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><font face="굴림" size="2">웹 페이지 단위의 
+
+                액세스 허용 및 제한 기능 제공&nbsp;</font><font size="2"> </font>            <h2 class="odysseus_header">&nbsp;</h2>
+
+            <h2 class="odysseus_header"><a name="개발방법"><font size="2"><img src="img/stl02-5.jpg"
+
+             width="395" height="35" border="0"></font></a></h2>
+
+            <p class="odysseus"><font size="2">오디세우스/Web-PHP는 가장 널리 사용되는 
+
+            웹 프로그래밍 언어인 PHP로 응용프로그램을 작성할 수 있게 해준다. 
+
+            이를 위해, 오디세우스/Web-PHP는 오디세우스/OOSQL의 기능을 사용할 수 있도록 
+
+            PHP 언어로 DB API들을 제공한다. 제공되는 DB API는 ODBC API와 유사하다. 
+
+            그림 2는 간단한 웹 응용 페이지를 보인 것으로 웹 페이지에 PHP 코드로 DB API를 
+
+            사용하여 데이터베이스의 내용을 출력하는 기능을 수행한다. 
+
+            사용된 PHP 코드는 월스트리트 저널 테이블 WSJ로부터 'korea'라는 키워드를 
+
+            제목으로 가진 문서들의 제목과 날짜를 테이블 형태로 정렬하여 
+
+            이를 사용자에게 보여주는 기능을 수행한다.<br> &nbsp;</font> 
+
+            <div align="center"><table border cellspacing="0" width="515" height="100"
+
+             bordercolordark="white" bordercolorlight="black">
+
+                <tr>
+
+                    <td width="558"><p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">&nbsp;</font></span>&nbsp;</p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">&lt;HTML&gt;</font></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-SIZE: 9pt; mso-ascii-font-family: 굴림; mso-bidi-font-size: 10.0pt; mso-fareast-font-family: 굴림"><font
+                         size="2">…</font></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">&lt;TABLE&gt;</font></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">&lt;TR&gt;&lt;TH&gt;Headline&lt;/TH&gt;&lt;TH&gt;Date&lt;/TH&gt;&lt;/TR&gt;<br />
+                             <strong>
+                             &lt;?PHP&gt;</strong></font></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;">
+                        <span lang="EN-US" style="COLOR: blue; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2"><b>$query = OOSQL_CreateQuery(</b></font></span>
+                         <font size="2"><b><span lang="EN-US" style="COLOR: fuchsia; FONT-SIZE: 9pt; mso-ascii-font-family: 굴림; mso-bidi-font-size: 10.0pt; mso-fareast-font-family: 굴림">“</span>
+                         
+                         <span lang="EN-US" style="COLOR: fuchsia; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">select headline, date from WSJ where match(headline, </span></b></font><font
+                         size="2"><b><span
+                         lang="EN-US" style="COLOR: fuchsia; FONT-SIZE: 9pt; mso-ascii-font-family: 굴림; mso-bidi-font-size: 10.0pt; mso-fareast-font-family: 굴림">‘</span><span lang="EN-US" style="COLOR: fuchsia; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">korea</span>
+                         
+                         <span lang="EN-US" style="COLOR: fuchsia; FONT-SIZE: 9pt; mso-ascii-font-family: 굴림; mso-bidi-font-size: 10.0pt; mso-fareast-font-family: 굴림">’</span>
+                         <span lang="EN-US" style="COLOR: fuchsia; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">) &gt; 0</span><span
+                         lang="EN-US" style="COLOR: fuchsia; FONT-SIZE: 9pt; mso-ascii-font-family: 굴림; mso-bidi-font-size: 10.0pt; mso-fareast-font-family: 굴림">”</span><span lang="EN-US" style="COLOR: blue; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">);<br />
+                             <span style="font-size: 10pt">$result = OOSQL_ExeucteQuery($query</span><font
+                         size="2"><b><span lang="EN-US" style="COLOR: blue; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">);<br />
+                             </span></b></font><span style="font-size: 10pt">while(($row = OOSQL_FetchRow($result))
+                                 != ENDOFEVAL) {<br />
+                                 &nbsp &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp echo "</span></span></b></font><span
+                         style="mso-tab-count: 1"></span><span style="font-size: 9pt"><font size="2"><b><span
+                             style="color: #008080">&lt;TR&gt;&lt;TD&gt;</span></b></font><b><span
+                         lang="EN-US" style="COLOR: blue; FONT-FAMILY: 굴림; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">$row[0]</font></span><font
+                         size="2"><span lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">&lt;/TD&gt;&lt;TD&gt;</span><span
+                         lang="EN-US" style="COLOR: blue; FONT-FAMILY: 굴림; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">$row[1]</span><span lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt">&lt;/TD&gt;&lt;/TR&gt;<span
+                             style="color: #0000ff">"<br />
+                             }</span></span></font></b></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2"><strong>&lt;/?PHP&gt;<br />
+                         </strong>&lt;/TABLE&gt;</font></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-SIZE: 9pt; mso-ascii-font-family: 굴림; mso-bidi-font-size: 10.0pt; mso-fareast-font-family: 굴림"><font
+                         size="2">…</font></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px; text-align: left;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">&lt;/HTML&gt;</font></span></p>
+
+                        <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">&nbsp;</font></span>
+                 &nbsp;</td>
+
+                </tr>
+
+            </table></div>
+
+            <p class="MsoNormal" style="line-height:100%; margin-top:0px; margin-bottom:0px;"><span
+                         lang="EN-US" style="COLOR: teal; FONT-FAMILY: 굴림; FONT-SIZE: 9pt; mso-hansi-font-family: 'Times New Roman'; mso-bidi-font-size: 10.0pt"><font
+                         size="2">&nbsp;<br>&nbsp;</font></span> </p>
+
+	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+      style='mso-bidi-font-size:10.0pt;font-family:굴림'>지원 운영 체제 및 웹 
+            서버</span></font>
+	  
+	  
+<p style="line-height:130%; margin-top:0; margin-bottom:0; padding-left:20px;">
+
+<!--
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><span lang=EN-US style='font-size:10.0pt;font-family:굴림;mso-bidi-font-family:
+
+       "Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+
+       KO;mso-bidi-language:AR-SA'>Solaris 2.5 이상, Netscape Enterprise Server ver. 2.x, 3.5.x</span><br>
+     -->
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><span lang=EN-US style='font-size:10.0pt;font-family:굴림;mso-bidi-font-family:
+
+       "Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+
+       KO;mso-bidi-language:AR-SA'>Solaris 2.5 이상, Apache Server ver. 1.3 이상</span><br>
+<!--
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> IBM</font><br>
+
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> </font><span lang=EN-US style='font-size:10.0pt;font-family:굴림;mso-bidi-font-family:
+
+       "Times New Roman";mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:
+
+       KO;mso-bidi-language:AR-SA'>HP, Linux 등 기타 운영 체제 및 Web 서버 지원 가능 (연락 바람)</span>
+ -->
+ <font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> Red Hat Linux 7.1 이상, Apache Server ver. 1.3 이상</font><br>
+</p>
+
+
+            <p class="odysseus_header">&nbsp;
+
+            <p class="odysseus_header"><a name="응용분야"><font size="2"><img src="img/stl02-6.jpg"
+
+             width="395" height="35" border="0"></font></a></p>
+
+
+
+
+
+	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><br><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">대용량<span
+     style="font-family:굴림;"> DB 응용
+
+     <br></span></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+<!--
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">Mobile computing<span
+     style="font-family:굴림;">
+
+     <br></span></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+-->
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">멀티미디어 정보 검색시스템<br></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">Naver, Google 등과
+
+     같은 Massively Parallel Search Engine<br></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">Daum 카페와
+
+     같은 대용량 전자게시판 검색 시스템<br></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">Portal Service
+
+     <br></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">전자도서관 <br></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">인터넷/인트라넷/Enterprise Search Engine
+
+     </font></span>
+          <p style="margin-top: 0px; margin-bottom: 0px; line-height: 130%">
+              <span style="font-family: 굴림; mso-bidi-font-size: 10.0pt"><font size="2"></font></span>
+              <font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style='font-family:굴림체; mso-bidi-font-size:12.0pt;
+
+mso-hansi-font-family:"Times New Roman";mso-bidi-font-family:"Times New Roman";
+
+mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:KO;
+
+mso-bidi-language:AR-SA'><font size="2">전자상거래 시스템</font></span>
+            <p>&nbsp;</p>
+</td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="750" valign="top"><p><font size="2"><img src="img/back_end.jpg"
+
+             width="750" height="1" border="0"></font></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" valign="middle"><p><img src="img/spacer01.jpg" width="134"
+
+             height="6" border="0"><img src="img/logo_kaist.jpg" width="62" height="19" border="0">&nbsp;</td>
+
+        <td width="566" valign="middle"><p align="right"><font size="1" color="gray">&nbsp;Copyright 
+
+            &copy; 2001-2005 By Kyu-Young Whang<br>All Rights Reserved.</font></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스</font></td>
+
+    </tr>
+
+</table>
+
+</body>
+
+
+
+</html>

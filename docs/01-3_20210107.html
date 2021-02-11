@@ -1,0 +1,468 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/T
+<html>
+<head>
+    <title>객체관계형 멀티미디어 DBMS-오디세우스</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=euc-kr" />
+    <meta name="generator" content="Namo WebEditor v5.0">
+ 
+<style type="text/css">
+    /* reset code */
+    table, tbody, td, tr {margin:0;padding:0;}
+</style>
+ 
+
+<script language="JavaScript">
+<!--
+function namosw_exchange_src(name, rpath, nsdoc) 
+{ 
+  str = (navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name;
+  img = eval(str);
+  if (img) {
+    if (img.altsrc == null) {
+      img.altsrc = img.src;
+      img.src    = rpath;
+    } else {
+      var temp   = img.src;
+      img.src    = img.altsrc;
+      img.altsrc = temp;
+    }
+  } 
+}
+
+
+
+//-->
+</script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script language="JavaScript">
+<!--
+function na_restore_img_src(name, nsdoc)
+{
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img && img.altsrc) {
+    img.src    = img.altsrc;
+    img.altsrc = null;
+  } 
+}
+
+function na_preload_img()
+{ 
+  var img_list = na_preload_img.arguments;
+  if (document.preloadlist == null) 
+    document.preloadlist = new Array();
+  var top = document.preloadlist.length;
+  for (var i=0; i < img_list.length; i++) {
+    document.preloadlist[top+i]     = new Image;
+    document.preloadlist[top+i].src = img_list[i+1];
+  } 
+}
+
+function na_change_img_src(name, nsdoc, rpath, preload)
+{ 
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img) {
+    img.altsrc = img.src;
+    img.src    = rpath;
+  } 
+}
+
+// -->
+</script>
+</head>
+
+<body bgcolor="white" text="black" link="navy" vlink="purple" alink="red" OnLoad="na_preload_img(false, 'img/go02_on.jpg', 'img/go01_on.jpg', 'img/mn01-1_on.jpg', 'img/mn01-2_on.jpg', 'img/mn01-3_on.jpg', 'img/mn02-1_on.jpg', 'img/mn02-2_on.jpg', 'img/mn02-3_on.jpg', 'img/mn02-4_on.jpg', 'img/mn02-7_on.jpg', 'img/mn02-8_on.jpg', 'img/mn02-6_on.jpg', 'img/mn02-5_on.jpg', 'img/mn03_on.jpg', 'img/mn06_on.jpg', 'img/mn04_on.jpg', 'img/mn05_on.jpg');">
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스</font></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="256" height="39"><a href="index.html"><img src="img/logo.jpg"
+             width="256" height="37" border="0"></a></td>
+        <td width="134" height="39"><img src="img/spacer01.jpg" width="134"
+             height="6" border="0"></td>
+        <td width="80" height="39" valign="bottom" background="img/top_mnu_back.jpg"><img src="img/top_mnu01.jpg"
+             width="80" height="22" border="0"></td>
+        <td width="275" height="39" valign="bottom" background="img/top_mnu_back.jpg" style="text-align:right;"> 
+             <a href="index.html"><img src="img/top_mn03.jpg" width="55"
+             height="22" border="0"></a><a href="map.html"><img src="img/top_mn02.jpg"
+             width="69" height="22" border="0"></a><a href="mailto:contact@odysseus.kaist.ac.kr"><img src="img/top_mn01.jpg"
+             width="63" height="22" border="0"></a></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" height="43" valign="top" background="img/gray_back.jpg"><img src="img/gray00.jpg"
+             width="25" height="43" border="0"></td>
+        <td width="172" height="43" valign="top" background="img/gray_back.jpg">&nbsp;</td>
+        <td width="384" height="43" valign="top" background="img/gray_back.jpg" style="text-align:right;">
+             <a href="http://aitrc.kaist.ac.kr" target="_blank"
+             onmouseout="na_restore_img_src('image13', 'document')"
+             onmouseover="na_change_img_src('image13', 'document', 'img/go02_on.jpg', true);"><img src="img/go02.jpg"
+             width="144" height="43" border="0" name="image13"></a><a href="http://dblab.kaist.ac.kr"
+             target="_blank" onmouseout="na_restore_img_src('image14', 'document')"
+             onmouseover="na_change_img_src('image14', 'document', 'img/go01_on.jpg', true);"><img src="img/go01.jpg"
+             width="200" height="43" border="0" name="image14"></a></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="top"><a href="01.html"><img src="img/mn01.jpg"
+             width="184" height="19" border="0"></a><a href="01.html" onmouseout="na_restore_img_src('image1', 'document')"
+             onmouseover="na_change_img_src('image1', 'document', 'img/mn01-1_on.jpg', true);"><img src="img/mn01-1.jpg"
+             width="184" height="20" border="0" name="image1"></a><a href="01-2.html"
+             onmouseout="na_restore_img_src('image2', 'document')"
+             onmouseover="na_change_img_src('image2', 'document', 'img/mn01-2_on.jpg', true);"><img src="img/mn01-2.jpg"
+             width="184" height="20" border="0" name="image2"></a><a href="01-3.html"
+             onmouseout="na_restore_img_src('image3', 'document')"
+             onmouseover="na_change_img_src('image3', 'document', 'img/mn01-3_on.jpg', true);"><img src="img/mn01-3_on.jpg"
+             width="184" height="20" border="0" name="image3"></a></td>
+        <td width="566" valign="top" background="img/back_main02.jpg"><img src="img/ttl01-3.jpg"
+             width="566" height="75" border="0"></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="top" background="img/back_main03.jpg"><img src="img/mn02.jpg"
+             width="184" height="20" border="0"><a href="02-1.html" onmouseout="na_restore_img_src('image4', 'document')"
+             onmouseover="na_change_img_src('image4', 'document', 'img/mn02-1_on.jpg', true);"><img src="img/mn02-1.jpg"
+             width="184" height="20" border="0" name="image4"></a><a href="02-2.html"
+             onmouseout="na_restore_img_src('image5', 'document')"
+             onmouseover="na_change_img_src('image5', 'document', 'img/mn02-2_on.jpg', true);"><img src="img/mn02-2.jpg"
+             width="184" height="20" border="0" name="image5"></a><a href="02-3.html"
+             onmouseout="na_restore_img_src('image6', 'document')"
+             onmouseover="na_change_img_src('image6', 'document', 'img/mn02-3_on.jpg', true);"><img src="img/mn02-3.jpg"
+             width="184" height="19" border="0" name="image6"></a><a href="02-4.html"
+             onmouseout="na_restore_img_src('image7', 'document')"
+             onmouseover="na_change_img_src('image7', 'document', 'img/mn02-4_on.jpg', true);"><img src="img/mn02-4.jpg"
+             width="184" height="21" border="0" name="image7"></a><a href="02-7.html"
+             onmouseout="na_restore_img_src('image15', 'document')"
+             onmouseover="na_change_img_src('image15', 'document', 'img/mn02-7_on.jpg', true);"><img src="img/mn02-7.jpg"
+             width="184" height="20" border="0" name="image15"></a><a href="02-8.html"
+             onmouseout="na_restore_img_src('image16', 'document')"
+             onmouseover="na_change_img_src('image16', 'document', 'img/mn02-8_on.jpg', true);"><img src="img/mn02-8.jpg"
+             width="184" height="20" border="0" name="image16"></a><a href="02-5.html"
+             onmouseout="na_restore_img_src('image8', 'document')"
+             onmouseover="na_change_img_src('image8', 'document', 'img/mn02-6_on.jpg', true);"><img src="img/mn02-6.jpg"
+             width="184" height="20" border="0" name="image8"></a><a href="02-6.html"
+             onmouseout="na_restore_img_src('image9', 'document')"
+             onmouseover="na_change_img_src('image9', 'document', 'img/mn02-5_on.jpg', true);"><img src="img/mn02-5.jpg"
+             width="184" height="20" border="0" name="image9"></a><a href="03.html"
+             onmouseout="na_restore_img_src('image10', 'document')"
+             onmouseover="na_change_img_src('image10', 'document', 'img/mn03_on.jpg', true);"><img src="img/mn03.jpg"
+             width="184" height="20" border="0" name="image10"></a><a href="http://organ.kaist.ac.kr:5830"
+             onmouseout="na_restore_img_src('image19', 'document')"
+             onmouseover="na_change_img_src('image19', 'document', 'img/mn06_on.jpg', true);" target="_blank"><img src="img/mn06.jpg"
+             width="184" height="20" border="0" name="image19"></a><a href="04.html"
+             onmouseout="na_restore_img_src('image11', 'document')"
+             onmouseover="na_change_img_src('image11', 'document', 'img/mn04_on.jpg', true);"><img src="img/mn04.jpg"
+             width="184" height="20" border="0" name="image11"></a><a href="05.html"
+             onmouseout="na_restore_img_src('image12', 'document')"
+             onmouseover="na_change_img_src('image12', 'document', 'img/mn05_on.jpg', true);"><img src="img/mn05.jpg"
+             width="184" height="25" border="0" name="image12"></a></p>
+            <p>&nbsp;</td>
+        <td width="33" valign="top"><p><font face="굴림" size="2">&nbsp;</font></td>
+        <td width="533" valign="top" background="img/back_main.jpg"><p><font face="굴림" size="2">&nbsp;</font></p>
+            <h2 class="odysseus_header"><b><font face="굴림" size="2"><img src="img/stl01-1.jpg" width="395"
+             height="35" border="0"></font></b></h2>
+            <ul>
+                <p class="odysseus_header" style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style="font-size:10pt; mso-bidi-font-size:10.0pt;">이달의 과학자상</span><span style="font-size:10pt;">
+     (1998. 5): 과학기술부/한국과학재단 <br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style="font-size:10pt; mso-bidi-font-size:10.0pt;">20세기 100대 기술상
+     (1999.12) : 과학기술부/서울경제신문<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style="font-size:10pt; mso-bidi-font-size:10.0pt;">정보문화상 기술상</span><span style="font-size:10pt;"> (1999. 6): 정보통신부/한국정보문화센터<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='font-size:10pt; mso-bidi-font-family:"Times New Roman";
+mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:KO;
+mso-bidi-language:AR-SA'>멀티미디어인상 기술 대상</span><span style="font-size:10pt;"> (1997): 한국멀티미디어협회<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">가헌학술상 (2001.10): 한국정보과학회/가헌과학기술재단<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">학술상 (2002.4): 한국정보과학회<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">2003년 올해의 KAIST인 상 (2004.1): 한국과학기술원<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">Best Demonstration Award (2005. 4): 
+                IEEE Int'l Conf. on Data Engineering (ICDE), Tokyo, Japan<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">과학기술우수논문상 (2005.5): 한국과학기술단체총연합회<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">한국의 대표적 기초연구성과 30선 선정, 
+                정보검색 및 공간 데이터베이스 기능과 밀결합된 객체관계형 DBMS 
+                “오디세우스/OOSQL” 개발 (2005. 11): 한국과학재단<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">2005년 국제협력상 (2006. 2): 한국과학기술원<br></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style="font-size:10pt;">2006년 우수연구성과 50선 선정, 64비트 
+                멀티쓰레드 DBMS 저장 시스템 “코스모스/MT-64” 개발 (2006. 8): 
+                한국과학재단</span> </p>
+                <p class="odysseus_header"><font size="2" face="굴림">&nbsp;</font></p>
+            </ul>
+            <h2 class="odysseus_header"><b><font face="굴림" size="2"><img src="img/stl01-2.jpg" width="395"
+             height="35" border="0"></font></b></h2>
+            <ul>
+                <p class="odysseus_header" style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">네오위즈<span
+     style="font-family:굴림;">
+     <!--<a href="http://finder.sayclub.com/finder_club.nwz">SayClub 웹 게시판 검색 엔진</a> (2001.5 ~ 2002.5) [그림 1]<br></span></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> -->
+     SayClub 웹 게시판 검색 엔진 (2001.5 ~ 2002.5) [그림 1]<br></span></font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">마이씨크 웹 검색 엔진<span
+     style="font-family:굴림;"> (2000.6 ~ 2001.5) [그림 2]<br></span></font></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">NAVER.COM㈜ 웹 검색
+     시스템인 네이버 (1997.7 ~ 2000.7) [그림 3]<br></font></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">NAVER.COM㈜ 신문 기사
+     검색 시스템인 뉴스 네이버 (1997.7 ~ 2000.7) [그림
+     4]<br></font></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">한국과학기술원 과학도서관의 <span
+     style="font-family:굴림;">전자도서관 [그림 5]<br></span></font></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">기초과학지원연구소의 학술지초록검색시스템<span
+     style="font-family:굴림;"> <br></span></font></span></span></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">수리과학정보센터의 <span
+     style="font-family:굴림;"><!-- <a href="http://tylo.kaist.ac.kr:2000/odysseus.drv?OWval=db_jour"> --> 논문검색시스템 <!-- </a> --> [그림 6]<br></span></font></span></span></span></span></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">대검찰청 법무</font></span><font size="2" face="굴림"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:Symbol;mso-ascii-font-family:
+     굴림;mso-fareast-font-family:굴림;mso-hansi-font-family:굴림;mso-char-type:symbol;
+     mso-symbol-font-family:Symbol'><span style='mso-char-type:symbol;
+     mso-symbol-font-family:Symbol'>&times;</span><span style='mso-bidi-font-size:
+     10.0pt;font-family:굴림'>검찰 종합자료검색시스템<span
+     lang=EN-US style="font-family:굴림;"> [그림 7]<br></span></span></span></font></span></span></span></span></span></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:Symbol;mso-ascii-font-family:
+     굴림;mso-fareast-font-family:굴림;mso-hansi-font-family:굴림;mso-char-type:symbol;
+     mso-symbol-font-family:Symbol'><span style='mso-bidi-font-size:
+     10.0pt;font-family:굴림'><span
+     lang=EN-US style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">한국인삼연초연구원의 연구정보 데이터베이스 시스템<br></font></span></span></span></span></span></span></span></span></span></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:Symbol;mso-ascii-font-family:
+     굴림;mso-fareast-font-family:굴림;mso-hansi-font-family:굴림;mso-char-type:symbol;
+     mso-symbol-font-family:Symbol'><span style='mso-bidi-font-size:
+     10.0pt;font-family:굴림'><span
+     lang=EN-US style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">한국과학기술원 전산학과 키오스크<span
+     style="font-family:굴림;"> [그림 8]<br></span></font></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:Symbol;mso-ascii-font-family:
+     굴림;mso-fareast-font-family:굴림;mso-hansi-font-family:굴림;mso-char-type:symbol;
+     mso-symbol-font-family:Symbol'><span style='mso-bidi-font-size:
+     10.0pt;font-family:굴림'><span
+     lang=EN-US style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><span
+     style="font-family:굴림;"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">KT&amp;G 중앙 연구원의 인삼 데이터베이스 검색 시스템<span
+     style="font-family:굴림;"> [그림 9]<br>&nbsp;</span></font></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span> </p>
+            </ul>
+            <p class="odysseus_header" align="center"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">&nbsp;<!-- <a href="http://finder.sayclub.com/finder_club.nwz">--><img src="img/ex01.jpg" width="200" height="182" border="0"><!--</a>-->
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="img/ex02.jpg" width="200" height="182" border="0"><br></font></span></p>
+            <p align="left" class="odysseus_header"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<!--<a href="http://finder.sayclub.com/finder_club.nwz">-->[그림 
+            1 &nbsp;네오위즈 SayClub 검색페이지]<!--</a>-->&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[그림 
+            2 &nbsp;Myseek 초기 페이지] </font></span></p>
+            <p class="odysseus_header" align="center"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림"><br><img src="img/ex03.jpg" width="200" height="157" border="0"> 
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="img/ex04.jpg" width="200" height="157" border="0"></font></span></p>
+
+
+<p class=MsoNormal align="left" style='text-align:center'><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">&nbsp;&nbsp;&nbsp;&nbsp;[그림 3 Naver 초기 페이지] 
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[그림 4 News Naver 초기 페이지<span
+style='font-family:바탕; mso-bidi-font-size:12.0pt;mso-hansi-font-family:
+"Times New Roman";mso-bidi-font-family:"Times New Roman";mso-font-kerning:1.0pt;
+mso-ansi-language:EN-US;mso-fareast-language:KO;mso-bidi-language:AR-SA'> ]</span></font></span></p>
+
+            <p class="odysseus_heade" align="center"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림"><!-- <a href="http://library.kaist.ac.kr/Ko/main/opacdetail.html"> --><img src="img/ex05.jpg" align="top" width="200" height="213" border="0"><!-- </a> -->&nbsp;&nbsp;&nbsp;&nbsp;
+            &nbsp;<!--<a href="http://tylo.kaist.ac.kr:2000/odysseus.drv?OWval=db_jour">--><img src="img/ex06-1.jpg" width="200" height="178" border="0"><!--</a>-->&nbsp;</font></span></p>
+<span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[그림 5 전자도서관 검색 페이지]
+            &nbsp;&nbsp;&nbsp;&nbsp;<!-- <a href="http://tylo.kaist.ac.kr:2000/odysseus.drv?OWval=db_jour"> --> [그림 6 수리과학정보센터 논문검색시스템]<!-- </a> --><span
+style='font-family:바탕; mso-bidi-font-size:12.0pt;mso-hansi-font-family:
+"Times New Roman";mso-bidi-font-family:"Times New Roman";mso-font-kerning:1.0pt;
+mso-ansi-language:EN-US;mso-fareast-language:KO;mso-bidi-language:AR-SA'> </span></font></span>
+            <p class="odysseus_header" align="center"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림"><img src="img/ex07.jpg" align="top" width="200" height="154" border="0"> 
+            &nbsp;&nbsp;&nbsp;&nbsp; 
+            &nbsp;<img src="img/ex08.jpg" width="200" height="170" border="0"></font></span></p>
+            <p align="left"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[그림 7 대검찰청
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[그림 8 전산학과 키오스크]<br>&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;법무 검찰 종합자료검색시스템]</font><font face="굴림"> 
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</font></span>
+            <p class="odysseus_header" align="left"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+            <img src="img/ex09.jpg" align="top" width="200" height="154" border="0"> &nbsp;&nbsp;&nbsp;&nbsp; &nbsp;</font></span></p>
+            <p align="left"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;[그림 9 KT&amp;G 중앙 연구원의
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<br>&nbsp;&nbsp; &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;인삼 데이터베이스 검색 시스템]</font><font face="굴림"> 
+            &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</font></span>
+            <p align="center"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'>&nbsp;</span></p>
+            <p><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><b><font face="굴림" size="2"><img src="img/stl01-3.jpg" width="395"
+             height="35" border="0"></font></b></span></p>
+            <ul>
+                <p class="odysseus_header"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2" face="굴림">3</font><font face="굴림" size="2">억 1,040만원 
+                (2007년 3월 현재)&nbsp;</font></span> </p>
+                <p class="odysseus_header"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">&nbsp;</font></span></p>
+            </ul>
+            <h2 class="odysseus_header"><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><b><font face="굴림" size="2"><img src="img/stl01-4.jpg" width="395"
+             height="35" border="0"></font></b></span></h2>
+            <ul>
+                <p class="odysseus_header" style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">해외 
+                등록 5건 <br> </font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">해외
+                출원 5건 <br> </font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">국내 
+                등록 13건 <br> </font></span><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+                </b></font><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">국내 
+                출원 1건</font></span> </p>
+            </ul>
+            <p><span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font face="굴림" size="2">&nbsp;</font></span></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="top"><p><img src="img/back_end.jpg" width="750"
+             height="1" border="0"></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="middle"><p><img src="img/spacer01.jpg" width="134"
+             height="6" border="0"><img src="img/logo_kaist.jpg" width="62" height="19" border="0">&nbsp;</td>
+        <td width="566" valign="middle"><p align="right"><font size="1" color="gray">&nbsp;Copyright 
+            &copy; 2001-2005 By Kyu-Young Whang<br>All Rights Reserved.</font></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스</font></td>
+    </tr>
+</table>
+</body>
+
+</html>

@@ -1,0 +1,361 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/T
+<html>
+<head>
+    <title>객체관계형 멀티미디어 DBMS-오디세우스</title>
+    <meta http-equiv="Content-Type" content="text/html; charset=euc-kr" />
+    <meta name="generator" content="Namo WebEditor v5.0">
+
+ 
+<style type="text/css">
+    /* reset code */
+    table, tbody, td, tr {margin:0;padding:0;}
+</style>
+ 
+
+<script language="JavaScript">
+<!--
+function namosw_exchange_src(name, rpath, nsdoc) 
+{ 
+  str = (navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name;
+  img = eval(str);
+  if (img) {
+    if (img.altsrc == null) {
+      img.altsrc = img.src;
+      img.src    = rpath;
+    } else {
+      var temp   = img.src;
+      img.src    = img.altsrc;
+      img.altsrc = temp;
+    }
+  } 
+}
+
+
+
+//-->
+</script>
+
+
+
+
+
+<script language="JavaScript">
+<!--
+function na_restore_img_src(name, nsdoc)
+{
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img && img.altsrc) {
+    img.src    = img.altsrc;
+    img.altsrc = null;
+  } 
+}
+
+function na_preload_img()
+{ 
+  var img_list = na_preload_img.arguments;
+  if (document.preloadlist == null) 
+    document.preloadlist = new Array();
+  var top = document.preloadlist.length;
+  for (var i=0; i < img_list.length; i++) {
+    document.preloadlist[top+i]     = new Image;
+    document.preloadlist[top+i].src = img_list[i+1];
+  } 
+}
+
+function na_change_img_src(name, nsdoc, rpath, preload)
+{ 
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img) {
+    img.altsrc = img.src;
+    img.src    = rpath;
+  } 
+}
+
+// -->
+</script>
+</head>
+
+<body bgcolor="white" text="black" link="navy" vlink="purple" alink="red" OnLoad="na_preload_img(false, 'img/go02_on.jpg', 'img/go01_on.jpg', 'img/mn01-1_on.jpg', 'img/mn01-2_on.jpg', 'img/mn01-3_on.jpg', 'img/mn02-1_on.jpg', 'img/mn02-2_on.jpg', 'img/mn02-3_on.jpg', 'img/mn02-4_on.jpg', 'img/mn02-7_on.jpg', 'img/mn02-8_on.jpg', 'img/mn02-6_on.jpg', 'img/mn02-5_on.jpg', 'img/mn03_on.jpg', 'img/mn06_on.jpg', 'img/mn04_on.jpg', 'img/mn05_on.jpg');">
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스</font></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="256" height="39"><a href="index.html"><img src="img/logo.jpg"
+             width="256" height="37" border="0"></a></td>
+        <td width="134" height="39"><img src="img/spacer01.jpg" width="134"
+             height="6" border="0"></td>
+        <td width="80" height="39" valign="bottom" background="img/top_mnu_back.jpg"><img src="img/top_mnu01.jpg"
+             width="80" height="22" border="0"></td>
+        <td width="275" height="39" valign="bottom" background="img/top_mnu_back.jpg" style="text-align:right;">
+             <a href="index.html"><img src="img/top_mn03.jpg" width="55"
+             height="22" border="0"></a><a href="map.html"><img src="img/top_mn02.jpg"
+             width="69" height="22" border="0"></a><a href="mailto:contact@odysseus.kaist.ac.kr"><img src="img/top_mn01.jpg"
+             width="63" height="22" border="0"></a></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" height="43" valign="top" background="img/gray_back.jpg"><img src="img/gray00.jpg"
+             width="25" height="43" border="0"></td>
+        <td width="172" height="43" valign="top" background="img/gray_back.jpg">&nbsp;</td>
+        <td width="384" height="43" valign="top" background="img/gray_back.jpg" style="text-align:right;">
+             <a href="http://aitrc.kaist.ac.kr" target="_blank"
+             onmouseout="na_restore_img_src('image13', 'document')"
+             onmouseover="na_change_img_src('image13', 'document', 'img/go02_on.jpg', true);"><img src="img/go02.jpg"
+             width="144" height="43" border="0" name="image13"></a><a href="http://dblab.kaist.ac.kr"
+             target="_blank" onmouseout="na_restore_img_src('image14', 'document')"
+             onmouseover="na_change_img_src('image14', 'document', 'img/go01_on.jpg', true);"><img src="img/go01.jpg"
+             width="200" height="43" border="0" name="image14"></a></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="top"><a href="01.html"><img src="img/mn01.jpg"
+             width="184" height="19" border="0"></a><a href="01.html" onmouseout="na_restore_img_src('image1', 'document')"
+             onmouseover="na_change_img_src('image1', 'document', 'img/mn01-1_on.jpg', true);"><img src="img/mn01-1.jpg"
+             width="184" height="20" border="0" name="image1"></a><a href="01-2.html"
+             onmouseout="na_restore_img_src('image2', 'document')"
+             onmouseover="na_change_img_src('image2', 'document', 'img/mn01-2_on.jpg', true);"><img src="img/mn01-2_on.jpg"
+             width="184" height="20" border="0" name="image2"></a><a href="01-3.html"
+             onmouseout="na_restore_img_src('image3', 'document')"
+             onmouseover="na_change_img_src('image3', 'document', 'img/mn01-3_on.jpg', true);"><img src="img/mn01-3.jpg"
+             width="184" height="20" border="0" name="image3"></a></td>
+        <td width="566" valign="top" background="img/back_main02.jpg"><img src="img/ttl01-2.jpg"
+             width="566" height="75" border="0"></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="top" background="img/back_main03.jpg"><img src="img/mn02.jpg"
+             width="184" height="20" border="0"><a href="02-1.html" onmouseout="na_restore_img_src('image4', 'document')"
+             onmouseover="na_change_img_src('image4', 'document', 'img/mn02-1_on.jpg', true);"><img src="img/mn02-1.jpg"
+             width="184" height="20" border="0" name="image4"></a><br> <a href="02-2.html"
+             onmouseout="na_restore_img_src('image5', 'document')"
+             onmouseover="na_change_img_src('image5', 'document', 'img/mn02-2_on.jpg', true);"><img src="img/mn02-2.jpg"
+             width="184" height="20" border="0" name="image5"></a><a href="02-3.html"
+             onmouseout="na_restore_img_src('image6', 'document')"
+             onmouseover="na_change_img_src('image6', 'document', 'img/mn02-3_on.jpg', true);"><img src="img/mn02-3.jpg"
+             width="184" height="19" border="0" name="image6"></a><a href="02-4.html"
+             onmouseout="na_restore_img_src('image7', 'document')"
+             onmouseover="na_change_img_src('image7', 'document', 'img/mn02-4_on.jpg', true);"><img src="img/mn02-4.jpg"
+             width="184" height="21" border="0" name="image7"></a><a href="02-7.html"
+             onmouseout="na_restore_img_src('image15', 'document')"
+             onmouseover="na_change_img_src('image15', 'document', 'img/mn02-7_on.jpg', true);"><img src="img/mn02-7.jpg"
+             width="184" height="20" border="0" name="image15"></a><a href="02-8.html"
+             onmouseout="na_restore_img_src('image16', 'document')"
+             onmouseover="na_change_img_src('image16', 'document', 'img/mn02-8_on.jpg', true);"><img src="img/mn02-8.jpg"
+             width="184" height="20" border="0" name="image16"></a><a href="02-5.html"
+             onmouseout="na_restore_img_src('image8', 'document')"
+             onmouseover="na_change_img_src('image8', 'document', 'img/mn02-6_on.jpg', true);"><img src="img/mn02-6.jpg"
+             width="184" height="20" border="0" name="image8"></a><a href="02-6.html"
+             onmouseout="na_restore_img_src('image9', 'document')"
+             onmouseover="na_change_img_src('image9', 'document', 'img/mn02-5_on.jpg', true);"><img src="img/mn02-5.jpg"
+             width="184" height="20" border="0" name="image9"></a><a href="03.html"
+             onmouseout="na_restore_img_src('image10', 'document')"
+             onmouseover="na_change_img_src('image10', 'document', 'img/mn03_on.jpg', true);"><img src="img/mn03.jpg"
+             width="184" height="20" border="0" name="image10"></a><a href="http://organ.kaist.ac.kr:5830"
+             onmouseout="na_restore_img_src('image19', 'document')"
+             onmouseover="na_change_img_src('image19', 'document', 'img/mn06_on.jpg', true);" target="_blank"><img src="img/mn06.jpg"
+             width="184" height="20" border="0" name="image19"></a><a href="04.html"
+             onmouseout="na_restore_img_src('image11', 'document')"
+             onmouseover="na_change_img_src('image11', 'document', 'img/mn04_on.jpg', true);"><img src="img/mn04.jpg"
+             width="184" height="20" border="0" name="image11"></a><a href="05.html"
+             onmouseout="na_restore_img_src('image12', 'document')"
+             onmouseover="na_change_img_src('image12', 'document', 'img/mn05_on.jpg', true);"><img src="img/mn05.jpg"
+             width="184" height="25" border="0" name="image12"></a></p>
+            <p>&nbsp;</td>
+        <td width="33" valign="top"><p>&nbsp;</td>
+        <td width="533" valign="top" background="img/back_main.jpg"><p>&nbsp;</p>
+            <p><font size="2"><b>오디세우스의 주요 기능은 다음과 같습니다.</b></font></p>
+            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>정보검색기능이 
+            밀결합된 객체지향 SQL(Object-Oriented SQL: OOSQL) 기반 질의어 제공 
+            </font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 정보검색기능과 데이터베이스 기능이 밀결합된 아키텍쳐<br><img src="img/bullet_2.gif" width="6" height="6" border="0"> 밀결합 아키텍쳐를 사용하여 빠른 검색 성능 제공<br><img src="img/bullet_2.gif" width="6" height="6" border="0"> 범용 데이터베이스 시스템이면서 전용 검색 엔진보다 빠른 검색 성능 제공</font>            <ul>                <font size="2"><img src="img/bullet_3.gif" align="absmiddle" width="3" height="3" border="0"> 
+                10만건의 질의 결과를 400ms(cold), 150ms(hot), 50ms(예측모델)에 검색<sup>1</sup></font>			</ul>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 정보검색을 위한 데이터 타입 및 연산자 제공 <br><img src="img/bullet_2.gif" width="6" height="6" border="0"> 키워드 기반 텍스트 검색과 다수의 속성(필드)이 관련된 검색을 통합적으로 수행 </font>            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>SQL3 
+            표준 지원 </font></p>
+            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>Web과 
+            데이터베이스 연동 기능 지원 </font></p>
+            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>대용량 
+            데이터베이스 지원 </font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 64 bit 플랫폼 지원<br><img src="img/bullet_2.gif" width="6" height="6" border="0"> 최대 
+                32 Zetabyte(2<sup>70</sup>)의 데이터베이스 볼륨 지원<sup>2<br></sup><img src="img/bullet_2.gif" width="6" height="6" border="0"> 다수의 
+                데이터베이스 볼륨을 동시에 사용하여 무한대에 가까운 대용량 데이터베이스를 
+                지원 <br><img src="img/bullet_2.gif" width="6" height="6" border="0"> 최대 
+                32 Zetabyte(2<sup>70</sup>)의 테이블 지원<sup>3<br></sup><img src="img/bullet_2.gif" width="6" height="6" border="0"> 최대 
+                8 Exabyte(2<sup>60</sup>)의 레코드 지원 </font>            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>Bulkloading 
+            기능 제공</font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 100만건의 텍스트 정보 및 인덱스를 4시간 이내에 구축<sup>4</sup> (문서당 8KByte 기준)<br><img src="img/bullet_2.gif" width="6" height="6" border="0"> 100만건의 
+                비텍스트 정보 및 인덱스를 20분 이내에 구축<sup>5</sup> </font>            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>Bulkdelete 
+            기능 제공 (unique feature)</font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 빠른 
+                속도로 색인을 포함한 텍스트, 비텍스트 정보를 삭제</font>            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>동적 
+            수정 기능 제공 </font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 변경 
+                사항이 즉시 텍스트 정보 검색에 반영 (Immediate/Incremental Update)<br><img src="img/bullet_2.gif" width="6" height="6" border="0"> 텍스트 
+                정보 검색이 바로 반영되므로 데이터베이스 변경을 위한 시스템 
+                정지가 필요 없음 </font>            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>다중 
+            서버 지원</font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 다중 
+                서버에서 Buffer Coherency 지원 (Volume Lock 버전)</font>            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>다중 
+            사용자에 의한 동적 수정 지원</font></p>
+            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>멀티
+            쓰레드 기능 지원 (레코드 락 버전, 볼륨 락 버전) </font></p>
+            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>동시성 
+            제어 기능 제공 </font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 볼륨 
+                락(Volume Lock - coarse granularity locking) 버전 </font>            <ul>
+                <font size="2"><img src="img/bullet_3.gif" align="absmiddle" width="3" height="3" border="0"> 
+                동시성 제어를 위한 락의 개수를 줄여 최적의 
+                    질의 처리 성능 및 데이터 관리 성능 발휘<br><img src="img/bullet_3.gif" align="absmiddle" width="3" height="3" border="0"> 
+                동시에 다수의 읽기 질의와 소수의 쓰기 
+                    질의를 지원 <br><img src="img/bullet_3.gif" align="absmiddle" width="3" height="3" border="0"> 
+                정보검색과 같은 읽기 질의 위주의 응용에 
+                    적합 </font>            </ul>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 레코드 
+                락(Record Lock - fine granularity locking) 버전 </font>            <ul>
+                <font size="2"><img src="img/bullet_3.gif" align="absmiddle" width="3" height="3" border="0"> 
+                동시에 다수의 읽기 질의와 다수의 쓰기 
+                    질의를 지원 <br><img src="img/bullet_3.gif" align="absmiddle" width="3" height="3" border="0"> 
+                다 사용자 환경에서의 안전성을 위해 5년간의 테스트 완료 </font>            </ul>
+            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>파손회복 
+            기능 제공 </font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 시스템이 
+            비정상 종료되었을 경우, 데이터베이스 내 정보를 자동으로 복구 </font>            <p><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b>검색엔진으로 사용 시
+            </font></p>
+
+	  
+	  
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 사이트 제한검색, 
+			도메인 제한검색, 커뮤니티 제한검색 기능</font>            <ul>
+                <font size="2"><img src="img/bullet_3.gif" align="absmiddle" width="3" height="3" border="0"> 
+                <font size="2">특정 사이트, 특정 도메인,
+		   	    특정 커뮤니티(관련된 사이트들의 모임)로 검색 범위를 제한하는 기능
+            	</font></font>            </ul>
+		    <font size="2">&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<img src="img/sear7.gif" ><br>&nbsp;</font>
+
+
+
+
+
+
+
+            <p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b><font size="2">JDBC 
+            Interface 제공 (베타)<br></font><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b><font size="2">ODBC 
+            Interface 제공 (베타)<br></font><b><img src="img/bullet_1.gif" width="9" height="9" border="0"> 
+            </b><font size="2">View 
+            지원 (베타)<br>&nbsp;</font></font></p>
+            <hr>
+            <p><font size="2"><font size="2" color="gray"><sup>1</sup> 일부 검색엔진에서는 
+            질의 결과 수를 추정하여 표시하고 있으나 본 수치는 실제 10만건의 
+            질의 결과를 검색하는데 소요되는 시간임. 성능 측정 platform: Sun Blade2000, 900MHz.</font></font></p>
+            <p><font size="2"><font size="2" color="gray"><sup>2</sup> 이 값은 데이터베이스 페이지 크기를 
+            4 Kilobyte로 설정하였을 경우의 크기로 페이지크기에 비례하는 값임. 
+            즉 페이지 크기를 8 Kilobyte로 설정할 경우 이의 두 배인 64 Zetabyte(2<sup>70</sup>)까지 
+            지원 가능함.</font></font></p>
+            <p><font size="2"><font size="2" color="gray"><sup>3</sup> 이 값은 데이터베이스 페이지 크기를 
+            4 Kilobyte로 설정하였을 경우의 크기임. 데이터베이스 크기와 마찬가지로 
+            페이지 크기에 비례함.</font></font></p>
+            <p><font size="2"><font size="2" color="gray"><sup>4</sup> 키워드 추출 시간은 제외된 것임.</font></font></p>
+            <p><font size="2"><font size="2" color="gray"><sup>5</sup> 5개의 데이터베이스 속성으로 구성된 
+            테이블 1개와 1개의 B+-Tree를 구축한 것임<br>&nbsp;</font></font></p>
+            </ul>
+</td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="top"><p><img src="img/back_end.jpg" width="750"
+             height="1" border="0"></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="184" valign="middle"><p><img src="img/spacer01.jpg" width="134"
+             height="6" border="0"><img src="img/logo_kaist.jpg" width="62" height="19" border="0">&nbsp;</td>
+        <td width="566" valign="middle"><p align="right"><font size="1" color="gray">&nbsp;Copyright 
+            &copy; 2001-2005 By Kyu-Young Whang<br>All Rights Reserved.</font></td>
+    </tr>
+</table>
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+    <tr>
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+            오디세우스 오디세우스 오디세우스</font></td>
+    </tr>
+</table>
+</body>
+
+</html>

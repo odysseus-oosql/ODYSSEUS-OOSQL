@@ -1,0 +1,105 @@
+TD {
+	font-family: ±¼¸²; 
+	font-size: 9pt; 
+	font-style: normal; 
+	line-height: normal; 
+	color: #000000 ; 
+	background-color: none;
+	text-decoration: none;
+	line-height:18px;
+}
+A:link {
+	font-family: ±¼¸²; 
+	font-size: 9pt; 
+	font-style: normal; 
+	line-height: normal; 
+	color: #FFFFFF ; 
+	text-decoration: underline
+}
+A:visited {
+	font-family: ±¼¸²; 
+	font-size: 9pt; 
+	font-style: normal; 
+	line-height: normal; 
+	color: #CCFFFF ; 
+	text-decoration: none
+	text-decoration: underline
+}
+A:active {
+	font-family: ±¼¸²; 
+	font-size: 9pt; 
+	font-style: normal; 
+	line-height: normal; 
+	color: #FF3300 ; 
+	text-decoration: none
+}
+A:hover {
+	font-family: ±¼¸²; 
+	font-size: 9pt; 
+	font-style: normal; 
+	line-height: normal; 
+	color: #FFFF00 ; 
+	text-decoration: underline
+}
+TD.Border {
+	font-size : 9pt;
+	font-family : ±¼¸²;
+	border-bottom : solid 1px #000000;
+	border-top : solid 1px #000000;
+	border-left : solid 1px #000000;
+	border-right : solid 1px #000000;
+}
+TR.title {
+	text-align : center;
+	font-weight : bold;
+	height : 25;
+	vertical-align : sub;
+	border-bottom : solid 1px #000000;
+	border-top : solid 1px #000000;
+	border-left : solid 1px #000000;
+	border-right : solid 1px #000000;
+	background-color : #8d8d8d
+}
+TR.list_1 {
+	background-color: #efefef;
+	padding-top : 2px;
+}
+TR.list_2 {
+	background: #FFFFFF;
+	padding-top : 2px;
+}
+TABLE.border {
+	border-bottom : solid 1px #000000;
+	border-top : solid 1px #000000;
+	border-left : solid 1px #000000;
+	border-right : solid 1px #000000;
+}
+TEXTAREA
+{
+    font-size : 9pt;
+    font-family : ±¼¸²;
+	background-color : #ffffff;
+    border-bottom : solid 1px #000000;
+	border-top : solid 1px #000000;
+	border-left : solid 1px #000000;
+	border-right : solid 1px #000000;
+}
+INPUT.text {
+	font-size : 9pt;
+	font-family : ±¼¸²;
+	color : #000000;
+	border-bottom : solid 1px #000000;
+	border-top : solid 1px #000000;
+	border-left : solid 1px #000000;
+	border-right : solid 1px #000000;
+}
+INPUT.button {
+	font-size : 9pt;
+	font-family : ±¼¸²;
+	color : #000000;
+	background: #FFFFFF;
+	border-bottom : solid 1px #000000;
+	border-top : solid 1px #000000;
+	border-left : solid 1px #000000;
+	border-right : solid 1px #000000;
+}

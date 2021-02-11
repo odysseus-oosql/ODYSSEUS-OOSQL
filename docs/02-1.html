@@ -1,0 +1,626 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/T
+<html>
+<head>
+<title>객체관계형 멀티미디어 DBMS-오디세우스</title>
+<meta name="generator" content="Namo WebEditor v5.0">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+
+<meta name="generator" content="Namo WebEditor v5.0">
+
+<style type="text/css">
+    /* reset code */
+    table, tbody, td, tr {margin:0;padding:0;}
+</style>
+
+<script language="JavaScript">
+
+<!--
+
+function namosw_exchange_src(name, rpath, nsdoc) 
+
+{ 
+
+  str = (navigator.appName == 'Netscape') ? nsdoc+'.'+name : 'document.all.'+name;
+
+  img = eval(str);
+
+  if (img) {
+
+    if (img.altsrc == null) {
+
+      img.altsrc = img.src;
+
+      img.src    = rpath;
+
+    } else {
+
+      var temp   = img.src;
+
+      img.src    = img.altsrc;
+
+      img.altsrc = temp;
+
+    }
+
+  } 
+
+}
+
+
+
+
+
+
+
+//-->
+
+</script>
+
+
+
+
+
+
+
+
+
+
+
+<script language="JavaScript">
+<!--
+function na_restore_img_src(name, nsdoc)
+{
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img && img.altsrc) {
+    img.src    = img.altsrc;
+    img.altsrc = null;
+  } 
+}
+
+function na_preload_img()
+{ 
+  var img_list = na_preload_img.arguments;
+  if (document.preloadlist == null) 
+    document.preloadlist = new Array();
+  var top = document.preloadlist.length;
+  for (var i=0; i < img_list.length; i++) {
+    document.preloadlist[top+i]     = new Image;
+    document.preloadlist[top+i].src = img_list[i+1];
+  } 
+}
+
+function na_change_img_src(name, nsdoc, rpath, preload)
+{ 
+  var img = eval((navigator.appName.indexOf('Netscape', 0) != -1) ? nsdoc+'.'+name : 'document.all.'+name);
+  if (name == '')
+    return;
+  if (img) {
+    img.altsrc = img.src;
+    img.src    = rpath;
+  } 
+}
+
+// -->
+</script>
+</head>
+
+
+
+<body bgcolor="white" text="black" link="navy" vlink="purple" alink="red" OnLoad="na_preload_img(false, 'img/go02_on.jpg', 'img/go01_on.jpg', 'img/mn01-1_on.jpg', 'img/mn01-2_on.jpg', 'img/mn01-3_on.jpg', 'img/mn02-1_on.jpg', 'img/mnp01_on.jpg', 'img/mnp02_on.jpg', 'img/mnp03_on.jpg', 'img/mnp04_on.jpg', 'img/mnp05_on.jpg', 'img/mnp06_on.jpg', 'img/mn02-2_on.jpg', 'img/mn02-3_on.jpg', 'img/mn02-4_on.jpg', 'img/mn02-7_on.jpg', 'img/mn02-8_on.jpg', 'img/mn02-6_on.jpg', 'img/mn02-5_on.jpg', 'img/mn03_on.jpg', 'img/mn06_on.jpg', 'img/mn04_on.jpg', 'img/mn05_on.jpg');">
+
+
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스</font></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="256" height="39"><a href="index.html"><img src="img/logo.jpg"
+
+             width="256" height="37" border="0"></a></td>
+
+        <td width="134" height="39"><img src="img/spacer01.jpg" width="134"
+
+             height="6" border="0"></td>
+
+        <td width="80" height="39" valign="bottom" background="img/top_mnu_back.jpg"><img src="img/top_mnu01.jpg"
+
+             width="80" height="22" border="0"></td>
+
+        <td width="275" height="39" valign="bottom" background="img/top_mnu_back.jpg" style="text-align:right;">
+             <a href="index.html"><img src="img/top_mn03.jpg" width="55"
+
+             height="22" border="0"></a><a href="map.html"><img src="img/top_mn02.jpg"
+
+             width="69" height="22" border="0"></a><a href="mailto:contact@odysseus.kaist.ac.kr"><img src="img/top_mn01.jpg"
+
+             width="63" height="22" border="0"></a></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" height="43" valign="top" background="img/gray_back.jpg"><img src="img/gray00.jpg"
+
+             width="25" height="43" border="0"></td>
+
+        <td width="172" height="43" valign="top" background="img/gray_back.jpg">&nbsp;</td>
+
+        <td width="384" height="43" valign="top" background="img/gray_back.jpg" style="text-align:right;">
+             <a href="../" target="_blank"
+             onmouseout="na_restore_img_src('image13', 'document')"
+             onmouseover="na_change_img_src('image13', 'document', 'img/go02_on.jpg', true);"><img src="img/go02.jpg"
+
+             width="144" height="43" border="0" name="image13"></a><a href="../"
+             target="_blank" onmouseout="na_restore_img_src('image14', 'document')"
+             onmouseover="na_change_img_src('image14', 'document', 'img/go01_on.jpg', true);"><img src="img/go01.jpg"
+
+             width="200" height="43" border="0" name="image14"></a></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" valign="top"><a href="01.html"><img src="img/mn01.jpg"
+
+             width="184" height="19" border="0"></a><a href="01.html" onmouseout="na_restore_img_src('image1', 'document')"
+             onmouseover="na_change_img_src('image1', 'document', 'img/mn01-1_on.jpg', true);"><img src="img/mn01-1.jpg"
+
+             width="184" height="20" border="0" name="image1"></a><a href="01-2.html"
+             onmouseout="na_restore_img_src('image2', 'document')"
+             onmouseover="na_change_img_src('image2', 'document', 'img/mn01-2_on.jpg', true);"><img src="img/mn01-2.jpg"
+
+             width="184" height="20" border="0" name="image2"></a><a href="01-3.html"
+             onmouseout="na_restore_img_src('image3', 'document')"
+             onmouseover="na_change_img_src('image3', 'document', 'img/mn01-3_on.jpg', true);"><img src="img/mn01-3.jpg"
+
+             width="184" height="20" border="0" name="image3"></a></td>
+
+        <td width="566" valign="top" background="img/back_main02.jpg"><img src="img/ttl02-1.jpg"
+
+             width="566" height="75" border="0"></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" valign="top" background="img/back_main03.jpg"><img src="img/mn02.jpg"
+
+             width="184" height="20" border="0"><a href="02-1.html" onmouseout="na_restore_img_src('image4', 'document')"
+             onmouseover="na_change_img_src('image4', 'document', 'img/mn02-1_on.jpg', true);"><img src="img/mn02-1_on.jpg"
+
+             width="184" height="20" border="0" name="image4"></a><a href="#제품요약"
+             onmouseout="na_restore_img_src('image15', 'document')"
+             onmouseover="na_change_img_src('image15', 'document', 'img/mnp01_on.jpg', true);"><img src="img/mnp01.jpg"
+
+             width="184" height="20" border="0" name="image15"></a><a href="#"
+             onmouseout="na_restore_img_src('image16', 'document')"
+             onmouseover="na_change_img_src('image16', 'document', 'img/mnp02_on.jpg', true);"><img src="img/mnp02.jpg"
+
+             width="184" height="21" border="0" name="image16"></a><a href="#아키텍쳐"
+             onmouseout="na_restore_img_src('image17', 'document')"
+             onmouseover="na_change_img_src('image17', 'document', 'img/mnp03_on.jpg', true);"><img src="img/mnp03.jpg"
+
+             width="184" height="20" border="0" name="image17"></a><a href="#주요성능"
+             onmouseout="na_restore_img_src('image18', 'document')"
+             onmouseover="na_change_img_src('image18', 'document', 'img/mnp04_on.jpg', true);"><img src="img/mnp04.jpg"
+
+             width="184" height="20" border="0" name="image18"></a><a href="#개발방법"
+             onmouseout="na_restore_img_src('image19', 'document')"
+             onmouseover="na_change_img_src('image19', 'document', 'img/mnp05_on.jpg', true);"><img src="img/mnp05.jpg"
+
+             width="184" height="21" border="0" name="image19"></a><a href="#응용분야"
+             onmouseout="na_restore_img_src('image20', 'document')"
+             onmouseover="na_change_img_src('image20', 'document', 'img/mnp06_on.jpg', true);"><img src="img/mnp06.jpg"
+
+             width="184" height="22" border="0" name="image20"></a><a href="02-2.html"
+             onmouseout="na_restore_img_src('image5', 'document')"
+             onmouseover="na_change_img_src('image5', 'document', 'img/mn02-2_on.jpg', true);"><img src="img/mn02-2.jpg"
+
+             width="184" height="20" border="0" name="image5"></a><a href="02-3.html"
+             onmouseout="na_restore_img_src('image6', 'document')"
+             onmouseover="na_change_img_src('image6', 'document', 'img/mn02-3_on.jpg', true);"><img src="img/mn02-3.jpg"
+
+             width="184" height="19" border="0" name="image6"></a><a href="02-4.html"
+             onmouseout="na_restore_img_src('image7', 'document')"
+             onmouseover="na_change_img_src('image7', 'document', 'img/mn02-4_on.jpg', true);"><img src="img/mn02-4.jpg"
+
+             width="184" height="21" border="0" name="image7"></a><a href="02-7.html"
+             onmouseout="na_restore_img_src('image21', 'document')"
+             onmouseover="na_change_img_src('image21', 'document', 'img/mn02-7_on.jpg', true);"><img src="img/mn02-7.jpg"
+			 
+             width="184" height="20" border="0" name="image21"></a><a href="02-8.html"
+             onmouseout="na_restore_img_src('image22', 'document')"
+             onmouseover="na_change_img_src('image22', 'document', 'img/mn02-8_on.jpg', true);"><img src="img/mn02-8.jpg"
+			 
+             width="184" height="20" border="0" name="image22"></a><a href="02-5.html"
+             onmouseout="na_restore_img_src('image8', 'document')"
+             onmouseover="na_change_img_src('image8', 'document', 'img/mn02-6_on.jpg', true);"><img src="img/mn02-6.jpg"
+
+             width="184" height="20" border="0" name="image8"></a><a href="02-6.html"
+             onmouseout="na_restore_img_src('image9', 'document')"
+             onmouseover="na_change_img_src('image9', 'document', 'img/mn02-5_on.jpg', true);"><img src="img/mn02-5.jpg"
+
+             width="184" height="20" border="0" name="image9"></a><a href="03.html"
+             onmouseout="na_restore_img_src('image10', 'document')"
+             onmouseover="na_change_img_src('image10', 'document', 'img/mn03_on.jpg', true);"><img src="img/mn03.jpg"
+
+             width="184" height="20" border="0" name="image10"></a><a href="http://organ.kaist.ac.kr:5830"
+             onmouseout="na_restore_img_src('image23', 'document')"
+             onmouseover="na_change_img_src('image23', 'document', 'img/mn06_on.jpg', true);" target="_blank"><img src="img/mn06.jpg"
+             width="184" height="20" border="0" name="image23"></a><a href="04.html"
+             onmouseout="na_restore_img_src('image11', 'document')"
+             onmouseover="na_change_img_src('image11', 'document', 'img/mn04_on.jpg', true);"><img src="img/mn04.jpg"
+
+             width="184" height="20" border="0" name="image11"></a><a href="05.html"
+             onmouseout="na_restore_img_src('image12', 'document')"
+             onmouseover="na_change_img_src('image12', 'document', 'img/mn05_on.jpg', true);"><img src="img/mn05.jpg"
+
+             width="184" height="25" border="0" name="image12"></a></p>
+
+            &nbsp;</td>
+
+        <td width="33" valign="top">&nbsp;</td>
+
+        <td width="533" valign="top" background="img/back_main.jpg">&nbsp;</p>
+
+            <p class="odysseus_header"><a name="제품요약"><img src="img/stl02-1.jpg"
+
+             width="395" height="35" border="0"></a></p>
+
+            <p class="odysseus"><font size="2">오디세우스는 객체관계형 멀티미디어 
+
+            데이터베이스 관리 시스템(DBMS)으로서 대용량 멀티미디어, 텍스트 정보검색, 
+
+            GIS/LBS, OLAP, 데이터마이닝등의 최신 응용에 적합한 DBMS이다. 오디세우스는 
+
+            특히 텍스트 정보검색 분야에서 세계 최초로 텍스트 정보검색(Information 
+
+            Retrieval: IR) 엔진과 밀결합(tight coupling)된 DBMS로서 한국어 및 
+
+            영문 텍스트에 대한 내용 기반 정보 검색을 제공하며, 텍스트의 삽입, 
+
+            삭제, 변경 등 동적 환경에서 최적 인덱스를 관리한다.&nbsp; </font></p>
+
+            <p class="odysseus_header">&nbsp;</p>
+
+            <p class="odysseus_header"><a name="제품연혁"><img src="img/stl02-2.jpg"
+
+             width="395" height="35" border="0"></a>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><br><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'>1995년 7월, 오디세우스(ODYSSEUS)
+
+     객체지향 멀티미디어 데이터베이스 관리 시스템 개발</span></font>
+	 
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 국내 최초의 OODBMS (V. 1.0)</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 9개 일간지 및 잡지에 보도 (전자신문 1면)</font><br>
+</p>
+
+
+	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'>1996년 5월, V.
+
+     1.5 개발</span></font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'>1997년 4월, 오디세우스/IR
+
+     개발 (V. 2.0)</span></font> 
+	 
+	 
+<p style="padding-left:20px">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 클라이언트/서버 아키텍쳐</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 세계 최초의 텍스트 정보검색시스템과 밀결합 (tight coupling)된 객체지향 DBMS</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 제 1회 대한민국 과학축전, 서울 국제 DB 쇼, Soft-Expo, IR-Expo 출품</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 13개 일간지 및 TV에 보도 (전자신문 1면, 대전 KBS 9시 뉴스 등)</font><br>
+</p>
+	 
+
+	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'>2001년 2월, 오디세우스/OOSQL
+
+     객체관계형 DBMS (Object Relational DBMS:ORDBMS)개발 (V. 3.0)</span></font>
+	 
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 관계형 DBMS의 성능과 안전성을 기반으로 객체 지향 개념의 유연성을 지원하는 최신 DBMS 아키텍쳐</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 복잡 다양한 데이터 유형을 객체 지향적으로 관리하고 이를 확장된 SQL질의어를 통해 효율적으로 처리</font><br>
+</p>
+
+
+	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'>2004년 10월, 코스모스/MT-64 다사용자 64-bit 멀티쓰레드 저장시스템 개발</span></font>
+	 
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 무한대에 가까운 대용량 데이터베이스 지원 (64-bit 아키텍처)</font>
+</p>
+<p style="padding-left:40px;">
+<font size="2"><img src="img/bullet_3.gif" width="3" height="3" border="0"> 최대 32 ZetaBytes(10<sup>21</sup>)의 테이블(클래스) 지원</font><br>
+<font size="2"><img src="img/bullet_3.gif" width="3" height="3" border="0"> 최대 8 ExaBytes(10<sup>18</sup>)의 레코드(객체) 지원</font><br>
+</p>
+<p style="padding-left:20px">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 중앙일보, 전자신문 등 15개 주요 일간지에 보도</font><br>
+</p>
+	 
+
+	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'>2005년 2월, 오디세우스/OOSQL-SQL3 객체관계형 DBMS/검색 엔진 개발 (V. 3.5)</span></font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+     lang=EN-US style='mso-bidi-font-size:10.0pt;font-family:굴림'>2005년 11월, 오디세우스/XML 개발</span></font>
+
+
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 성능이 검증된 오디세우스 ORDBMS를 기반 엔진으로 활용</font>
+</p>
+<p style="padding-left:40px;">
+<font size="2"><img src="img/bullet_3.gif" width="3" height="3" border="0"> 빠른 질의 처리 기능</font><br>
+<font size="2"><img src="img/bullet_3.gif" width="3" height="3" border="0"> 무한대에 가까운 대용량 데이터베이스 지원</font><br>
+<font size="2"><img src="img/bullet_3.gif" width="3" height="3" border="0"> 우수한 동시성 제어 기능 및 파손 회복 기능 지원</font><br>
+</p>
+<p style="padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 표준 XML 질의 언어인 XQuery 지원 (국내 최초 개발)</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> XML 질의 최적화 기술 탑재 (예: Nested query normalization)</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 정보 검색에 필수적인 전문 검색 (full-text search) 지원</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> Oracle, Microsoft SQL Server, IBM DB2 등 상용 관계형 DBMS와도 연동 가능</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 조선일보, 전자신문 등 9개 주요 일간지에 보도</font><br>
+</p>
+
+
+            <p class="odysseus_header"><a name="아키텍쳐"><img src="img/stl02-3.jpg"
+
+             width="395" height="35" border="0"></a></p>
+
+            <p><font size="2">오디세우스는 네트워크를 통한 클라이언트/서버 구조를 
+
+            가진다. 서버역할을 담당하는 오디세우스/OOSQL서버는 멀티미디어 객체 
+
+            저장 시스템인 오디세우스/COSMOS를 하부 저장 시스템으로 장착하여 
+
+            객체지향 SQL질의어(Odysseus Object-Oriented SQL: OOSQL)기반 다사용자 
+
+            동시 질의 처리, 파손 회복 기능, 트랜잭션 관리등의 기능을 수행한다. 
+
+            </font></p>
+
+            <p><font size="2">&nbsp;</font></p>
+
+            <p><font size="2">클라이언트 역할을 담당하는 오디세우스 클라이언트는 
+
+            사용자 인터페이스, 오디세우스/OOSQL 서버와의 통신, 그리고 객체 버퍼 
+
+            관리 등의 기능을 수행한다. 오디세우스 클라이언트는 C/C++ CLI (Call 
+
+            Level Interface)가 포함되어 있으며 사용자는 C/C++ CLI를 사용하여 
+
+            응용프로그램을 개발할 수 있다..</font></p>
+
+			<!--
+            <p align="center"><img src="img/archi-odysseus-1.gif" width="529" height="316"
+
+             border="0"></p>
+			 -->
+            <p align="center"><img src="img/archi-odysseus-1.gif" width="512" height="293" border="0"></p>
+
+            <p align="center">&nbsp;</p>
+
+            <p class="odysseus_header"><a name="주요성능"><img src="img/stl02-4.jpg"
+
+             width="395" height="35" border="0"></a><br>&nbsp;	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">세계 최초의 텍스트 정보검색<span
+     style="font-family:굴림;">(IR) 시스템과 밀결합된 객체관계형 멀티미디어 DBMS <o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">국내 최초 개발 객체지향<span
+     style="font-family:굴림;"> DBMS (버전 1 : 1995.7) <o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">객체관계형<span
+     style="font-family:굴림;">
+
+     DBMS로 개발 (2001년 2월)<o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">멀티미디어 데이터베이스 기능<span
+     style="font-family:굴림;"> <o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">클라이언트<span
+     style="font-family:굴림;">/서버
+
+     아키텍쳐 지원 (Windows 98/2000/XP/NT, Unix, Linux clients)<o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">대용량 멀티미디어 객체 저장 시스템<span
+     style="font-family:굴림;">(COSMOS) 장착 <o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">객체지향<span
+     style="font-family:굴림;"> SQL
+
+     기반 멀티미디어 정보검색용 질의어(Object-Oriented SQL: OOSQL) 지원 <o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">객체버퍼 관리<span
+     style="font-family:굴림;"> <o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span
+     style='mso-bidi-font-size:10.0pt;font-family:굴림'><font size="2">멀티미디어 복합객체<span
+     style="font-family:굴림;">(Composite Object)의 효율적 관리 <o:p></o:p></span></font></span>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <span style='font-family:굴림; mso-bidi-font-family:"Times New Roman";
+
+mso-font-kerning:1.0pt;mso-ansi-language:EN-US;mso-fareast-language:KO;
+
+mso-bidi-language:AR-SA'><font size="2">다사용자 동시 접근 기능 및 정교한<span style="font-family:굴림;"> WAL 기반 파손 회복 기법&nbsp;</span></font></span>            <p class="odysseus_header"><a name="개발방법"><img src="img/stl02-5.jpg"
+
+             width="395" height="35" border="0"></a></p>
+
+            <p><font size="2">오디세우스 클라이언트 응용프로그램은 오디세우스 
+
+            클라이언트의 C/C++ CLI를 사용하여 작성된다. 오디세우스가 지원하는 
+
+            운영체제와 컴파일러는 다음과 같다.</font></p>
+
+	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font size="2"><span
+      style='mso-bidi-font-size:10.0pt;font-family:굴림'>지원 운영 체제 및 컴파일러<span
+      style="font-family:굴림;"> <o:p></o:p></span></span></font>
+	  
+	  
+<p style="line-height:130%; margin-top:0; margin-bottom:0; padding-left:20px;">
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> Solaris 2.5 이상, SunC 4.0 이상</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> Windows 98/2000/XP/NT, Microsoft Visual C++ 5.0 이상</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> IBM</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> HP</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> Linux</font><br>
+<font size="2"><img src="img/bullet_2.gif" width="6" height="6" border="0"> 기타도 Porting 가능 (연락바람)</font>
+</p>
+
+
+            <p class="odysseus"><font size="2">&nbsp;</font></p>
+
+            <p class="odysseus_header"><a name="응용분야"><img src="img/stl02-6.jpg"
+
+             width="395" height="35" border="0"></a><br>&nbsp;	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">대용량 데이터베이스 
+
+                응용</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">Mobile computing
+
+                </font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">전자도서관(Digital 
+
+                Library)</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">인트라넷에서의 
+
+                정보검색 시스템 및 멀티미디어 DBMS</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">홈 쇼핑(Home 
+
+                Shopping)</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">초고속정보통신망 
+
+                응용을 위한 멀티미디어 정보 서버</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">하이퍼미디어 
+
+                시스템을 위한 하부 모듈</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">지리정보시스템(GIS)/LBS를 
+
+                위한 객체관계형 DBMS</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">컴퓨터 지원 
+
+                설계 및 생산(CAD/CAM) 데이터베이스 시스템</font>	<p style="line-height:130%; margin-top:0; margin-bottom:0;"><font size="2"><b><img src="img/bullet_1.gif" width="9" height="9" border="0"></b></font> 
+
+            <font face="굴림" size="2">전자상거래 시스템</font>            <p>&nbsp;</td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="750" valign="top"><p><img src="img/back_end.jpg" width="750"
+
+             height="1" border="0"></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="184" valign="middle"><p><img src="img/spacer01.jpg" width="134"
+
+             height="6" border="0"><img src="img/logo_kaist.jpg" width="62" height="19" border="0">&nbsp;</td>
+
+        <td width="566" valign="middle"><p align="right"><font size="1" color="gray">&nbsp;Copyright 
+
+            &copy; 2001-2005 By Kyu-Young Whang<br>All Rights Reserved.</font></td>
+
+    </tr>
+
+</table>
+
+<table border="0" cellpadding="0" cellspacing="0" width="750">
+
+    <tr>
+
+        <td width="750" valign="middle"><p align="left"><font size="1" color="white">오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 오디세우스 
+
+            오디세우스 오디세우스 오디세우스</font></td>
+
+    </tr>
+
+</table>
+
+</body>
+
+
+
+</html>
